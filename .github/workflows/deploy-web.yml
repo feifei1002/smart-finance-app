@@ -28,6 +28,9 @@ jobs:
           distribution: oracle
           java-version: 21
 
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
       - name: Build web distribution
         run: ./gradlew wasmJsBrowserDistribution
 
