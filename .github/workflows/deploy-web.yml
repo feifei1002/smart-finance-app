@@ -28,9 +28,6 @@ jobs:
           distribution: oracle
           java-version: 21
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
       - name: Build web distribution
         run: ./gradlew wasmJsBrowserDistribution
 
