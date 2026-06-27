@@ -16,12 +16,32 @@ fun main() {
 }
 
 fun Application.module() {
+    Database.connect()
+
+    environment.monitor.subscribe(ApplicationStopped) {
+        Database.close()
+    }
+
     routing {
         get("/") {
             call.respondText("Smart Finance backend is running")
         }
 
-        get("/health") {
+        get("/health/database") {
+            Database.dataSource.connection.use { connection ->
+                connection.prepareStatement(
+                    "SELECT current_database(), current_user"
+                ).use { statement ->
+                    statement.executeQuery().use { result ->
+                        result.next()
+
+                        call.respondText(
+                            "Connected to ${result.getString(1)} " +
+                                "as ${result.getString(2)}"
+                        )
+                    }
+                }
+            }
             call.respondText("OK")
         }
     }
