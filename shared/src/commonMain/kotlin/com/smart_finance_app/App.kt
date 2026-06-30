@@ -1,53 +1,54 @@
 package com.smart_finance_app
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.smart_finance_app.registration.RegistrationApi
+import com.smart_finance_app.registration.RegistrationResult
 import com.smart_finance_app.registration.RegistrationScreen
-import org.jetbrains.compose.resources.painterResource
-
-import smart_finance_app.shared.generated.resources.Res
-import smart_finance_app.shared.generated.resources.compose_multiplatform
+import kotlinx.coroutines.launch
 
 @Composable
+fun App(apiBaseUrl: String) {
+    MaterialTheme {
+        val api = remember(apiBaseUrl) { RegistrationApi(apiBaseUrl) }
+        val scope = rememberCoroutineScope()
+
+        var loading by remember { mutableStateOf(false) }
+        var error by remember { mutableStateOf<String?>(null) }
+        var registered by remember { mutableStateOf(false) }
+
+        if(registered) {
+            Text("Account created successfully")
+        } else {
+            RegistrationScreen(
+                isLoading = loading,
+                errorMessage = error,
+                onRegister = { form ->
+                    scope.launch {
+                        loading = true
+                        error = null
+                        when (val result = api.register(form)) {
+                            is RegistrationResult.Success -> registered = true
+                            is RegistrationResult.Failure -> error = result.message
+                        }
+                        loading = false
+                    }
+                }
+            )
+        }
+    }
+}
+
 @Preview
-fun App() {
+@Composable
+private fun RegistrationScreenPreview() {
     MaterialTheme {
         RegistrationScreen(
-            onRegister = { form -> println("Registering ${form.email}")}
+            isLoading = false,
+            errorMessage = null,
+            onRegister = {}
         )
-//        var showContent by remember { mutableStateOf(false) }
-//        Column(
-//            modifier = Modifier
-//                .background(MaterialTheme.colorScheme.primaryContainer)
-//                .safeContentPadding()
-//                .fillMaxSize(),
-//            horizontalAlignment = Alignment.CenterHorizontally,
-//        ) {
-//            Button(onClick = { showContent = !showContent }) {
-//                Text("Click me!")
-//            }
-//            AnimatedVisibility(showContent) {
-//                val greeting = remember { Greeting().greet() }
-//                Column(
-//                    modifier = Modifier.fillMaxWidth(),
-//                    horizontalAlignment = Alignment.CenterHorizontally,
-//                ) {
-//                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-//                    Text("Compose: $greeting")
-//                }
-//            }
-//        }
     }
 }
