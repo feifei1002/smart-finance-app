@@ -16,6 +16,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import org.jetbrains.compose.resources.painterResource
+import smart_finance_app.shared.generated.resources.Res
+import smart_finance_app.shared.generated.resources.visibility
+import smart_finance_app.shared.generated.resources.visibility_off
 
 data class RegistrationForm (
     val fullName: String,
@@ -120,8 +124,21 @@ fun RegistrationScreen (
                     if (showPassword) VisualTransformation.None
                     else PasswordVisualTransformation(),
                 trailingIcon = {
-                    TextButton(onClick = { showPassword = !showPassword }) {
-                        Text(if (showPassword) "Hide" else "Show")
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            painter = painterResource(
+                                if (showPassword) {
+                                    Res.drawable.visibility_off
+                                } else {
+                                    Res.drawable.visibility
+                                }
+                            ),
+                            contentDescription = if (showPassword) {
+                                "Hide password"
+                            } else {
+                                "Show password"
+                            }
+                        )
                     }
                 },
                 modifier = Modifier
