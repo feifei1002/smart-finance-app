@@ -35,6 +35,9 @@ fun App(apiBaseUrl: String) {
                         }
                         loading = false
                     }
+                },
+                onSignIn = {
+                    // Navigate to the sign-in screen later
                 }
             )
         }
@@ -48,7 +51,8 @@ private fun RegistrationScreenPreview() {
         RegistrationScreen(
             isLoading = false,
             errorMessage = null,
-            onRegister = {}
+            onRegister = {},
+            onSignIn = {}
         )
     }
 }
