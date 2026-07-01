@@ -23,6 +23,7 @@ kotlin {
             implementation(projects.shared)
 
             implementation(libs.compose.ui)
+            implementation(libs.wrappers.browser)
         }
     }
 }

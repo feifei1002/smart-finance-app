@@ -1,10 +1,14 @@
 package com.smart_finance_app.server
 
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.plugins.cors.routing.*
 
 fun main() {
     embeddedServer(
@@ -21,8 +25,17 @@ fun Application.module() {
     environment.monitor.subscribe(ApplicationStopped) {
         Database.close()
     }
+    install(ContentNegotiation) {
+        json()
+    }
+
+    install(CORS) {
+        anyHost()
+        allowHeader(HttpHeaders.ContentType)
+    }
 
     routing {
+        registrationRoutes()
         get("/") {
             call.respondText("Smart Finance backend is running")
         }
