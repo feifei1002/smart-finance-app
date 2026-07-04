@@ -18,7 +18,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import org.jetbrains.compose.resources.painterResource
+import smart_finance_app.shared.generated.resources.Res
+import smart_finance_app.shared.generated.resources.lock
+import smart_finance_app.shared.generated.resources.check_circle
+import smart_finance_app.shared.generated.resources.cancel
 
 data class ConsentItem(
     val text: String,
@@ -56,7 +60,12 @@ fun ReadOnlyConsentScreen(
                 .background(MaterialTheme.colorScheme.primary, shape = CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "🔒", fontSize = 24.sp)
+            Icon(
+                painter = painterResource(Res.drawable.lock),
+                contentDescription = "Secure",
+                tint = Color.White,
+                modifier = Modifier.size(32.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -80,7 +89,7 @@ fun ReadOnlyConsentScreen(
 
         Column(
             modifier = Modifier.fillMaxWidth()
-                                .padding(start = 80.dp),
+                .padding(start = 80.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             consentItems.forEach { ConsentRow(it) }
@@ -362,11 +371,13 @@ private fun ConsentRow(item: ConsentItem) {
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = if (item.allowed) "✓" else "✕",
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
+            Icon(
+                painter = painterResource(
+                    if (item.allowed) Res.drawable.check_circle else Res.drawable.cancel
+                ),
+                contentDescription = if (item.allowed) "Allowed" else "Not allowed",
+                tint = Color.White,
+                modifier = Modifier.size(16.dp)
             )
         }
         Text(
