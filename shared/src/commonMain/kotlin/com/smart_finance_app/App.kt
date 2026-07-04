@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.tooling.preview.Preview
 import com.smart_finance_app.consent.ReadOnlyConsentScreen
+import com.smart_finance_app.navigation.MainNavigation
 import com.smart_finance_app.registration.RegistrationApi
 import com.smart_finance_app.registration.RegistrationResult
 import com.smart_finance_app.registration.RegistrationScreen
@@ -14,7 +15,7 @@ import kotlinx.coroutines.launch
 private enum class Screen {
     Registration,
     Consent,
-    Dashboard
+    Main
 }
 
 @Composable
@@ -36,11 +37,14 @@ fun App(apiBaseUrl: String) {
                         scope.launch {
                             loading = true
                             error = null
-                            when (val result = api.register(form)) {
-                                is RegistrationResult.Success -> screen = Screen.Consent
-                                is RegistrationResult.Failure -> error = result.message
+                            try {
+                                when (val result = api.register(form)) {
+                                    is RegistrationResult.Success -> screen = Screen.Consent
+                                    is RegistrationResult.Failure -> error = result.message
+                                }
+                            } finally {
+                                loading = false
                             }
-                            loading = false
                         }
                     },
                     onSignIn = {
@@ -50,13 +54,13 @@ fun App(apiBaseUrl: String) {
             }
             Screen.Consent -> {
                 ReadOnlyConsentScreen(
-                    onContinue = { screen = Screen.Dashboard },
+                    onContinue = { screen = Screen.Main },
                     onCancel = { screen = Screen.Registration }
                 )
             }
-            Screen.Dashboard -> {
+            Screen.Main -> {
                 // TODO: replace with real Dashboard screen
-                Text("Welcome! Dashboard coming soon.")
+                MainNavigation()
             }
         }
     }
