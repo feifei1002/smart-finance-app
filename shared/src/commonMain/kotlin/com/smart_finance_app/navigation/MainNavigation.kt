@@ -8,6 +8,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import org.jetbrains.compose.resources.painterResource
+import com.smart_finance_app.accounts.AccountsScreen
+import com.smart_finance_app.accounts.ConnectedAccount
+
 
 @Composable
 fun MainNavigation() {
@@ -65,8 +68,16 @@ fun MainNavigation() {
 
 @Composable
 private fun NavigationContent(navigation: AppNavigation) {
-    Box(modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center) {
-        Text(navigation.label)
+    when (navigation) {
+        AppNavigation.Accounts -> AccountsScreen(
+
+            onConnectBank = { /* TODO: launch Open Banking flow */ }
+        )
+        else -> Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(navigation.label)
+        }
     }
 }
