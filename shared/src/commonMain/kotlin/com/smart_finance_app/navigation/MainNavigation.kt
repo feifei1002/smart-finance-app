@@ -70,11 +70,7 @@ fun MainNavigation() {
 private fun NavigationContent(navigation: AppNavigation) {
     when (navigation) {
         AppNavigation.Accounts -> AccountsScreen(
-            // Hardcoded sample accounts for UI testing — replace with real API data later
-            accounts = listOf(
-                ConnectedAccount(bankName = "Chase Checking", maskedNumber = "1234"),
-                ConnectedAccount(bankName = "Bank of America", maskedNumber = "5678")
-            ),
+
             onConnectBank = { /* TODO: launch Open Banking flow */ }
         )
         else -> Box(

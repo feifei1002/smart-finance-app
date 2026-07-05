@@ -87,32 +87,32 @@ private fun ConnectBankCard(onConnectBank: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Circle + icon
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .border(
-                        width = 2.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(Res.drawable.add),
-                    contentDescription = "Connect your bank",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
+            IconButton(onClick = onConnectBank) {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .border(
+                            width = 2.dp,
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(Res.drawable.add),
+                        contentDescription = "Connect your bank",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
 
-            TextButton(onClick = onConnectBank) {
-                Text(
-                    text = "Connect your bank",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            Text(
+                text = "Connect your bank",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
             Text(
                 text = "Search and connect your bank\nto get started.",
