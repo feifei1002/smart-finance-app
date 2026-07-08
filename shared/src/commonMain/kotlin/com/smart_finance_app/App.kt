@@ -23,7 +23,7 @@ fun App(apiBaseUrl: String) {
         val api = remember(apiBaseUrl) { RegistrationApi(apiBaseUrl) }
         val scope = rememberCoroutineScope()
 
-        var screen by remember { mutableStateOf(Screen.Registration) }
+        var screen by remember { mutableStateOf(Screen.Main) }
         var loading by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf<String?>(null) }
 

@@ -10,6 +10,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import org.jetbrains.compose.resources.painterResource
 import com.smart_finance_app.accounts.AccountsScreen
 import com.smart_finance_app.accounts.ConnectedAccount
+import com.smart_finance_app.dashboard.DashboardScreen
 
 
 @Composable
@@ -69,6 +70,7 @@ fun MainNavigation() {
 @Composable
 private fun NavigationContent(navigation: AppNavigation) {
     when (navigation) {
+        AppNavigation.Dashboard -> DashboardScreen()
         AppNavigation.Accounts -> AccountsScreen(
 
             onConnectBank = { /* TODO: launch Open Banking flow */ }
