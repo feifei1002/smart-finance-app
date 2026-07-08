@@ -13,7 +13,7 @@ import com.smart_finance_app.accounts.ConnectedAccount
 
 
 @Composable
-fun MainNavigation() {
+fun MainNavigation(onSignOut: () -> Unit) {
     var selected by remember { mutableStateOf(AppNavigation.Dashboard) }
 
     BoxWithConstraints(
@@ -61,23 +61,38 @@ fun MainNavigation() {
                 }
             }
         ) {
-            NavigationContent(selected)
+            NavigationContent(navigation = selected, onSignOut = onSignOut)
         }
     }
 }
 
 @Composable
-private fun NavigationContent(navigation: AppNavigation) {
+private fun NavigationContent(navigation: AppNavigation, onSignOut: () -> Unit) {
     when (navigation) {
         AppNavigation.Accounts -> AccountsScreen(
 
             onConnectBank = { /* TODO: launch Open Banking flow */ }
         )
+
+        AppNavigation.Settings -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Button(
+                    onClick = onSignOut
+                ) {
+                    Text("Sign out")
+                }
+            }
+        }
+
         else -> Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text(navigation.label)
         }
+
     }
 }
