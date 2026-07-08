@@ -9,7 +9,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import org.jetbrains.compose.resources.painterResource
 import com.smart_finance_app.accounts.AccountsScreen
-import com.smart_finance_app.accounts.ConnectedAccount
 
 
 @Composable
