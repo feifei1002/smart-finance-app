@@ -9,12 +9,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import org.jetbrains.compose.resources.painterResource
 import com.smart_finance_app.accounts.AccountsScreen
-import com.smart_finance_app.accounts.ConnectedAccount
-import com.smart_finance_app.dashboard.DashboardScreen
 
 
 @Composable
-fun MainNavigation() {
+fun MainNavigation(onSignOut: () -> Unit) {
     var selected by remember { mutableStateOf(AppNavigation.Dashboard) }
 
     BoxWithConstraints(
@@ -62,24 +60,38 @@ fun MainNavigation() {
                 }
             }
         ) {
-            NavigationContent(selected)
+            NavigationContent(navigation = selected, onSignOut = onSignOut)
         }
     }
 }
 
 @Composable
-private fun NavigationContent(navigation: AppNavigation) {
+private fun NavigationContent(navigation: AppNavigation, onSignOut: () -> Unit) {
     when (navigation) {
-        AppNavigation.Dashboard -> DashboardScreen()
         AppNavigation.Accounts -> AccountsScreen(
 
             onConnectBank = { /* TODO: launch Open Banking flow */ }
         )
+
+        AppNavigation.Settings -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Button(
+                    onClick = onSignOut
+                ) {
+                    Text("Sign out")
+                }
+            }
+        }
+
         else -> Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text(navigation.label)
         }
+
     }
 }
