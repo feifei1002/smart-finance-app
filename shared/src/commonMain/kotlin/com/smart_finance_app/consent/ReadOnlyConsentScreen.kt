@@ -31,6 +31,7 @@ data class ConsentItem(
 
 @Composable
 fun ReadOnlyConsentScreen(
+    errorMessage: String? = null,
     onContinue: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -284,6 +285,17 @@ fun ReadOnlyConsentScreen(
         Spacer(modifier = Modifier.height(4.dp))
 
         // ── Bottom buttons — always visible ───────────────────────────────
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         Button(
             onClick = onContinue,
             enabled = agreed,

@@ -1,5 +1,6 @@
 package com.smart_finance_app.registration
 
+import com.smart_finance_app.signin.AuthSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -20,15 +21,17 @@ private data class RegisterRequest(
 
 @Serializable
 data class RegisterResponse(
-    val id: String,
-    val email: String
+    val token: String,
+    val userId: String,
+    val email: String,
+    val consentAccepted: Boolean
 )
 
 @Serializable
 private data class ErrorResponse(val message: String)
 
 sealed interface RegistrationResult {
-    data class Success(val user: RegisterResponse) : RegistrationResult
+    data class Success(val session: AuthSession) : RegistrationResult
     data class Failure(val message: String) : RegistrationResult
 }
 
@@ -49,7 +52,18 @@ class RegistrationApi(private val baseUrl: String) {
             }
 
             when (response.status) {
-                HttpStatusCode.Created -> RegistrationResult.Success(response.body())
+                HttpStatusCode.Created -> {
+                    val body = response.body<RegisterResponse>()
+
+                    RegistrationResult.Success(
+                        AuthSession(
+                            token = body.token,
+                            userId = body.userId,
+                            email = body.email,
+                            consentAccepted = body.consentAccepted
+                        )
+                    )
+                }
                 HttpStatusCode.BadRequest,
                 HttpStatusCode.Conflict -> RegistrationResult.Failure(response.body<ErrorResponse>().message)
                 else -> RegistrationResult.Failure(
