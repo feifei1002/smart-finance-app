@@ -45,7 +45,6 @@ fun ReadOnlyConsentScreen(
     var agreed by remember { mutableStateOf(false) }
     val boxScrollState = rememberScrollState()
 
-    // Outer Column fills the screen — nothing scrolls except the consent box
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -53,7 +52,6 @@ fun ReadOnlyConsentScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        // ── Top static section ─────────────────────────────────────────────
         Spacer(modifier = Modifier.height(48.dp))
         Box(
             modifier = Modifier
@@ -106,18 +104,17 @@ fun ReadOnlyConsentScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // ── Consent Agreement Box — scrolls internally ─────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.5f)              // takes all remaining space
+                .fillMaxHeight(0.5f)
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline,
                     shape = RoundedCornerShape(8.dp)
                 )
                 .padding(12.dp)
-                .verticalScroll(boxScrollState)  // only THIS scrolls
+                .verticalScroll(boxScrollState)
         ) {
             Text(
                 text = "DATA ACCESS & CONSENT AGREEMENT",
@@ -256,11 +253,9 @@ fun ReadOnlyConsentScreen(
                 )
             )
         }
-        // ── End Consent Box ────────────────────────────────────────────────
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // ── I Agree checkbox — outside the box, above Continue ────────────
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -284,7 +279,6 @@ fun ReadOnlyConsentScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // ── Bottom buttons — always visible ───────────────────────────────
         errorMessage?.let {
             Text(
                 text = it,
@@ -317,7 +311,6 @@ fun ReadOnlyConsentScreen(
     }
 }
 
-// Renders a numbered section with .a, .b, .c sub-points
 @Composable
 private fun ConsentSection(
     number: String,
