@@ -35,52 +35,12 @@ import smart_finance_app.shared.generated.resources.arrow_downward
 import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
 
-// ── Hardcoded data models ────────────────────────────────────────────────────
-// TODO: replace with real API data when backend is ready
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
 data class BudgetItem(val category: String, val spent: Float, val total: Float, val color: Color)
 data class MonthlyPoint(val month: String, val income: Float, val expenses: Float)
 data class Transaction(val name: String, val date: String, val amount: String, val isIncome: Boolean)
 data class AccountOverview(val bankName: String, val maskedNumber: String, val balance: String)
-
-val hardcodedCategories = listOf(
-    SpendingCategory("Housing",   0.40f, "£1,593.68", Color(0xFF6366F1)),
-    SpendingCategory("Food",      0.20f, "£796.84",   Color(0xFF22C55E)),
-    SpendingCategory("Transport", 0.15f, "£597.63",   Color(0xFFF59E0B)),
-    SpendingCategory("Shopping",  0.10f, "£398.42",   Color(0xFFEC4899)),
-    SpendingCategory("Other",     0.15f, "£597.63",   Color(0xFF94A3B8)),
-)
-
-val hardcodedBudgets = listOf(
-    BudgetItem("Food",      340f, 400f, Color(0xFF22C55E)),
-    BudgetItem("Transport", 280f, 300f, Color(0xFFF59E0B)),
-    BudgetItem("Shopping",  180f, 200f, Color(0xFFEC4899)),
-)
-
-val hardcodedMonthlyTrend = listOf(
-    MonthlyPoint("Jan", 4800f, 3200f),
-    MonthlyPoint("Feb", 5100f, 3600f),
-    MonthlyPoint("Mar", 4900f, 4100f),
-    MonthlyPoint("Apr", 5300f, 3800f),
-    MonthlyPoint("May", 5000f, 3500f),
-    MonthlyPoint("Jun", 5200f, 3984f),
-)
-
-val hardcodedTransactions = listOf(
-    Transaction("Starbucks",      "May 15, 2024", "-£5.45",     false),
-    Transaction("Amazon",         "May 14, 2024", "-£42.99",    false),
-    Transaction("Salary Deposit", "May 13, 2024", "+£2,600.00", true),
-    Transaction("Grocery Store",  "May 13, 2024", "-£64.21",    false),
-    Transaction("Netflix",        "May 13, 2024", "-£15.49",    false),
-)
-
-val hardcodedAccounts = listOf(
-    AccountOverview("Chase Checking",  "1234", "£4,250.00"),
-    AccountOverview("Bank of America", "5678", "£1,840.75"),
-)
-
-// ── Shared state helpers ─────────────────────────────────────────────────────
 
 @Composable
 private fun rememberGreeting(): Pair<String, String> {
@@ -99,8 +59,6 @@ private fun rememberGreeting(): Pair<String, String> {
     return greeting to emoji
 }
 
-// ── Main Dashboard Screen ────────────────────────────────────────────────────
-
 @Composable
 fun DashboardScreen() {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -109,14 +67,11 @@ fun DashboardScreen() {
     }
 }
 
-// ── Mobile Layout ────────────────────────────────────────────────────────────
-
 @Composable
 private fun MobileDashboard() {
     val (greeting, emoji) = rememberGreeting()
-    // Account selector state — multi-select checkboxes
     val accountOptions = listOf("Chase Checking", "Bank of America")
-    var selectedAccounts by remember { mutableStateOf(setOf<String>()) } // empty = All Accounts
+    var selectedAccounts by remember { mutableStateOf(setOf<String>()) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     val selectorLabel = if (selectedAccounts.isEmpty()) "All Accounts"
     else if (selectedAccounts.size == 1) selectedAccounts.first()
@@ -127,7 +82,6 @@ private fun MobileDashboard() {
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp)
     ) {
-        // 1. Header
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -147,7 +101,6 @@ private fun MobileDashboard() {
                     )
 
                 }
-                // Account selector dropdown
                 Box {
                     OutlinedButton(
                         onClick = { accountDropdownExpanded = true },
@@ -164,7 +117,6 @@ private fun MobileDashboard() {
                         expanded = accountDropdownExpanded,
                         onDismissRequest = { accountDropdownExpanded = false }
                     ) {
-                        // "All Accounts" option — clears all selections
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -207,20 +159,17 @@ private fun MobileDashboard() {
             }
         }
 
-        // 2. Current Balance
         item {
             DashboardCard {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Current Balance", style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("£6,090.75", style = MaterialTheme.typography.headlineLarge,
+                    Text("--", style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold)
-                    ArrowChange(change = "2.5% vs last month", positive = true)
                 }
             }
         }
 
-        // 3. Income + Expenses
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -230,7 +179,7 @@ private fun MobileDashboard() {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Monthly Income", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("£5,200.00", style = MaterialTheme.typography.titleMedium,
+                        Text("--", style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
                     }
                 }
@@ -238,14 +187,13 @@ private fun MobileDashboard() {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Monthly Expenses", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("£3,984.20", style = MaterialTheme.typography.titleMedium,
+                        Text("--", style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        // 4. Spending Overview — donut chart with calendar icon
         item {
             DashboardCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -255,16 +203,15 @@ private fun MobileDashboard() {
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        DonutChart(categories = hardcodedCategories, modifier = Modifier.size(120.dp))
+                        DonutChart(categories = emptyList(), modifier = Modifier.size(120.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            hardcodedCategories.forEach { cat -> CategoryLegendRow(cat) }
+                            // TODO: categories from backend
                         }
                     }
                 }
             }
         }
 
-        // 5. Monthly Trend + Spending side by side
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
@@ -277,22 +224,20 @@ private fun MobileDashboard() {
                             LegendDot(color = Color(0xFF16A34A), label = "In")
                             LegendDot(color = Color(0xFFEF4444), label = "Ex")
                         }
-                        LineChart(data = hardcodedMonthlyTrend, modifier = Modifier.fillMaxWidth().height(120.dp))
+                        LineChart(data = emptyList(), modifier = Modifier.fillMaxWidth().height(120.dp))
                     }
                 }
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         SectionTitle("Spending")
-                        BarChart(data = hardcodedMonthlyTrend, modifier = Modifier.fillMaxWidth().height(120.dp))
+                        BarChart(data = emptyList(), modifier = Modifier.fillMaxWidth().height(120.dp))
                     }
                 }
             }
         }
 
-        // 6. Budget Progress
         item { BudgetProgressCard() }
 
-        // 7. Recent Transactions
         item {
             DashboardCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -305,14 +250,12 @@ private fun MobileDashboard() {
                         Text("See all", style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary)
                     }
-                    hardcodedTransactions.forEach { tx -> TransactionRow(tx) }
+                    // TODO: transactions from backend
                 }
             }
         }
     }
 }
-
-// ── Desktop Layout ───────────────────────────────────────────────────────────
 
 @Composable
 private fun DesktopDashboard() {
@@ -329,7 +272,6 @@ private fun DesktopDashboard() {
         verticalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(top = 32.dp, bottom = 32.dp)
     ) {
-        // Header row with greeting + last sync + account selector
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -342,7 +284,6 @@ private fun DesktopDashboard() {
                         fontWeight = FontWeight.Bold)
 
                 }
-                // Account selector — multi-select with checkboxes
                 Box {
                     OutlinedButton(onClick = { accountDropdownExpanded = true }) {
                         Text(selectorLabel, style = MaterialTheme.typography.labelMedium)
@@ -398,20 +339,18 @@ private fun DesktopDashboard() {
             }
         }
 
-        // Stats row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                StatCard("Current Balance",  "£6,090.75",  "2.8% vs last month", true,  Modifier.weight(1f).fillMaxHeight())
-                StatCard("Monthly Income",   "£5,200.00",  "",                   true,  Modifier.weight(1f).fillMaxHeight())
-                StatCard("Monthly Expenses", "£3,984.20",  "",                   false, Modifier.weight(1f).fillMaxHeight())
-                StatCard("Net Savings",      "£1,215.80",  "18% vs last month",  true,  Modifier.weight(1f).fillMaxHeight())
+                StatCard("Current Balance",  "--", "", true,  Modifier.weight(1f).fillMaxHeight())
+                StatCard("Monthly Income",   "--", "", true,  Modifier.weight(1f).fillMaxHeight())
+                StatCard("Monthly Expenses", "--", "", false, Modifier.weight(1f).fillMaxHeight())
+                StatCard("Net Savings",      "--", "", true,  Modifier.weight(1f).fillMaxHeight())
             }
         }
 
-        // Charts row — donut + line chart
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
@@ -424,20 +363,9 @@ private fun DesktopDashboard() {
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            DonutChart(categories = hardcodedCategories, modifier = Modifier.size(140.dp))
+                            DonutChart(categories = emptyList(), modifier = Modifier.size(140.dp))
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                hardcodedCategories.forEach { cat ->
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(Modifier.size(10.dp).background(cat.color, CircleShape))
-                                        Text("${cat.name}  ${(cat.percent * 100).toInt()}%",
-                                            style = MaterialTheme.typography.bodySmall)
-                                        Text(cat.amount, style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
+                                // TODO: categories from backend
                             }
                         }
                     }
@@ -449,13 +377,12 @@ private fun DesktopDashboard() {
                             LegendDot(color = Color(0xFF16A34A), label = "In")
                             LegendDot(color = Color(0xFFEF4444), label = "Out")
                         }
-                        LineChart(data = hardcodedMonthlyTrend, modifier = Modifier.fillMaxWidth().height(160.dp))
+                        LineChart(data = emptyList(), modifier = Modifier.fillMaxWidth().height(160.dp))
                     }
                 }
             }
         }
 
-        // Second charts row — bar + budget
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
@@ -464,19 +391,18 @@ private fun DesktopDashboard() {
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SectionTitle("Monthly Spending Comparison")
-                        BarChart(data = hardcodedMonthlyTrend, modifier = Modifier.fillMaxWidth().height(160.dp))
+                        BarChart(data = emptyList(), modifier = Modifier.fillMaxWidth().height(160.dp))
                     }
                 }
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SectionTitle("Budget Progress")
-                        hardcodedBudgets.forEach { budget -> BudgetProgressRow(budget) }
+                        // TODO: budgets from backend
                     }
                 }
             }
         }
 
-        // Bottom row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
@@ -493,33 +419,13 @@ private fun DesktopDashboard() {
                             Text("View all", style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary)
                         }
-                        hardcodedTransactions.forEach { tx -> TransactionRow(tx) }
+                        // TODO: transactions from backend
                     }
                 }
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SectionTitle("Accounts Overview")
-                        hardcodedAccounts.forEach { account ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(account.bankName, style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium)
-                                    Text("**** ${account.maskedNumber}", style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(account.balance, style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold)
-                                    Text("Connected", style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF16A34A))
-                                }
-                            }
-                            if (account != hardcodedAccounts.last()) HorizontalDivider()
-                        }
+                        // TODO: accounts from backend
                         Spacer(Modifier.height(4.dp))
                         OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
                             Text("+ Add Account", style = MaterialTheme.typography.labelMedium)
@@ -537,8 +443,7 @@ private fun DesktopDashboard() {
                         }
                         Spacer(Modifier.height(8.dp))
                         SectionTitle("Upcoming Bills")
-                        UpcomingBillRow("Electricity Bill", "May 30, 2024", "-£120.00")
-                        UpcomingBillRow("Internet Bill",    "May 28, 2024", "-£60.00")
+                        // TODO: bills from backend
                     }
                 }
             }
@@ -546,7 +451,6 @@ private fun DesktopDashboard() {
     }
 }
 
-// ── Chart Composables ────────────────────────────────────────────────────────
 
 @Composable
 private fun DonutChart(categories: List<SpendingCategory>, modifier: Modifier = Modifier) {
@@ -614,14 +518,12 @@ private fun LineChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
 
 @Composable
 private fun BarChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
-    // Fixed bar width so bars never crumble regardless of data count
     val barWidthDp = 28.dp
     val gapDp = 12.dp
     val totalWidth = (barWidthDp + gapDp) * data.size
     val barColor = MaterialTheme.colorScheme.primary
     val maxVal = if (data.isEmpty()) 1f else data.maxOf { it.expenses } * 1.2f
 
-    // Single shared scroll state — bars and labels scroll together
     val scrollState = rememberScrollState()
     Column {
         Row(modifier = Modifier.horizontalScroll(scrollState)) {
@@ -644,7 +546,6 @@ private fun BarChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
                 }
             }
         }
-        // Labels use the SAME scrollState — perfectly in sync with bars
         Row(
             modifier = Modifier.horizontalScroll(scrollState).width(totalWidth),
             horizontalArrangement = Arrangement.SpaceAround
@@ -659,11 +560,10 @@ private fun BarChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
     }
 }
 
-// ── Reusable small composables ───────────────────────────────────────────────
 
 @Composable
 private fun BudgetProgressCard() {
-    var budgets by remember { mutableStateOf(hardcodedBudgets) }
+    var budgets by remember { mutableStateOf(emptyList<BudgetItem>()) }
     DashboardCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("Budget Progress")
