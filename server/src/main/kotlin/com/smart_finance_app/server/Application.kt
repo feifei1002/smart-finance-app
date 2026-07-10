@@ -78,7 +78,19 @@ fun Application.module() {
     }
 
     routing {
-        registrationRoutes()
+        registrationRoutes { userId ->
+            JWT.create()
+                .withIssuer(jwtIssuer)
+                .withAudience(jwtAudience)
+                .withClaim("userId", userId.toString())
+                .withExpiresAt(
+                    Date(
+                        System.currentTimeMillis() +
+                                15 * 60 * 1000L
+                    )
+                )
+                .sign(jwtAlgorithm)
+        }
 
         signInRoutes { userId ->
             JWT.create()
@@ -93,6 +105,7 @@ fun Application.module() {
                 )
                 .sign(jwtAlgorithm)
         }
+        consentRoutes()
 
         get("/") {
             call.respondText("Smart Finance backend is running")
