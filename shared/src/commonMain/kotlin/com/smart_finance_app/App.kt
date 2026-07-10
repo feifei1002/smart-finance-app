@@ -3,12 +3,14 @@ package com.smart_finance_app
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.tooling.preview.Preview
+import com.smart_finance_app.consent.ConsentApi
 import com.smart_finance_app.consent.ReadOnlyConsentScreen
 import com.smart_finance_app.navigation.MainNavigation
 import com.smart_finance_app.registration.RegistrationApi
 import com.smart_finance_app.registration.RegistrationResult
 import com.smart_finance_app.registration.RegistrationScreen
 import com.smart_finance_app.signin.AuthSession
+import com.smart_finance_app.consent.ConsentResult
 import com.smart_finance_app.signin.SignInApi
 import com.smart_finance_app.signin.SignInResult
 import com.smart_finance_app.signin.SignInScreen
@@ -29,8 +31,14 @@ fun App(apiBaseUrl: String) {
 
         val signInApi = remember(apiBaseUrl) { SignInApi(apiBaseUrl) }
 
+        val consentApi = remember(apiBaseUrl) { ConsentApi(apiBaseUrl) }
+
         DisposableEffect(signInApi) {
             onDispose { signInApi.close() }
+        }
+
+        DisposableEffect(consentApi) {
+            onDispose { consentApi.close() }
         }
 
         val scope = rememberCoroutineScope()
@@ -41,6 +49,7 @@ fun App(apiBaseUrl: String) {
         var registrationError by remember { mutableStateOf<String?>(null) }
         var signInLoading by remember { mutableStateOf(false) }
         var signInError by remember { mutableStateOf<String?>(null) }
+        var consentError by remember { mutableStateOf<String?>(null) }
 
         when (screen) {
             Screen.Registration -> {
@@ -53,7 +62,10 @@ fun App(apiBaseUrl: String) {
                             registrationError = null
                             try {
                                 when (val result = registrationApi.register(form)) {
-                                    is RegistrationResult.Success -> screen = Screen.Consent
+                                    is RegistrationResult.Success -> {
+                                        session = result.session
+                                        screen = Screen.Consent
+                                    }
                                     is RegistrationResult.Failure -> registrationError = result.message
                                 }
                             } finally {
@@ -100,8 +112,31 @@ fun App(apiBaseUrl: String) {
             }
             Screen.Consent -> {
                 ReadOnlyConsentScreen(
-                    onContinue = { screen = Screen.Main },
-                    onCancel = { screen = Screen.Registration }
+                    errorMessage = consentError,
+                    onContinue = {
+                        val currentSession = session
+                        if (currentSession == null) {
+                            consentError = "Your session expired. Please sign in again."
+                            screen = Screen.SignIn
+                            return@ReadOnlyConsentScreen
+                        }
+
+                        scope.launch {
+                            consentError = null
+                            when (val result = consentApi.acceptConsent(currentSession.token)) {
+                                ConsentResult.Success -> {
+                                    screen = Screen.Main
+                                }
+
+                                is ConsentResult.Failure -> {
+                                    consentError = result.message
+                                }
+                            }
+                        }
+                    },
+                    onCancel = {
+                        screen = Screen.Registration
+                    }
                 )
             }
             Screen.Main -> {

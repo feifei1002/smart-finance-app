@@ -18,15 +18,17 @@ data class RegisterRequest(
 )
 @Serializable
 data class RegisterResponse (
-    val id: String,
-    val email: String
+    val token: String,
+    val userId: String,
+    val email: String,
+    val consentAccepted: Boolean
 )
 @Serializable
 data class ErrorResponse (
     val message: String
 )
 
-fun Route.registrationRoutes() {
+fun Route.registrationRoutes(createToken: (UUID) -> String) {
     post("/auth/register") {
         val request = runCatching { call.receive<RegisterRequest>() }
             .getOrElse {
@@ -61,7 +63,12 @@ fun Route.registrationRoutes() {
 
         call.respond(
             HttpStatusCode.Created,
-            RegisterResponse(userId.toString(), email)
+            RegisterResponse(
+                token = createToken(userId),
+                userId = userId.toString(),
+                email = email,
+                consentAccepted = false
+            )
         )
     }
 }
