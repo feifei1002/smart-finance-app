@@ -43,20 +43,14 @@ data class Transaction(val name: String, val date: String, val amount: String, v
 data class AccountOverview(val bankName: String, val maskedNumber: String, val balance: String)
 
 @Composable
-private fun rememberGreeting(): Pair<String, String> {
+private fun rememberGreeting(): String {
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
     val hour = now.hour
-    val greeting = when {
+    return when {
         hour < 12 -> "Good morning"
         hour < 18 -> "Good afternoon"
         else      -> "Good night"
     }
-    val emoji = when {
-        hour < 12 -> "☀️"
-        hour < 18 -> "👋"
-        else      -> "🌙"
-    }
-    return greeting to emoji
 }
 
 @Composable
@@ -69,7 +63,7 @@ fun DashboardScreen() {
 
 @Composable
 private fun MobileDashboard() {
-    val (greeting, emoji) = rememberGreeting()
+    val greeting = rememberGreeting()
     val accountOptions = listOf("Chase Checking", "Bank of America")
     var selectedAccounts by remember { mutableStateOf(setOf<String>()) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
@@ -259,7 +253,7 @@ private fun MobileDashboard() {
 
 @Composable
 private fun DesktopDashboard() {
-    val (greeting, emoji) = rememberGreeting()
+    val greeting = rememberGreeting()
     val accountOptions = listOf("Chase Checking", "Bank of America")
     var selectedAccounts by remember { mutableStateOf(setOf<String>()) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
