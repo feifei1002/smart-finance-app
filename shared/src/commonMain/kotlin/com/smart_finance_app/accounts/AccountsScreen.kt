@@ -16,13 +16,6 @@ import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.add
 
-/**
- * Represents a connected bank account.
- *
- * @param bankName      Display name of the bank (e.g. "Chase Checking")
- * @param maskedNumber  Last 4 digits of the account number (e.g. "1234")
- * @param isConnected   Whether the account is actively connected
- */
 data class ConnectedAccount(
     val bankName: String,
     val maskedNumber: String,
@@ -40,7 +33,6 @@ fun AccountsScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // ── Header ──────────────────────────────────────────────────────────
         Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = "Connected Accounts",
@@ -58,10 +50,8 @@ fun AccountsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // ── Connect your bank card ───────────────────────────────────────────
         ConnectBankCard(onConnectBank = onConnectBank)
 
-        // ── Your Accounts list ───────────────────────────────────────────────
         Text(
             text = "Your Accounts",
             style = MaterialTheme.typography.titleMedium,
@@ -146,7 +136,6 @@ private fun AccountCard(account: ConnectedAccount) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Bank initial avatar
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -179,7 +168,6 @@ private fun AccountCard(account: ConnectedAccount) {
                 }
             }
 
-            // Connection status badge
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = if (account.isConnected) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
