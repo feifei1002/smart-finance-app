@@ -121,7 +121,7 @@ fun Application.module() {
 
                         call.respondText(
                             "Connected to ${result.getString(1)} " +
-                                "as ${result.getString(2)}"
+                                    "as ${result.getString(2)}"
                         )
                     }
                 }
