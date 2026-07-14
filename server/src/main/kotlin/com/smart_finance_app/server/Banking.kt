@@ -19,8 +19,6 @@ import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
 
-// ── Response models ───────────────────────────────────────────────────────────
-
 @Serializable
 data class ConnectBankResponse(val authUrl: String)
 
@@ -47,7 +45,7 @@ data class TransactionResponse(
     val description: String,
     val amount: Double,
     val currency: String,
-    val type: String,       // CREDIT or DEBIT
+    val type: String,
     val merchantName: String?
 )
 
