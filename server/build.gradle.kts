@@ -25,4 +25,6 @@ dependencies {
     implementation(libs.hikari)
     implementation(libs.postgresql)
     implementation(libs.bcrypt)
+    implementation(libs.okhttp)
+    implementation(libs.gson)
 }
