@@ -67,6 +67,7 @@ kotlin {
             implementation(libs.ktor.serialization.json)
             implementation(libs.androidx.material3.adaptive.navigation.suite)
             implementation(libs.kotlinx.datetime)
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

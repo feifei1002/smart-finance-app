@@ -34,6 +34,10 @@ fun Application.module() {
     val jwtSecret = System.getenv("JWT_SECRET")
         ?: error("Missing environment variable: JWT_SECRET")
 
+    System.getenv("ENCRYPTION_KEY")
+        ?: error("Missing environment variable: ENCRYPTION_KEY")
+
+
     val jwtIssuer = "smart-finance-server"
     val jwtAudience = "smart-finance-app"
     val jwtAlgorithm = Algorithm.HMAC256(jwtSecret)
@@ -106,6 +110,7 @@ fun Application.module() {
                 .sign(jwtAlgorithm)
         }
         consentRoutes()
+        bankingRoutes()
 
         get("/") {
             call.respondText("Smart Finance backend is running")
@@ -121,7 +126,7 @@ fun Application.module() {
 
                         call.respondText(
                             "Connected to ${result.getString(1)} " +
-                                "as ${result.getString(2)}"
+                                    "as ${result.getString(2)}"
                         )
                     }
                 }
