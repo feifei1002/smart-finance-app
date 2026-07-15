@@ -19,6 +19,8 @@ import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
 
+// ── Response models ───────────────────────────────────────────────────────────
+
 @Serializable
 data class ConnectBankResponse(val authUrl: String)
 
@@ -45,7 +47,7 @@ data class TransactionResponse(
     val description: String,
     val amount: Double,
     val currency: String,
-    val type: String,
+    val type: String,       // CREDIT or DEBIT
     val merchantName: String?
 )
 
@@ -79,9 +81,15 @@ private data class TrueLayerTokenResponse(
     @SerializedName("expires_in")    val expiresIn: Int   // seconds
 )
 
+private data class TrueLayerAccountNumber(
+    @SerializedName("number")    val number: String?,
+    @SerializedName("sort_code") val sortCode: String?
+)
+
 private data class TrueLayerAccount(
-    @SerializedName("account_id")   val accountId: String,
-    @SerializedName("display_name") val displayName: String,
+    @SerializedName("account_id")     val accountId: String,
+    @SerializedName("display_name")   val displayName: String,
+    @SerializedName("account_number") val accountNumber: TrueLayerAccountNumber?
 )
 
 private data class TrueLayerAccountsResponse(
@@ -148,7 +156,7 @@ fun Route.bankingRoutes() {
                 append("&scope=${URLEncoder.encode(TrueLayerConfig.SCOPES, "UTF-8")}")
                 append("&redirect_uri=${URLEncoder.encode(TrueLayerConfig.redirectUri, "UTF-8")}")
                 append("&state=$state")
-                append("&providers=uk-ob-all%20uk-oauth-all")
+                append("&providers=uk-cs-mock")
             }
 
             call.respond(ConnectBankResponse(authUrl = authUrl))
@@ -486,8 +494,8 @@ private fun ensureFreshToken(stored: StoredAccount): String {
                 WHERE id = ?
                 """.trimIndent()
             ).use { statement ->
-                statement.setString(1, newTokens.accessToken)
-                statement.setString(2, newTokens.refreshToken)
+                statement.setString(1, Encryption.encrypt(newTokens.accessToken))
+                statement.setString(2, Encryption.encrypt(newTokens.refreshToken))
                 statement.setTimestamp(3, Timestamp.from(newExpiry))
                 statement.setObject(4, stored.dbId)
                 statement.executeUpdate()
@@ -511,7 +519,7 @@ private fun getConnectedAccountsForUser(userId: UUID): List<AccountResponse> =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
-            SELECT account_id, bank_name, provider
+            SELECT account_id, bank_name, provider, account_number
             FROM connected_accounts
             WHERE user_id = ?
             ORDER BY created_at ASC
@@ -521,13 +529,17 @@ private fun getConnectedAccountsForUser(userId: UUID): List<AccountResponse> =
             statement.executeQuery().use { result ->
                 val accounts = mutableListOf<AccountResponse>()
                 while (result.next()) {
-                    val accountId = result.getString("account_id")
+                    val realAccountNumber = result.getString("account_number")
+                    // Mask the real bank account number — show only last 4 digits
+                    val masked = if (!realAccountNumber.isNullOrBlank())
+                        realAccountNumber.takeLast(4)
+                    else
+                        "****"  // fallback if bank didn't return account number
                     accounts.add(
                         AccountResponse(
-                            accountId    = accountId,
+                            accountId    = result.getString("account_id"),
                             bankName     = result.getString("bank_name"),
-                            // Mask the account ID — show only last 4 chars
-                            maskedNumber = accountId.takeLast(4),
+                            maskedNumber = masked,
                             provider     = result.getString("provider")
                         )
                     )
@@ -558,8 +570,8 @@ private fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
                         StoredAccount(
                             dbId         = result.getObject("id", UUID::class.java),
                             accountId    = result.getString("account_id"),
-                            accessToken  = result.getString("access_token"),
-                            refreshToken = result.getString("refresh_token"),
+                            accessToken  = Encryption.decrypt(result.getString("access_token")),
+                            refreshToken = Encryption.decrypt(result.getString("refresh_token")),
                             tokenExpiry  = result.getTimestamp("token_expiry").toInstant()
                         )
                     )
@@ -587,22 +599,24 @@ private fun saveConnectedAccounts(
                 connection.prepareStatement(
                     """
                     INSERT INTO connected_accounts
-                        (user_id, bank_name, account_id, access_token, refresh_token, token_expiry, provider)
-                    VALUES (?, ?, ?, ?, ?, ?, 'truelayer')
+                        (user_id, bank_name, account_id, access_token, refresh_token, token_expiry, provider, account_number)
+                    VALUES (?, ?, ?, ?, ?, ?, 'truelayer', ?)
                     ON CONFLICT (user_id, account_id)
                     DO UPDATE SET
-                        access_token  = EXCLUDED.access_token,
-                        refresh_token = EXCLUDED.refresh_token,
-                        token_expiry  = EXCLUDED.token_expiry,
-                        updated_at    = NOW()
+                        access_token   = EXCLUDED.access_token,
+                        refresh_token  = EXCLUDED.refresh_token,
+                        token_expiry   = EXCLUDED.token_expiry,
+                        account_number = EXCLUDED.account_number,
+                        updated_at     = NOW()
                     """.trimIndent()
                 ).use { statement ->
                     statement.setObject(1, userId)
                     statement.setString(2, account.displayName)
                     statement.setString(3, account.accountId)
-                    statement.setString(4, accessToken)
-                    statement.setString(5, refreshToken)
+                    statement.setString(4, Encryption.encrypt(accessToken))   // encrypted at rest
+                    statement.setString(5, Encryption.encrypt(refreshToken))  // encrypted at rest
                     statement.setTimestamp(6, Timestamp.from(tokenExpiry))
+                    statement.setString(7, account.accountNumber?.number)      // real account number
                     statement.executeUpdate()
                 }
             }
