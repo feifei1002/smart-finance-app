@@ -6,10 +6,12 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
 import io.ktor.server.auth.jwt.JWTPrincipal
+import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -18,6 +20,9 @@ import java.net.URLEncoder
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
+
+@Serializable
+data class CreateBankConnectionRequest(val providerId: String, val providerName: String)
 
 // ── Response models ───────────────────────────────────────────────────────────
 
@@ -138,27 +143,23 @@ fun Route.bankingRoutes() {
          * in the device browser. The user selects their bank and approves
          * read-only access. TrueLayer then redirects to /api/banking/callback.
          */
-        get("/api/banking/connect") {
+        post("/api/banking/connect") {
             val principal = call.principal<JWTPrincipal>()
-            val userId = principal?.payload?.getClaim("userId")?.asString()
+            val userId = principal?.userIdOrNull()?:
+                return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-            if (userId == null) {
-                call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
-                return@get
-            }
 
-            val state = URLEncoder.encode(userId, "UTF-8")
+            val request = call.receive<CreateBankConnectionRequest>()
+            val state = UUID.randomUUID().toString()
 
-            val authUrl = buildString {
-                append(TrueLayerConfig.AUTH_BASE_URL)
-                append("/?response_type=code")
-                append("&client_id=${URLEncoder.encode(TrueLayerConfig.clientId, "UTF-8")}")
-                append("&scope=${URLEncoder.encode(TrueLayerConfig.SCOPES, "UTF-8")}")
-                append("&redirect_uri=${URLEncoder.encode(TrueLayerConfig.redirectUri, "UTF-8")}")
-                append("&state=$state")
-                append("&providers=uk-cs-mock")
-            }
+            createBankConnectionSession(
+                userId = userId,
+                state = state,
+                providerId = request.providerId,
+                providerName = request.providerName
+            )
 
+            val authUrl = buildTrueLayerAuthUrl(state = state, providerId = request.providerId)
             call.respond(ConnectBankResponse(authUrl = authUrl))
         }
 
@@ -252,8 +253,17 @@ fun Route.bankingRoutes() {
         val state   = call.request.queryParameters["state"]
         val error   = call.request.queryParameters["error"]
 
+        if (state == null) {
+            call.respondText(
+                "Missing state parameter",
+                status = HttpStatusCode.BadRequest
+            )
+            return@get
+        }
+
         // TrueLayer sends an error param if the user denied access
         if (error != null) {
+            markBankConnectionSession(state, "failed")
             call.respondText(
                 "Bank connection cancelled: $error",
                 status = HttpStatusCode.BadRequest
@@ -261,7 +271,8 @@ fun Route.bankingRoutes() {
             return@get
         }
 
-        if (code == null || state == null) {
+        if (code == null) {
+            markBankConnectionSession(state, "failed")
             call.respondText(
                 "Missing code or state parameter",
                 status = HttpStatusCode.BadRequest
@@ -269,15 +280,22 @@ fun Route.bankingRoutes() {
             return@get
         }
 
-        val userId = runCatching { UUID.fromString(state) }.getOrElse {
-            call.respondText("Invalid state parameter", status = HttpStatusCode.BadRequest)
+        val session = getPendingBankConnectionSession(state)
+        if (session == null) {
+            call.respondText(
+                "Invalid or expired connection session",
+                status = HttpStatusCode.BadRequest
+            )
             return@get
         }
+
+//        val userId = session.userId
 
         // ── Step 1: Exchange auth code for tokens ─────────────────────────
         val tokenResponse = runCatching {
             exchangeCodeForTokens(code)
         }.getOrElse {
+            markBankConnectionSession(state, "failed")
             call.respondText(
                 "Failed to exchange code for tokens: ${it.message}",
                 status = HttpStatusCode.InternalServerError
@@ -291,6 +309,7 @@ fun Route.bankingRoutes() {
         val accounts = runCatching {
             fetchAccounts(tokenResponse.accessToken)
         }.getOrElse {
+            markBankConnectionSession(state, "failed")
             call.respondText(
                 "Failed to fetch accounts: ${it.message}",
                 status = HttpStatusCode.InternalServerError
@@ -299,6 +318,7 @@ fun Route.bankingRoutes() {
         }
 
         if (accounts.isEmpty()) {
+            markBankConnectionSession(state, "failed")
             call.respondText(
                 "No accounts found for this bank connection",
                 status = HttpStatusCode.OK
@@ -307,13 +327,27 @@ fun Route.bankingRoutes() {
         }
 
         // ── Step 3: Save each account to the database ─────────────────────
-        saveConnectedAccounts(
-            userId       = userId,
-            accounts     = accounts,
-            accessToken  = tokenResponse.accessToken,
-            refreshToken = tokenResponse.refreshToken,
-            tokenExpiry  = tokenExpiry
-        )
+        runCatching {
+                saveConnectedAccounts(
+                userId       = session.userId,
+                accounts     = accounts,
+                accessToken  = tokenResponse.accessToken,
+                refreshToken = tokenResponse.refreshToken,
+                tokenExpiry  = tokenExpiry,
+                providerId = session.providerId,
+                providerName = session.providerName
+            )
+        }.getOrElse {
+            markBankConnectionSession(state, "failed")
+
+            call.respondText(
+                "Failed to save connected accounts: ${it.message}",
+                status = HttpStatusCode.InternalServerError
+            )
+            return@get
+        }
+
+        markBankConnectionSession(state, "completed")
 
         // Simple success page — the user sees this in their browser
         // after approving access at their bank
@@ -591,7 +625,9 @@ private fun saveConnectedAccounts(
     accounts: List<TrueLayerAccount>,
     accessToken: String,
     refreshToken: String,
-    tokenExpiry: Instant
+    tokenExpiry: Instant,
+    providerId: String,
+    providerName: String
 ) {
     Database.dataSource.connection.use { connection ->
         try {
@@ -599,24 +635,26 @@ private fun saveConnectedAccounts(
                 connection.prepareStatement(
                     """
                     INSERT INTO connected_accounts
-                        (user_id, bank_name, account_id, access_token, refresh_token, token_expiry, provider, account_number)
-                    VALUES (?, ?, ?, ?, ?, ?, 'truelayer', ?)
+                        (user_id, bank_name, account_id, access_token, refresh_token, token_expiry, provider, account_number, connection_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'connected')
                     ON CONFLICT (user_id, account_id)
                     DO UPDATE SET
                         access_token   = EXCLUDED.access_token,
                         refresh_token  = EXCLUDED.refresh_token,
                         token_expiry   = EXCLUDED.token_expiry,
                         account_number = EXCLUDED.account_number,
+                        connection_status = 'connected',
                         updated_at     = NOW()
                     """.trimIndent()
                 ).use { statement ->
                     statement.setObject(1, userId)
-                    statement.setString(2, account.displayName)
+                    statement.setString(2,  providerName)
                     statement.setString(3, account.accountId)
                     statement.setString(4, Encryption.encrypt(accessToken))   // encrypted at rest
                     statement.setString(5, Encryption.encrypt(refreshToken))  // encrypted at rest
                     statement.setTimestamp(6, Timestamp.from(tokenExpiry))
-                    statement.setString(7, account.accountNumber?.number)      // real account number
+                    statement.setString(7, providerId)
+                    statement.setString(8, account.accountNumber?.number)      // real account number
                     statement.executeUpdate()
                 }
             }
@@ -626,4 +664,92 @@ private fun saveConnectedAccounts(
             throw e
         }
     }
+}
+
+private fun createBankConnectionSession(userId: UUID, state: String, providerId: String, providerName: String) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                    INSERT INTO bank_connection_sessions
+                    (user_id, state, provider_id, provider_name, status)
+                    VALUES (?, ?, ?, ?, 'pending')
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setObject(2, state)
+                statement.setObject(3, providerId)
+                statement.setObject(4, providerName)
+                statement.executeUpdate()
+            }
+            connection.commit()
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
+}
+
+private fun buildTrueLayerAuthUrl(state: String, providerId: String): String = buildString {
+    append(TrueLayerConfig.AUTH_BASE_URL)
+    append("/?response_type=code")
+    append("&client_id=${URLEncoder.encode(TrueLayerConfig.clientId, "UTF-8")}")
+    append("&scope=${URLEncoder.encode(TrueLayerConfig.SCOPES, "UTF-8")}")
+    append("&redirect_uri=${URLEncoder.encode(TrueLayerConfig.redirectUri, "UTF-8")}")
+    append("&state=${URLEncoder.encode(state, "UTF-8")}")
+    append("&providers=${URLEncoder.encode(providerId, "UTF-8")}")
+}
+
+private data class BankConnectionSession(val userId: UUID, val providerId: String, val providerName: String)
+
+private fun getPendingBankConnectionSession(state: String): BankConnectionSession? =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+                SELECT user_id, provider_id, provider_name
+                FROM bank_connection_sessions
+                WHERE state = ? AND status = 'pending'
+            """.trimIndent()
+        ).use { statement ->
+            statement.setString(1, state)
+            statement.executeQuery().use { result ->
+                if(!result.next()) null else BankConnectionSession(
+                    userId = result.getObject("user_id", UUID::class.java),
+                    providerId = result.getString("provider_id"),
+                    providerName = result.getString("provider_name")
+                )
+            }
+        }
+    }
+
+private fun markBankConnectionSession(state: String, status: String) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                UPDATE bank_connection_sessions
+                SET status = ?, completed_at = now()
+                WHERE state = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, status)
+                statement.setString(2, state)
+                statement.executeUpdate()
+            }
+            connection.commit()
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
+}
+
+private fun JWTPrincipal.userIdOrNull(): UUID? {
+    val userIdValue = payload
+        .getClaim("userId")
+        .asString()
+
+    return runCatching {
+        UUID.fromString(userIdValue)
+    }.getOrNull()
 }
