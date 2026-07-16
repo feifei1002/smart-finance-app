@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import org.jetbrains.compose.resources.painterResource
 import com.smart_finance_app.accounts.AccountsScreen
+import com.smart_finance_app.accounts.ConnectBankAccountScreen
 import com.smart_finance_app.dashboard.DashboardScreen
 
 
@@ -71,9 +72,24 @@ private fun NavigationContent(navigation: AppNavigation, onSignOut: () -> Unit) 
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen()
 
-        AppNavigation.Accounts -> AccountsScreen(
-            onConnectBank = { /* TODO: launch Open Banking flow */ }
-        )
+        AppNavigation.Accounts -> {
+            var showConnectBank by remember { mutableStateOf(false) }
+
+            if(showConnectBank) {
+                ConnectBankAccountScreen(
+                    onCancel = { showConnectBank = false },
+                    onContinue = { selectedBank ->
+                        // Frontend story only for now.
+                        // Later this will call backend to create the Open Banking session.
+                        println("Selected bank: ${selectedBank.name}")
+                    }
+                )
+            } else {
+                AccountsScreen(
+                    onConnectBank = { showConnectBank = true }
+                )
+            }
+        }
 
         AppNavigation.Settings -> {
             Box(
