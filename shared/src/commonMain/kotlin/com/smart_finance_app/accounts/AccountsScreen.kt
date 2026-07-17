@@ -58,6 +58,22 @@ fun AccountsScreen(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
+
+        if (accounts.isEmpty()) {
+            Text(
+                text = "No bank accounts connected yet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                accounts.forEach { account ->
+                    AccountCard(account)
+                }
+            }
+        }
     }
 }
 

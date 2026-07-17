@@ -47,17 +47,20 @@ import kotlin.collections.listOf
 
 data class BankOption(val id: String, val name: String)
 
+/**
+ * First step of the bank connection flow.
+ *
+ * Lets the user search for a bank, select one provider, and continue securely.
+ * The selected bank is passed back to the caller so it can start the backend
+ * connection session.
+ */
 @Composable
-fun ConnectBankAccountScreen(onCancel: () -> Unit, onContinue: (BankOption) -> Unit) {
-    val banks = remember {
-
-//        Mock data for now
-        listOf(
-            BankOption("chase", "Chase"),
-            BankOption("bank_of_america", "Bank of America"),
-            BankOption("capital_one", "Capital One")
-        )
-    }
+fun ConnectBankAccountScreen(
+    banks: List<BankOption>,
+    isLoading: Boolean = false,
+    errorMessage: String? = null,
+    onCancel: () -> Unit,
+    onContinue: (BankOption) -> Unit) {
 
     var search by remember { mutableStateOf("") }
     var selectedBank by remember { mutableStateOf<BankOption?>(null) }
@@ -158,14 +161,22 @@ fun ConnectBankAccountScreen(onCancel: () -> Unit, onContinue: (BankOption) -> U
                     Text("Can't find your bank?")
                 }
 
+                errorMessage?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
                 Button(
-                    enabled = selectedBank != null,
+                    enabled = selectedBank != null && !isLoading,
                     onClick = { selectedBank?.let(onContinue) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp)
                 ) {
-                    Text("Continue securely")
+                    Text(if (isLoading) "Connecting..." else "Continue securely")
                 }
 
                 TextButton(
@@ -199,6 +210,11 @@ fun ConnectBankAccountScreen(onCancel: () -> Unit, onContinue: (BankOption) -> U
     }
 }
 
+/**
+ * Displays one bank option in the selectable provider list.
+ *
+ * Highlights the row when selected.
+ */
 @Composable
 private fun BankRow(bank: BankOption, selected: Boolean, onClick: () -> Unit) {
     Surface(

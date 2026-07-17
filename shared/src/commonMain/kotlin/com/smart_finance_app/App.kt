@@ -142,6 +142,8 @@ fun App(apiBaseUrl: String) {
             Screen.Main -> {
                 // TODO: replace with real Dashboard screen
                 MainNavigation(
+                    apiBaseUrl = apiBaseUrl,
+                    authToken = session?.token.orEmpty(),
                     onSignOut = {
                         session = null
                         signInError = null

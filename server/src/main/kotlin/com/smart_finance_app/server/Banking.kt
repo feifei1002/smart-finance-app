@@ -1,6 +1,7 @@
 package com.smart_finance_app.server
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
@@ -56,6 +57,12 @@ data class TransactionResponse(
     val merchantName: String?
 )
 
+@Serializable
+data class BankProviderResponse(
+    val id: String,
+    val name: String,
+    val logoUrl: String? = null
+)
 // ── TrueLayer config ─────────────────────────────────────────────────────────
 
 private object TrueLayerConfig {
@@ -124,6 +131,16 @@ private data class TrueLayerTransaction(
 
 private data class TrueLayerTransactionsResponse(
     val results: List<TrueLayerTransaction>
+)
+
+private data class TrueLayerProvider(
+    @SerializedName("provider_id") val providerId: String,
+    @SerializedName("display_name") val displayName: String,
+    @SerializedName("logo_url") val logoUrl: String?
+)
+
+private data class TrueLayerProvidersResponse(
+    val results: List<TrueLayerProvider>
 )
 
 // ── Shared HTTP client and JSON parser ────────────────────────────────────────
@@ -362,6 +379,28 @@ fun Route.bankingRoutes() {
             """.trimIndent(),
             contentType = io.ktor.http.ContentType.Text.Html,
             status = HttpStatusCode.OK
+        )
+    }
+
+    get("/api/banking/providers") {
+        val providers = runCatching {
+            fetchTrueLayerProviders()
+        }.getOrElse { exception ->
+            call.respond(
+                HttpStatusCode.BadGateway,
+                ErrorResponse("Could not load TrueLayer providers: ${exception.message}")
+            )
+            return@get
+        }
+
+        call.respond(
+            providers.map {
+                BankProviderResponse(
+                    id = it.providerId,
+                    name = it.displayName,
+                    logoUrl = it.logoUrl
+                )
+            }
         )
     }
 }
@@ -666,6 +705,12 @@ private fun saveConnectedAccounts(
     }
 }
 
+/**
+ * Creates a pending bank connection session before sending the user to TrueLayer.
+ *
+ * The random state value is stored so the callback can be validated later.
+ * This prevents trusting user IDs directly from the callback URL.
+ */
 private fun createBankConnectionSession(userId: UUID, state: String, providerId: String, providerName: String) {
     Database.dataSource.connection.use { connection ->
         try {
@@ -690,6 +735,12 @@ private fun createBankConnectionSession(userId: UUID, state: String, providerId:
     }
 }
 
+/**
+ * Builds the TrueLayer authorisation URL for the selected bank provider.
+ *
+ * The frontend opens this URL in the browser so the user can authenticate
+ * with their bank and grant read-only access.
+ */
 private fun buildTrueLayerAuthUrl(state: String, providerId: String): String = buildString {
     append(TrueLayerConfig.AUTH_BASE_URL)
     append("/?response_type=code")
@@ -700,8 +751,79 @@ private fun buildTrueLayerAuthUrl(state: String, providerId: String): String = b
     append("&providers=${URLEncoder.encode(providerId, "UTF-8")}")
 }
 
+/**
+ * Fetches available TrueLayer bank providers for the bank selection screen.
+ *
+ * Currently TrueLayer returns no providers in sandbox, the app can fall back to
+ * the mock bank provider for local testing.
+ */
+private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
+    val url = buildString {
+        append("${TrueLayerConfig.AUTH_BASE_URL}/api/providers")
+        append("?clientId=${URLEncoder.encode(TrueLayerConfig.clientId, "UTF-8")}")
+        append("&scopes=${URLEncoder.encode(TrueLayerConfig.SCOPES, "UTF-8")}")
+        append("&country=GB")
+    }
+
+    val request = Request.Builder().url(url).get().build()
+
+    val responseBody = httpClient.newCall(request).execute().use { response ->
+        val body = response.body?.string()?: error("Empty response from TrueLayer providers endpoint")
+
+        if(!response.isSuccessful) {
+            error("TrueLayer providers fetch failed (${response.code}): $body")
+        }
+
+        body
+    }
+
+    val json = JsonParser.parseString(responseBody)
+
+    val providers = when {
+        json.isJsonObject && json.asJsonObject.has("results") -> {
+            gson.fromJson(responseBody, TrueLayerProvidersResponse::class.java).results
+        }
+
+        json.isJsonArray -> {
+            json.asJsonArray.map {
+                gson.fromJson(it, TrueLayerProvider::class.java)
+            }
+        }
+
+        else -> {
+            error("Unexpected provider response: $responseBody")
+        }
+    }
+
+    return providers.ifEmpty {
+        //  Temporary mock data
+        listOf(
+            TrueLayerProvider(
+                providerId = "uk-cs-mock",
+                displayName = "Mock Bank",
+                logoUrl = null
+            ),
+            TrueLayerProvider(
+                providerId = "bank-of-america",
+                displayName = "Bank Of America",
+                logoUrl = null
+            ),
+            TrueLayerProvider(
+                providerId = "chase",
+                displayName = "Chase",
+                logoUrl = null
+            ),
+        )
+    }
+}
+
 private data class BankConnectionSession(val userId: UUID, val providerId: String, val providerName: String)
 
+/**
+* Finds a pending bank connection session by its state value.
+*
+* Returns null if the state is unknown, already completed, failed, or expired.
+*/
 private fun getPendingBankConnectionSession(state: String): BankConnectionSession? =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
@@ -722,6 +844,12 @@ private fun getPendingBankConnectionSession(state: String): BankConnectionSessio
         }
     }
 
+/**
+ * Updates the status of a bank connection session.
+ *
+ * Used to mark the flow as completed after accounts are saved, or failed when
+ * TrueLayer returns an error or the callback cannot be processed.
+ */
 private fun markBankConnectionSession(state: String, status: String) {
     Database.dataSource.connection.use { connection ->
         try {
@@ -744,6 +872,11 @@ private fun markBankConnectionSession(state: String, status: String) {
     }
 }
 
+/**
+ * Extracts the authenticated app user ID from the JWT principal.
+ *
+ * Returns null if the token does not contain a valid UUID userId claim.
+ */
 private fun JWTPrincipal.userIdOrNull(): UUID? {
     val userIdValue = payload
         .getClaim("userId")
