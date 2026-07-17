@@ -82,6 +82,8 @@ private object TrueLayerConfig {
     const val AUTH_BASE_URL = "https://auth.truelayer-sandbox.com"
     const val API_BASE_URL  = "https://api.truelayer-sandbox.com"
 
+    const val PROVIDERS_BASE_URL = "https://auth.truelayer.com"
+
     const val SCOPES = "info accounts balance transactions offline_access"
 }
 
@@ -758,11 +760,11 @@ private fun buildTrueLayerAuthUrl(state: String, providerId: String): String = b
  * the mock bank provider for local testing.
  */
 private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
+
+    /** Use the production providers endpoint only for displaying the bank list,
+    * only the Mock Bank works for sandbox TrueLayer auth connection testing */
     val url = buildString {
-        append("${TrueLayerConfig.AUTH_BASE_URL}/api/providers")
-        append("?clientId=${URLEncoder.encode(TrueLayerConfig.clientId, "UTF-8")}")
-        append("&scopes=${URLEncoder.encode(TrueLayerConfig.SCOPES, "UTF-8")}")
-        append("&country=GB")
+        append("${TrueLayerConfig.PROVIDERS_BASE_URL}/api/providers")
     }
 
     val request = Request.Builder().url(url).get().build()
@@ -779,7 +781,7 @@ private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
 
     val json = JsonParser.parseString(responseBody)
 
-    val providers = when {
+    return when {
         json.isJsonObject && json.asJsonObject.has("results") -> {
             gson.fromJson(responseBody, TrueLayerProvidersResponse::class.java).results
         }
@@ -793,27 +795,6 @@ private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
         else -> {
             error("Unexpected provider response: $responseBody")
         }
-    }
-
-    return providers.ifEmpty {
-        //  Temporary mock data
-        listOf(
-            TrueLayerProvider(
-                providerId = "uk-cs-mock",
-                displayName = "Mock Bank",
-                logoUrl = null
-            ),
-            TrueLayerProvider(
-                providerId = "bank-of-america",
-                displayName = "Bank Of America",
-                logoUrl = null
-            ),
-            TrueLayerProvider(
-                providerId = "chase",
-                displayName = "Chase",
-                logoUrl = null
-            ),
-        )
     }
 }
 

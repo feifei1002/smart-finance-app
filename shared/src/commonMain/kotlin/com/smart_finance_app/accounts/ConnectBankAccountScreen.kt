@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -34,9 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.chevron_right
@@ -44,7 +45,7 @@ import smart_finance_app.shared.generated.resources.lock
 import smart_finance_app.shared.generated.resources.question_mark
 import smart_finance_app.shared.generated.resources.search
 
-data class BankOption(val id: String, val name: String)
+data class BankOption(val id: String, val name: String, val logoUrl: String? = null)
 
 /**
  * First step of the bank connection flow.
@@ -215,7 +216,11 @@ fun ConnectBankAccountScreen(
  * Highlights the row when selected.
  */
 @Composable
-private fun BankRow(bank: BankOption, selected: Boolean, onClick: () -> Unit) {
+private fun BankRow(
+    bank: BankOption,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -241,15 +246,27 @@ private fun BankRow(bank: BankOption, selected: Boolean, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Surface(
-                modifier = Modifier.size(44.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant
+                modifier = Modifier.size(width = 72.dp, height = 44.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = bank.name.first().uppercase(),
-                        fontWeight = FontWeight.Bold
-                    )
+                Box(
+                    modifier = Modifier.padding(6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!bank.logoUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = bank.logoUrl,
+                            contentDescription = "${bank.name} logo",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Text(
+                            text = bank.name.first().uppercase(),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
@@ -259,6 +276,7 @@ private fun BankRow(bank: BankOption, selected: Boolean, onClick: () -> Unit) {
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold
             )
+
             Icon(
                 painter = painterResource(Res.drawable.chevron_right),
                 contentDescription = "Arrow right",

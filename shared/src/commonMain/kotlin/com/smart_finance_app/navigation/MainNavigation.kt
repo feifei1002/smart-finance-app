@@ -111,7 +111,8 @@ private fun NavigationContent(navigation: AppNavigation, apiBaseUrl: String, aut
                             banks = result.providers.map {
                                 BankOption(
                                     id = it.id,
-                                    name = it.name
+                                    name = it.name,
+                                    logoUrl = it.logoUrl
                                 )
                             }
                         }
