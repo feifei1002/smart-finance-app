@@ -43,7 +43,6 @@ import smart_finance_app.shared.generated.resources.chevron_right
 import smart_finance_app.shared.generated.resources.lock
 import smart_finance_app.shared.generated.resources.question_mark
 import smart_finance_app.shared.generated.resources.search
-import kotlin.collections.listOf
 
 data class BankOption(val id: String, val name: String)
 
