@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -78,10 +79,9 @@ fun ConnectBankAccountScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = if (compact) 520.dp else 760.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                    .fillMaxSize()
+                    .widthIn(max = if (compact) 520.dp else 760.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -105,7 +105,11 @@ fun ConnectBankAccountScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "Connect your bank account",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = if (compact) {
+                            MaterialTheme.typography.headlineSmall
+                        } else {
+                            MaterialTheme.typography.headlineMedium
+                        },
                         fontWeight = FontWeight.Bold
                     )
 
@@ -136,13 +140,37 @@ fun ConnectBankAccountScreen(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    filteredBanks.forEach { bank ->
-                        BankRow(
-                            bank = bank,
-                            selected = bank == selectedBank,
-                            onClick = { selectedBank = bank }
-                        )
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(2f),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (filteredBanks.isEmpty()) {
+                            Text(
+                                text = if (isLoading) "Loading banks..." else "No banks found.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        } else {
+                            filteredBanks.forEach { bank ->
+                                BankRow(
+                                    bank = bank,
+                                    selected = bank == selectedBank,
+                                    compact = compact,
+                                    onClick = { selectedBank = bank }
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -169,40 +197,47 @@ fun ConnectBankAccountScreen(
                     )
                 }
 
-                Button(
-                    enabled = selectedBank != null && !isLoading,
-                    onClick = { selectedBank?.let(onContinue) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(if (isLoading) "Connecting..." else "Continue securely")
-                }
+                    Button(
+                        enabled = selectedBank != null && !isLoading,
+                        onClick = { selectedBank?.let(onContinue) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Text(if (isLoading) "Connecting..." else "Continue securely")
+                    }
 
-                TextButton(
-                    onClick = onCancel,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                ) {
-                    Text("Cancel")
-                }
+                    TextButton(
+                        onClick = onCancel,
+                        modifier = Modifier.height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text("Cancel")
+                    }
 
-                Row(
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        painter = painterResource(Res.drawable.lock),
-                        contentDescription = "Read-only access",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "We only request read-only access to \nbalances and transactions.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(Res.drawable.lock),
+                            contentDescription = "Read-only access",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+
+                        Text(
+                            text = "We only request read-only access to\nbalances and transactions.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
 
             }
@@ -219,6 +254,7 @@ fun ConnectBankAccountScreen(
 private fun BankRow(
     bank: BankOption,
     selected: Boolean,
+    compact: Boolean,
     onClick: () -> Unit
 ) {
     Surface(
@@ -241,7 +277,7 @@ private fun BankRow(
         }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
