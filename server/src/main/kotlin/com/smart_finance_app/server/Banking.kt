@@ -251,6 +251,28 @@ fun Route.bankingRoutes() {
             // Sort all transactions newest first across all accounts
             call.respond(transactions.sortedByDescending { it.timestamp })
         }
+
+        get("/api/banking/providers") {
+            val providers = runCatching {
+                fetchTrueLayerProviders()
+            }.getOrElse { exception ->
+                call.respond(
+                    HttpStatusCode.BadGateway,
+                    ErrorResponse("Could not load TrueLayer providers: ${exception.message}")
+                )
+                return@get
+            }
+
+            call.respond(
+                providers.map {
+                    BankProviderResponse(
+                        id = it.providerId,
+                        name = it.displayName,
+                        logoUrl = it.logoUrl
+                    )
+                }
+            )
+        }
     }
 
     /**
@@ -381,28 +403,6 @@ fun Route.bankingRoutes() {
             """.trimIndent(),
             contentType = io.ktor.http.ContentType.Text.Html,
             status = HttpStatusCode.OK
-        )
-    }
-
-    get("/api/banking/providers") {
-        val providers = runCatching {
-            fetchTrueLayerProviders()
-        }.getOrElse { exception ->
-            call.respond(
-                HttpStatusCode.BadGateway,
-                ErrorResponse("Could not load TrueLayer providers: ${exception.message}")
-            )
-            return@get
-        }
-
-        call.respond(
-            providers.map {
-                BankProviderResponse(
-                    id = it.providerId,
-                    name = it.displayName,
-                    logoUrl = it.logoUrl
-                )
-            }
         )
     }
 }
