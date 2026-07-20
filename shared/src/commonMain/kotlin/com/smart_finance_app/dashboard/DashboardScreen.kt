@@ -65,6 +65,7 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String) {
     var isLoading      by remember { mutableStateOf(true) }
     var errorMsg       by remember { mutableStateOf<String?>(null) }
     var spendingPeriod by remember { mutableStateOf(SpendingPeriod.THIS_MONTH) }
+    var selectedAccounts by remember { mutableStateOf(setOf<String>()) }
 
     suspend fun load() {
         isLoading = true
@@ -141,26 +142,71 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String) {
                     }
                 }
             }
+            // Replace the old layout branch with this:
             else -> {
                 val compact = maxWidth < 700.dp
-                if (compact) MobileDashboard(state!!, userName, spendingPeriod) { spendingPeriod = it }
-                else DesktopDashboard(state!!, userName, spendingPeriod) { spendingPeriod = it }
+                if (compact) {
+                    MobileDashboard(
+                        state = state!!,
+                        userName = userName,
+                        spendingPeriod = spendingPeriod,
+                        selectedAccounts = selectedAccounts, // Pass it down
+                        onAccountsChanged = { selectedAccounts = it }, // Callback to update state
+                        onPeriodSelected = { spendingPeriod = it }
+                    )
+                } else {
+                    DesktopDashboard(
+                        state = state!!,
+                        userName = userName,
+                        spendingPeriod = spendingPeriod,
+                        selectedAccounts = selectedAccounts,
+                        onAccountsChanged = { selectedAccounts = it },
+                        onPeriodSelected = { spendingPeriod = it }
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun MobileDashboard(state: DashboardState, userName: String,
-                            spendingPeriod: SpendingPeriod, onPeriodSelected: (SpendingPeriod) -> Unit) {
+private fun MobileDashboard(
+    state: DashboardState,
+    userName: String,
+    spendingPeriod: SpendingPeriod,
+    selectedAccounts: Set<String>,
+    onAccountsChanged: (Set<String>) -> Unit,
+    onPeriodSelected: (SpendingPeriod) -> Unit
+) {
     val greeting = rememberGreeting()
-    var selectedPeriod by remember { mutableStateOf(SpendingPeriod.THIS_MONTH) }
-    val filteredCategories by derivedStateOf {
-        computeSpendingCategories(state.rawTransactions, selectedPeriod, state.currency)
-    }
     val accountOptions = state.accounts.map { it.bankName }
-    var selectedAccounts by remember { mutableStateOf(setOf<String>()) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
+
+    // ── 1. FILTERED BALANCES & ACCOUNTS ──
+    val activeAccounts = remember(selectedAccounts, state.accounts) {
+        if (selectedAccounts.isEmpty()) state.accounts
+        else state.accounts.filter { it.bankName in selectedAccounts }
+    }
+
+    // Calculates display balance based on selected account(s)
+    val displayBalance = remember(activeAccounts, state.accounts) {
+        if (selectedAccounts.isEmpty()) state.currentBalance
+        else {
+            state.accounts
+                .filter { it.bankName in selectedAccounts }
+                .sumOf { it.balance.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0 }
+        }
+    }
+
+    // ── 2. FILTERED RAW TRANSACTIONS ──
+    val filteredRawTransactions = remember(selectedAccounts, state.rawTransactions) {
+        if (selectedAccounts.isEmpty()) state.rawTransactions
+        else state.rawTransactions.filter { tx ->
+            state.accounts.find { it.bankName in selectedAccounts } != null
+        }
+    }
+
+    // Label on the top-right button
     val selectorLabel = if (selectedAccounts.isEmpty()) "All Accounts"
     else if (selectedAccounts.size == 1) selectedAccounts.first()
     else "${selectedAccounts.size} accounts"
@@ -187,8 +233,9 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
                 }
+
+                // Account selector dropdown
                 Box {
                     OutlinedButton(
                         onClick = { accountDropdownExpanded = true },
@@ -205,19 +252,25 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                         expanded = accountDropdownExpanded,
                         onDismissRequest = { accountDropdownExpanded = false }
                     ) {
+                        // "All Accounts" option
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(
                                         checked = selectedAccounts.isEmpty(),
-                                        onCheckedChange = { selectedAccounts = setOf() }
+                                        onCheckedChange = { onAccountsChanged(setOf()) }
                                     )
                                     Text("All Accounts", style = MaterialTheme.typography.bodySmall)
                                 }
                             },
-                            onClick = { selectedAccounts = setOf() }
+                            onClick = {
+                                onAccountsChanged(setOf())
+                                accountDropdownExpanded = false
+                            }
                         )
                         HorizontalDivider()
+
+                        // Individual Account options
                         accountOptions.forEach { account ->
                             DropdownMenuItem(
                                 text = {
@@ -225,20 +278,16 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                                         Checkbox(
                                             checked = account in selectedAccounts,
                                             onCheckedChange = { checked ->
-                                                selectedAccounts = if (checked)
-                                                    selectedAccounts + account
-                                                else
-                                                    selectedAccounts - account
+                                                val next = if (checked) selectedAccounts + account else selectedAccounts - account
+                                                onAccountsChanged(next)
                                             }
                                         )
                                         Text(account, style = MaterialTheme.typography.bodySmall)
                                     }
                                 },
                                 onClick = {
-                                    selectedAccounts = if (account in selectedAccounts)
-                                        selectedAccounts - account
-                                    else
-                                        selectedAccounts + account
+                                    val next = if (account in selectedAccounts) selectedAccounts - account else selectedAccounts + account
+                                    onAccountsChanged(next)
                                 }
                             )
                         }
@@ -247,18 +296,26 @@ private fun MobileDashboard(state: DashboardState, userName: String,
             }
         }
 
+        // Current Balance Card (Uses dynamic displayBalance)
         item {
             DashboardCard {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Current Balance", style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(formatCurrency(state.currentBalance, getCurrencySymbol(state.currency)), style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Current Balance",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = formatCurrency(displayBalance, getCurrencySymbol(state.currency)),
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                     TrendIndicator(percentageChange = state.balanceChangePercent)
                 }
             }
         }
 
+        // Monthly Income & Expenses Card
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -266,30 +323,49 @@ private fun MobileDashboard(state: DashboardState, userName: String,
             ) {
                 DashboardCard(modifier = Modifier.weight(1f)) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Monthly Income", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)), style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Monthly Income",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                         TrendIndicator(percentageChange = state.incomeChangePercent)
                     }
                 }
                 DashboardCard(modifier = Modifier.weight(1f)) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Monthly Expenses", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)), style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Monthly Expenses",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                         TrendIndicator(percentageChange = state.expenseChangePercent)
                     }
                 }
             }
         }
 
+        // Spending Overview Card (Filters categories based on filteredRawTransactions)
         item {
             DashboardCard {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-                    val filteredCategories = filterCategoriesByPeriod(state, spendingPeriod)
+
+                    val filteredCategories = computeSpendingCategories(
+                        transactions = filteredRawTransactions,
+                        period = spendingPeriod,
+                        currency = state.currency
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -298,8 +374,11 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                         DonutChart(categories = filteredCategories, modifier = Modifier.size(120.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             if (filteredCategories.isEmpty()) {
-                                Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = "No spending data yet",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             } else {
                                 filteredCategories.forEach { cat -> CategoryLegendRow(cat) }
                             }
@@ -309,6 +388,7 @@ private fun MobileDashboard(state: DashboardState, userName: String,
             }
         }
 
+        // Charts Row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
@@ -335,6 +415,7 @@ private fun MobileDashboard(state: DashboardState, userName: String,
 
         item { BudgetProgressCard() }
 
+        // Recent Transactions Card
         item {
             DashboardCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -344,12 +425,18 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SectionTitle("Recent Transactions")
-                        Text("See all", style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            text = "See all",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                     if (state.recentTransactions.isEmpty()) {
-                        Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = "No transactions yet",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     } else {
                         state.recentTransactions.forEach { tx -> TransactionRow(tx) }
                     }
@@ -360,12 +447,42 @@ private fun MobileDashboard(state: DashboardState, userName: String,
 }
 
 @Composable
-private fun DesktopDashboard(state: DashboardState, userName: String,
-                             spendingPeriod: SpendingPeriod, onPeriodSelected: (SpendingPeriod) -> Unit) {
+private fun DesktopDashboard(
+    state: DashboardState,
+    userName: String,
+    spendingPeriod: SpendingPeriod,
+    selectedAccounts: Set<String>,
+    onAccountsChanged: (Set<String>) -> Unit,
+    onPeriodSelected: (SpendingPeriod) -> Unit
+) {
     val greeting = rememberGreeting()
     val accountOptions = state.accounts.map { it.bankName }
-    var selectedAccounts by remember { mutableStateOf(setOf<String>()) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
+
+    // ── 1. FILTERED BALANCES & ACCOUNTS ──
+    val activeAccounts = remember(selectedAccounts, state.accounts) {
+        if (selectedAccounts.isEmpty()) state.accounts
+        else state.accounts.filter { it.bankName in selectedAccounts }
+    }
+
+    // Calculates display balance based on selected account(s)
+    val displayBalance = remember(activeAccounts, state.accounts) {
+        if (selectedAccounts.isEmpty()) state.currentBalance
+        else {
+            state.accounts
+                .filter { it.bankName in selectedAccounts }
+                .sumOf { it.balance.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0 }
+        }
+    }
+
+    // ── 2. FILTERED RAW TRANSACTIONS ──
+    val filteredRawTransactions = remember(selectedAccounts, state.rawTransactions) {
+        if (selectedAccounts.isEmpty()) state.rawTransactions
+        else state.rawTransactions.filter { tx ->
+            state.accounts.find { it.bankName in selectedAccounts } != null
+        }
+    }
+
     val selectorLabel = if (selectedAccounts.isEmpty()) "All Accounts"
     else if (selectedAccounts.size == 1) selectedAccounts.first()
     else "${selectedAccounts.size} accounts"
@@ -382,9 +499,11 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("$greeting, $userName ",
+                    Text(
+                        text = "$greeting, $userName ",
                         style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold)
+                        fontWeight = FontWeight.Bold
+                    )
                     Text(
                         text = "Here's your financial overview",
                         style = MaterialTheme.typography.bodyMedium,
@@ -409,12 +528,15 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Checkbox(
                                         checked = selectedAccounts.isEmpty(),
-                                        onCheckedChange = { selectedAccounts = setOf() }
+                                        onCheckedChange = { onAccountsChanged(setOf()) }
                                     )
                                     Text("All Accounts", style = MaterialTheme.typography.bodySmall)
                                 }
                             },
-                            onClick = { selectedAccounts = setOf() }
+                            onClick = {
+                                onAccountsChanged(setOf())
+                                accountDropdownExpanded = false
+                            }
                         )
                         HorizontalDivider()
                         accountOptions.forEach { account ->
@@ -424,20 +546,16 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                                         Checkbox(
                                             checked = account in selectedAccounts,
                                             onCheckedChange = { checked ->
-                                                selectedAccounts = if (checked)
-                                                    selectedAccounts + account
-                                                else
-                                                    selectedAccounts - account
+                                                val next = if (checked) selectedAccounts + account else selectedAccounts - account
+                                                onAccountsChanged(next)
                                             }
                                         )
                                         Text(account, style = MaterialTheme.typography.bodySmall)
                                     }
                                 },
                                 onClick = {
-                                    selectedAccounts = if (account in selectedAccounts)
-                                        selectedAccounts - account
-                                    else
-                                        selectedAccounts + account
+                                    val next = if (account in selectedAccounts) selectedAccounts - account else selectedAccounts + account
+                                    onAccountsChanged(next)
                                 }
                             )
                         }
@@ -455,7 +573,7 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
 
                 StatCard(
                     label = "Current Balance",
-                    value = formatCurrency(state.currentBalance, sym),
+                    value = formatCurrency(displayBalance, sym), // Uses dynamic display balance!
                     trendPercentage = state.balanceChangePercent,
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
@@ -491,7 +609,14 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-                        val filteredCategories = filterCategoriesByPeriod(state, spendingPeriod)
+
+                        // Uses filteredRawTransactions for dynamic Donut Chart filtering
+                        val filteredCategories = computeSpendingCategories(
+                            transactions = filteredRawTransactions,
+                            period = spendingPeriod,
+                            currency = state.currency
+                        )
+
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -503,8 +628,10 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 } else {
                                     filteredCategories.forEach { cat ->
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             Box(Modifier.size(10.dp).background(cat.color, CircleShape))
                                             Text("${cat.name}  ${(cat.percent * 100).toInt()}%",
                                                 style = MaterialTheme.typography.bodySmall)
@@ -581,9 +708,11 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         } else {
                             state.accounts.forEach { account ->
-                                Row(modifier = Modifier.fillMaxWidth(),
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically) {
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Column {
                                         Text(account.bankName, style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Medium)
