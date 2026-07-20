@@ -177,7 +177,7 @@ private fun MobileDashboard(state: DashboardState, userName: String,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "$greeting, Alex ",
+                        text = "$greeting, $userName ",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -322,7 +322,7 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                 }
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionTitle("Spending")
+                        SectionTitle("Highest Spending")
                         BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(120.dp))
                     }
                 }
@@ -373,7 +373,7 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("$greeting, Alex ",
+                    Text("$greeting, $userName ",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold)
 
@@ -631,7 +631,7 @@ private fun LineChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
         Row(modifier = modifier) {
             // Y-axis labels column
             Column(
-                modifier = Modifier.width(32.dp).fillMaxHeight(),
+                modifier = Modifier.width(24.dp).fillMaxHeight(),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 yLabels.forEach { v ->
@@ -645,11 +645,11 @@ private fun LineChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(2.dp))
             // Chart canvas
             Canvas(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                val paddingTop    = 8.dp.toPx()
-                val paddingBottom = 8.dp.toPx()
+                val paddingTop    = 12.dp.toPx()
+                val paddingBottom = 20.dp.toPx()
                 val chartHeight   = size.height - paddingTop - paddingBottom
                 val stepX         = size.width / (data.size - 1).toFloat()
                 fun xFor(i: Int)  = i * stepX
@@ -685,7 +685,7 @@ private fun LineChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
         val monthNumberMap = mapOf("Jan" to 1, "Feb" to 2, "Mar" to 3, "Apr" to 4,
             "May" to 5, "Jun" to 6, "Jul" to 7, "Aug" to 8,
             "Sep" to 9, "Oct" to 10, "Nov" to 11, "Dec" to 12)
-        Row(modifier = Modifier.fillMaxWidth().padding(start = 36.dp),
+        Row(modifier = Modifier.fillMaxWidth().padding(start = 24.dp),
             horizontalArrangement = Arrangement.SpaceBetween) {
             data.forEach {
                 Text("${monthNumberMap[it.month] ?: it.month}",
