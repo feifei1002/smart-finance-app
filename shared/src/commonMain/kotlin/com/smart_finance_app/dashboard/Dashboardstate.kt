@@ -28,7 +28,10 @@ data class DashboardState(
     val recentTransactions: List<Transaction>,
     val accounts: List<AccountOverview>,
     val monthlyTopCategories: List<MonthlyTopCategory>,
-    val rawTransactions: List<TransactionData>
+    val rawTransactions: List<TransactionData>,
+    val balanceChangePercent: Float,
+    val incomeChangePercent: Float,
+    val expenseChangePercent: Float
 )
 
 // ── Category colours ──────────────────────────────────────────────────────────
@@ -184,6 +187,37 @@ fun computeDashboardState(
     val monthlyIncome   = thisMonthTx.filter { it.amount > 0 }.sumOf { it.amount }
     val monthlyExpenses = thisMonthTx.filter { it.amount < 0 }.sumOf { kotlin.math.abs(it.amount) }
 
+    // ── Last month income + expenses calculation ──────────────────────────────
+    val lastMonthDate  = now.date.minus(DatePeriod(months = 1))
+    val lastMonthNumber = lastMonthDate.monthNumber
+    val lastMonthYear   = lastMonthDate.year
+
+    val lastMonthTx = transactions.filter { tx ->
+        val parts = tx.timestamp.take(10).split("-")
+        parts.size == 3 &&
+                parts[0].toIntOrNull() == lastMonthYear &&
+                parts[1].toIntOrNull() == lastMonthNumber
+    }
+
+    val lastMonthIncome   = lastMonthTx.filter { it.amount > 0 }.sumOf { it.amount }
+    val lastMonthExpenses = lastMonthTx.filter { it.amount < 0 }.sumOf { kotlin.math.abs(it.amount) }
+
+    // Helper math to calculate the shift safely (handles division by zero)
+    fun calculateChange(current: Double, previous: Double): Float {
+        if (previous == 0.0) return 0f
+        return (((current - previous) / previous) * 100).toFloat()
+    }
+
+    val incomeChangePercent  = calculateChange(monthlyIncome, lastMonthIncome)
+    val expenseChangePercent = calculateChange(monthlyExpenses, lastMonthExpenses)
+
+    // Balance change tracks net savings progression contextually
+    val lastMonthNet = lastMonthIncome - lastMonthExpenses
+    val thisMonthNet = monthlyIncome - monthlyExpenses
+    val balanceChangePercent = if (lastMonthNet != 0.0) {
+        (((thisMonthNet - lastMonthNet) / kotlin.math.abs(lastMonthNet)) * 100).toFloat()
+    } else 0f
+
     // ── Spending categories (this month, debits only) ─────────────────────────
     val debitTx    = thisMonthTx.filter { it.amount < 0 }
     val totalSpend = debitTx.sumOf { kotlin.math.abs(it.amount) }.takeIf { it > 0 } ?: 1.0
@@ -289,7 +323,10 @@ fun computeDashboardState(
         recentTransactions    = recentTransactions,
         accounts              = accountOverviews,
         monthlyTopCategories  = monthlyTopCategories,
-        rawTransactions       = transactions
+        rawTransactions       = transactions,
+        balanceChangePercent  = balanceChangePercent,
+        incomeChangePercent   = incomeChangePercent,
+        expenseChangePercent  = expenseChangePercent
     )
 }
 

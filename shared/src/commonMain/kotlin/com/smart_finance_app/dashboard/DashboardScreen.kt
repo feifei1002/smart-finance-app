@@ -254,6 +254,7 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(formatCurrency(state.currentBalance, getCurrencySymbol(state.currency)), style = MaterialTheme.typography.headlineLarge,
                         fontWeight = FontWeight.Bold)
+                    TrendIndicator(percentageChange = state.balanceChangePercent)
                 }
             }
         }
@@ -269,6 +270,7 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)), style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
+                        TrendIndicator(percentageChange = state.incomeChangePercent)
                     }
                 }
                 DashboardCard(modifier = Modifier.weight(1f)) {
@@ -277,6 +279,7 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)), style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
+                        TrendIndicator(percentageChange = state.expenseChangePercent)
                     }
                 }
             }
@@ -449,10 +452,34 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 val sym = getCurrencySymbol(state.currency)
-                StatCard("Current Balance",  formatCurrency(state.currentBalance, sym), "", true, Modifier.weight(1f).fillMaxHeight())
-                StatCard("Monthly Income",   formatCurrency(state.monthlyIncome, sym), "", true, Modifier.weight(1f).fillMaxHeight())
-                StatCard("Monthly Expenses", formatCurrency(state.monthlyExpenses, sym), "", false, Modifier.weight(1f).fillMaxHeight())
-                StatCard("Net Savings", formatCurrency(state.monthlyIncome - state.monthlyExpenses, sym), "", state.monthlyIncome >= state.monthlyExpenses, Modifier.weight(1f).fillMaxHeight())
+
+                StatCard(
+                    label = "Current Balance",
+                    value = formatCurrency(state.currentBalance, sym),
+                    trendPercentage = state.balanceChangePercent,
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                StatCard(
+                    label = "Monthly Income",
+                    value = formatCurrency(state.monthlyIncome, sym),
+                    trendPercentage = state.incomeChangePercent,
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                StatCard(
+                    label = "Monthly Expenses",
+                    value = formatCurrency(state.monthlyExpenses, sym),
+                    trendPercentage = state.expenseChangePercent,
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+
+                // Net Savings trend calculated dynamically
+                val netSavingsTrend = state.incomeChangePercent - state.expenseChangePercent
+                StatCard(
+                    label = "Net Savings",
+                    value = formatCurrency(state.monthlyIncome - state.monthlyExpenses, sym),
+                    trendPercentage = netSavingsTrend,
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
             }
         }
 
@@ -916,15 +943,27 @@ private fun DashboardCard(modifier: Modifier = Modifier, content: @Composable Co
 }
 
 @Composable
-private fun StatCard(label: String, value: String, change: String, positive: Boolean, modifier: Modifier = Modifier) {
+private fun StatCard(
+    label: String,
+    value: String,
+    trendPercentage: Float, // Changed from raw strings to match backend pipeline
+    modifier: Modifier = Modifier
+) {
     DashboardCard(modifier = modifier) {
         Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            if (change.isNotEmpty()) {
-                ArrowChange(change = change, positive = positive)
-            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            // Render the brand new trend row beautifully right under the amount
+            TrendIndicator(percentageChange = trendPercentage)
         }
     }
 }
@@ -992,6 +1031,45 @@ private fun TransactionRow(tx: Transaction) {
         }
         Text(tx.amount, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
             color = if (tx.isIncome) Color(0xFF16A34A) else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun TrendIndicator(percentageChange: Float) {
+    val isPositive = percentageChange >= 0f
+    val absValue = kotlin.math.abs(percentageChange)
+    val color = if (isPositive) Color(0xFF16A34A) else Color(0xFFEF4444)
+    val icon = if (isPositive) Res.drawable.arrow_upward else Res.drawable.arrow_downward
+
+    // KMP-safe rounding to 1 decimal place without JVM String.format()
+    val formattedPercentage = remember(absValue) {
+        val intPart = absValue.toLong()
+        val decPart = kotlin.math.round((absValue - intPart) * 10).toLong()
+        "$intPart.$decPart"
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(top = 4.dp)
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(12.dp)
+        )
+        Text(
+            text = "$formattedPercentage%",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+        Text(
+            text = "vs last month",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
