@@ -399,7 +399,7 @@ private fun MobileDashboard(
                         SectionTitle("Monthly Trend")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             LegendDot(color = Color(0xFF16A34A), label = "In")
-                            LegendDot(color = Color(0xFFEF4444), label = "Ex")
+                            LegendDot(color = Color(0xFFEF4444), label = "Out")
                         }
                         LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(120.dp))
                     }
