@@ -13,7 +13,7 @@ import java.util.UUID
 data class SignInRequest(val email: String, val password: String)
 
 @Serializable
-data class SignInResponse(val token: String, val userId: String, val email: String, val consentAccepted: Boolean)
+data class SignInResponse(val token: String, val userId: String, val email: String, val name: String, val consentAccepted: Boolean)
 
 fun Route.signInRoutes(createToken: (UUID) -> String) {
     post("/auth/signin") {
@@ -28,7 +28,7 @@ fun Route.signInRoutes(createToken: (UUID) -> String) {
         val user = Database.dataSource.connection.use { connection ->
             connection.prepareStatement(
                 """
-                    SELECT id, email, password_hash, consent_accepted_at IS NOT NULL AS consent_accepted
+                    SELECT id, email, full_name, password_hash, consent_accepted_at IS NOT NULL AS consent_accepted
                     FROM users WHERE email = ?
                 """.trimIndent()
             ).use { statement ->
@@ -39,6 +39,7 @@ fun Route.signInRoutes(createToken: (UUID) -> String) {
                     else SignInUser(
                         id = result.getObject("id", UUID::class.java),
                         email = result.getString("email"),
+                        name = result.getString("full_name"),
                         passwordHash = result.getString("password_hash"),
                         consentAccepted = result.getBoolean("consent_accepted")
                     )
@@ -61,10 +62,11 @@ fun Route.signInRoutes(createToken: (UUID) -> String) {
                 token = createToken(user.id),
                 userId = user.id.toString(),
                 email = user.email,
+                name = user.name,
                 consentAccepted = user.consentAccepted
             )
         )
     }
 }
 
-private data class SignInUser(val id: UUID, val email: String, val passwordHash: String, val consentAccepted: Boolean)
+private data class SignInUser(val id: UUID, val email: String,val name: String, val passwordHash: String, val consentAccepted: Boolean)

@@ -140,10 +140,11 @@ fun App(apiBaseUrl: String) {
                 )
             }
             Screen.Main -> {
-                // TODO: replace with real Dashboard screen
+                val resolvedName: String = session?.email?.substringBefore("@") ?: ""
                 MainNavigation(
                     apiBaseUrl = apiBaseUrl,
                     authToken = session?.token.orEmpty(),
+                    userName = resolvedName,
                     onSignOut = {
                         session = null
                         signInError = null

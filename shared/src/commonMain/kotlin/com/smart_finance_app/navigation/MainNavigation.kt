@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 
 
 @Composable
-fun MainNavigation(apiBaseUrl: String, authToken: String, onSignOut: () -> Unit) {
+fun MainNavigation(apiBaseUrl: String, authToken: String, userName: String, onSignOut: () -> Unit) {
     var selected by remember { mutableStateOf(AppNavigation.Dashboard) }
 
     BoxWithConstraints(
@@ -70,15 +70,15 @@ fun MainNavigation(apiBaseUrl: String, authToken: String, onSignOut: () -> Unit)
                 }
             }
         ) {
-            NavigationContent(navigation = selected, apiBaseUrl = apiBaseUrl, authToken = authToken, onSignOut = onSignOut)
+            NavigationContent(navigation = selected, apiBaseUrl = apiBaseUrl, authToken = authToken, userName = userName, onSignOut = onSignOut)
         }
     }
 }
 
 @Composable
-private fun NavigationContent(navigation: AppNavigation, apiBaseUrl: String, authToken: String, onSignOut: () -> Unit) {
+private fun NavigationContent(navigation: AppNavigation, apiBaseUrl: String, authToken: String, userName: String, onSignOut: () -> Unit) {
     when (navigation) {
-        AppNavigation.Dashboard -> DashboardScreen()
+        AppNavigation.Dashboard -> DashboardScreen(apiBaseUrl = apiBaseUrl, authToken = authToken, userName = userName)
 
         AppNavigation.Accounts -> {
             var showConnectBank by remember { mutableStateOf(false) }
