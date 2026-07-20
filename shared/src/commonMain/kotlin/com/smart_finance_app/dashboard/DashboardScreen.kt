@@ -36,6 +36,7 @@ import smart_finance_app.shared.generated.resources.arrow_upward
 import smart_finance_app.shared.generated.resources.arrow_downward
 import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
+import androidx.compose.ui.text.drawText
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -343,7 +344,12 @@ private fun MobileDashboard(state: DashboardState, userName: String,
                         Text("See all", style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary)
                     }
-                    // TODO: transactions from backend
+                    if (state.recentTransactions.isEmpty()) {
+                        Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        state.recentTransactions.forEach { tx -> TransactionRow(tx) }
+                    }
                 }
             }
         }
@@ -354,7 +360,7 @@ private fun MobileDashboard(state: DashboardState, userName: String,
 private fun DesktopDashboard(state: DashboardState, userName: String,
                              spendingPeriod: SpendingPeriod, onPeriodSelected: (SpendingPeriod) -> Unit) {
     val greeting = rememberGreeting()
-    val accountOptions = listOf("Chase Checking", "Bank of America")
+    val accountOptions = state.accounts.map { it.bankName }
     var selectedAccounts by remember { mutableStateOf(setOf<String>()) }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     val selectorLabel = if (selectedAccounts.isEmpty()) "All Accounts"
@@ -376,7 +382,11 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                     Text("$greeting, $userName ",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold)
-
+                    Text(
+                        text = "Here's your financial overview",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 Box {
                     OutlinedButton(onClick = { accountDropdownExpanded = true }) {
@@ -506,9 +516,7 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                 }
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SectionTitle("Budget Progress")
-                        Text("Set budgets to track your spending.", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        BudgetProgressCard()
                     }
                 }
             }
@@ -557,7 +565,7 @@ private fun DesktopDashboard(state: DashboardState, userName: String,
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text(account.balance, style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold)  // pre-formatted in DashboardState
+                                            fontWeight = FontWeight.SemiBold)
                                         Text("Connected", style = MaterialTheme.typography.labelSmall,
                                             color = Color(0xFF16A34A))
                                     }
@@ -627,12 +635,24 @@ private fun LineChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
     val maxVal = data.maxOf { maxOf(it.income, it.expenses) } * 1.2f
     val yLabels = (3 downTo 0).map { i -> (maxVal * i / 3).toInt() }
 
-    Column {
-        Row(modifier = modifier) {
-            // Y-axis labels column
+    // CRITICAL CHANGES: Tightened down the left column layout footprints
+    // to physically draw the gridlines and trend lines closer to the left wall.
+    val labelWidth = 16.dp // Drastically reduced from 32.dp to eliminate dead workspace
+    val spacingGutter = 4.dp // Halved from 8.dp to snap the chart lines leftwards
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            // Y-axis labels column - tightly fits numbers, hugging the far left
             Column(
-                modifier = Modifier.width(24.dp).fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier
+                    .width(labelWidth)
+                    .fillMaxHeight(),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.Start
             ) {
                 yLabels.forEach { v ->
                     Text(
@@ -640,58 +660,88 @@ private fun LineChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 9.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.End,
+                        textAlign = TextAlign.Start,
+                        maxLines = 1,
+                        overflow = TextOverflow.Visible,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(2.dp))
-            // Chart canvas
-            Canvas(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                val paddingTop    = 12.dp.toPx()
-                val paddingBottom = 20.dp.toPx()
-                val chartHeight   = size.height - paddingTop - paddingBottom
-                val stepX         = size.width / (data.size - 1).toFloat()
-                fun xFor(i: Int)  = i * stepX
-                fun yFor(v: Float) = paddingTop + chartHeight * (1f - v.coerceIn(0f, maxVal) / maxVal)
 
-                // Gridlines
+            Spacer(modifier = Modifier.width(spacingGutter))
+
+            // The main graphic canvas - now pulled way over to the left!
+            Canvas(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                val chartWidth = size.width
+                val chartHeight = size.height
+
+                val stepX = chartWidth / (data.size - 1).toFloat()
+                fun xFor(i: Int) = i * stepX
+                fun yFor(v: Float) = chartHeight * (1f - v.coerceIn(0f, maxVal) / maxVal)
+
+                // Render matching grid lines
                 repeat(4) { i ->
-                    val y = paddingTop + chartHeight * (i / 3f)
-                    drawLine(Color(0x22888888), Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                    val y = chartHeight * (i / 3f)
+                    drawLine(
+                        color = Color(0x1F888888),
+                        start = Offset(0f, y),
+                        end = Offset(chartWidth, y),
+                        strokeWidth = 1.dp.toPx()
+                    )
                 }
-                // Income line
+
+                // Income trend line
                 val incomePath = Path()
                 data.forEachIndexed { i, p ->
                     if (i == 0) incomePath.moveTo(xFor(i), yFor(p.income))
                     else incomePath.lineTo(xFor(i), yFor(p.income))
                 }
                 drawPath(incomePath, incomeColor, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round))
-                // Expenses line
+
+                // Expenses trend line
                 val expPath = Path()
                 data.forEachIndexed { i, p ->
                     if (i == 0) expPath.moveTo(xFor(i), yFor(p.expenses))
                     else expPath.lineTo(xFor(i), yFor(p.expenses))
                 }
                 drawPath(expPath, expensesColor, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round))
-                // Dots
+
+                // Vector point circles matching line vertices
                 data.forEachIndexed { i, p ->
-                    drawCircle(incomeColor,   4.dp.toPx(), Offset(xFor(i), yFor(p.income)))
-                    drawCircle(expensesColor, 4.dp.toPx(), Offset(xFor(i), yFor(p.expenses)))
+                    drawCircle(incomeColor, 3.5.dp.toPx(), Offset(xFor(i), yFor(p.income)))
+                    drawCircle(expensesColor, 3.5.dp.toPx(), Offset(xFor(i), yFor(p.expenses)))
                 }
             }
         }
-        // Month labels as numbers aligned with chart area
-        val monthNumberMap = mapOf("Jan" to 1, "Feb" to 2, "Mar" to 3, "Apr" to 4,
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Month items automatically tracking the new left-shifted line anchor bounds
+        val monthNumberMap = mapOf(
+            "Jan" to 1, "Feb" to 2, "Mar" to 3, "Apr" to 4,
             "May" to 5, "Jun" to 6, "Jul" to 7, "Aug" to 8,
-            "Sep" to 9, "Oct" to 10, "Nov" to 11, "Dec" to 12)
-        Row(modifier = Modifier.fillMaxWidth().padding(start = 24.dp),
-            horizontalArrangement = Arrangement.SpaceBetween) {
+            "Sep" to 9, "Oct" to 10, "Nov" to 11, "Dec" to 12
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = labelWidth + spacingGutter), // Dynamically stays aligned with the canvas start point
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             data.forEach {
-                Text("${monthNumberMap[it.month] ?: it.month}",
+                Text(
+                    text = "${monthNumberMap[it.month] ?: it.month}",
                     style = MaterialTheme.typography.labelSmall,
+                    fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center)
+                    modifier = Modifier.width(IntrinsicSize.Min),
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
