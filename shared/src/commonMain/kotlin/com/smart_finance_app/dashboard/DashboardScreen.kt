@@ -36,6 +36,8 @@ import smart_finance_app.shared.generated.resources.arrow_upward
 import smart_finance_app.shared.generated.resources.arrow_downward
 import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
+import smart_finance_app.shared.generated.resources.bank
+import smart_finance_app.shared.generated.resources.check
 import androidx.compose.ui.text.drawText
 
 
@@ -57,7 +59,7 @@ private fun rememberGreeting(): String {
 }
 
 @Composable
-fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String) {
+fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,onConnectAccountClicked: () -> Unit = {}) {
     val api   = remember(apiBaseUrl) { DashboardApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
 
@@ -131,7 +133,12 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.padding(24.dp)) {
-                        Text("🏦", fontSize = 40.sp)
+                        Icon(
+                            painter = painterResource(Res.drawable.bank),
+                            contentDescription = "Bank Icon",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp)
+                        )
                         Text("No accounts connected",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
@@ -139,6 +146,17 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Button(
+                            onClick = { onConnectAccountClicked() }, // Or pass your navigation logic/callback here
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                        ) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Connect Account",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                 }
             }
@@ -1041,8 +1059,12 @@ private fun SpendingOverviewHeader(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 if (period == selectedPeriod) {
-                                    Text("✓", color = MaterialTheme.colorScheme.primary,
-                                        style = MaterialTheme.typography.bodySmall)
+                                    Icon(
+                                        painter = painterResource(Res.drawable.check),
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 } else {
                                     Spacer(Modifier.width(14.dp))
                                 }
