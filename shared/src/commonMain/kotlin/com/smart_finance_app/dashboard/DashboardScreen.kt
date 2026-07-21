@@ -38,6 +38,7 @@ import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
+import com.smart_finance_app.accounts.ConnectBankAccountScreen
 import androidx.compose.ui.text.drawText
 
 
@@ -59,7 +60,7 @@ private fun rememberGreeting(): String {
 }
 
 @Composable
-fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,onConnectAccountClicked: () -> Unit = {}) {
+fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,onConnectAccountClicked: () -> Unit ) {
     val api   = remember(apiBaseUrl) { DashboardApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
 
@@ -148,10 +149,9 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,onCo
                             textAlign = TextAlign.Center)
                         Spacer(modifier = Modifier.height(4.dp))
                         Button(
-                            onClick = { onConnectAccountClicked() }, // Or pass your navigation logic/callback here
+                            onClick = { onConnectAccountClicked() },
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                         ) {
-                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Connect Account",
                                 style = MaterialTheme.typography.labelLarge

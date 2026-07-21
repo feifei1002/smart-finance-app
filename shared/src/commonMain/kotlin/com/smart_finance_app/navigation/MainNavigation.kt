@@ -70,15 +70,34 @@ fun MainNavigation(apiBaseUrl: String, authToken: String, userName: String, onSi
                 }
             }
         ) {
-            NavigationContent(navigation = selected, apiBaseUrl = apiBaseUrl, authToken = authToken, userName = userName, onSignOut = onSignOut)
+            NavigationContent(
+                navigation = selected,
+                apiBaseUrl = apiBaseUrl,
+                authToken = authToken,
+                userName = userName,
+                onSignOut = onSignOut,
+                onNavigateToAccounts = { selected = AppNavigation.Accounts } // Pass navigation handler
+            )
         }
     }
 }
 
 @Composable
-private fun NavigationContent(navigation: AppNavigation, apiBaseUrl: String, authToken: String, userName: String, onSignOut: () -> Unit) {
+private fun NavigationContent(
+    navigation: AppNavigation,
+    apiBaseUrl: String,
+    authToken: String,
+    userName: String,
+    onSignOut: () -> Unit,
+    onNavigateToAccounts: () -> Unit // Added callback parameter
+) {
     when (navigation) {
-        AppNavigation.Dashboard -> DashboardScreen(apiBaseUrl = apiBaseUrl, authToken = authToken, userName = userName)
+        AppNavigation.Dashboard -> DashboardScreen(
+            apiBaseUrl = apiBaseUrl,
+            authToken = authToken,
+            userName = userName,
+            onConnectAccountClicked = onNavigateToAccounts // Pass callback to DashboardScreen
+        )
 
         AppNavigation.Accounts -> {
             var showConnectBank by remember { mutableStateOf(false) }
