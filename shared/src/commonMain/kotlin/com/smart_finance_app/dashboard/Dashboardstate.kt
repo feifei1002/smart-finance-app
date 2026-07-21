@@ -264,7 +264,7 @@ fun computeDashboardState(
         val formatted = if (tx.type.uppercase() == "CREDIT")
             "+${formatCurrency(tx.amount, symbol)}"
         else
-            "-${formatCurrency(tx.amount, symbol)}"
+            formatCurrency(tx.amount, symbol)
         Transaction(
             name     = tx.merchantName?.ifBlank { null } ?: tx.description,
             date     = formatDate(tx.timestamp),
