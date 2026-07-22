@@ -18,6 +18,7 @@ import com.smart_finance_app.accounts.ConnectBankAccountScreen
 import com.smart_finance_app.accounts.ConnectedAccount
 import com.smart_finance_app.accounts.ConnectedAccountResult
 import com.smart_finance_app.dashboard.DashboardScreen
+import com.smart_finance_app.transactions.TransactionsScreen
 import kotlinx.coroutines.launch
 
 
@@ -98,6 +99,8 @@ private fun NavigationContent(
             userName = userName,
             onConnectAccountClicked = onNavigateToAccounts // Pass callback to DashboardScreen
         )
+
+        AppNavigation.Transactions -> TransactionsScreen()
 
         AppNavigation.Accounts -> {
             var showConnectBank by remember { mutableStateOf(false) }
