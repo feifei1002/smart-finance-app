@@ -58,6 +58,24 @@ data class TransactionResponse(
 )
 
 @Serializable
+data class ImportedTransactionResponse(
+    val id: String,
+    val date: String,
+    val merchantName: String,
+    val category: String,
+    val accountName: String,
+    val amount: Double,
+    val currency: String
+)
+
+@Serializable
+data class TransactionSyncResponse(
+    val importedCount: Int,
+    val duplicateCount: Int,
+    val lastSuccessfulSyncAt: String?
+)
+
+@Serializable
 data class BankProviderResponse(
     val id: String,
     val name: String,
@@ -250,6 +268,40 @@ fun Route.bankingRoutes() {
 
             // Sort all transactions newest first across all accounts
             call.respond(transactions.sortedByDescending { it.timestamp })
+        }
+
+        post("/api/banking/transactions/sync") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    ErrorResponse("Invalid token")
+                )
+
+            val result = runCatching {
+                syncTransactionsForUser(userId)
+            }.getOrElse { exception ->
+                val lastSync = getLastSuccessfulTransactionSync(userId)
+                call.respond(
+                    HttpStatusCode.BadGateway,
+                    ErrorResponse(
+                        "Transaction sync failed. Last successful sync: ${lastSync ?: "Never"}"
+                    )
+                )
+                return@post
+            }
+
+            call.respond(result)
+        }
+
+        get("/api/banking/transactions/imported") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@get call.respond(
+                    HttpStatusCode.Unauthorized,
+                    ErrorResponse("Invalid token")
+                )
+            call.respond(getImportedTransactionsForUser(userId))
         }
 
         get("/api/banking/providers") {
@@ -521,6 +573,7 @@ private fun fetchTransactions(accessToken: String, accountId: String): List<Tran
 
 private data class StoredAccount(
     val accountId: String,
+    val accountName: String,
     val accessToken: String,
     val refreshToken: String,
     val tokenExpiry: Instant,
@@ -631,7 +684,7 @@ private fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
-            SELECT id, account_id, access_token, refresh_token, token_expiry
+            SELECT id, account_id, bank_name, access_token, refresh_token, token_expiry
             FROM connected_accounts
             WHERE user_id = ?
             ORDER BY created_at ASC
@@ -644,6 +697,7 @@ private fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
                     accounts.add(
                         StoredAccount(
                             dbId         = result.getObject("id", UUID::class.java),
+                            accountName = result.getString("bank_name"),
                             accountId    = result.getString("account_id"),
                             accessToken  = Encryption.decrypt(result.getString("access_token")),
                             refreshToken = Encryption.decrypt(result.getString("refresh_token")),
@@ -850,6 +904,207 @@ private fun markBankConnectionSession(state: String, status: String) {
             connection.rollback()
             throw e
         }
+    }
+}
+
+private fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
+    val storedAccounts = getStoredAccountsWithTokens(userId)
+
+    var importedCount = 0
+    var duplicateCount = 0
+
+    return try {
+        storedAccounts.forEach { account ->
+            val token = ensureFreshToken(account)
+            val transactions = fetchTransactions(token, account.accountId)
+
+            transactions.forEach { transaction ->
+                val inserted = saveImportedTransaction(userId, account, transaction)
+
+                if(inserted) {
+                    importedCount++
+                } else {
+                    duplicateCount++
+                }
+            }
+        }
+
+        val syncedAt = Instant.now()
+        recordTransactionSyncSuccess(userId, syncedAt)
+
+        TransactionSyncResponse(
+            importedCount = importedCount,
+            duplicateCount = duplicateCount,
+            lastSuccessfulSyncAt = syncedAt.toString()
+        )
+    } catch (exception: Exception) {
+        recordTransactionSyncFailure(userId, exception.message ?: "Unknown sync error")
+        throw exception
+    }
+}
+
+private fun saveImportedTransaction(
+    userId: UUID,
+    account: StoredAccount,
+    transaction: TransactionResponse
+): Boolean {
+    return Database.dataSource.connection.use { connection ->
+        try {
+            val inserted = connection.prepareStatement(
+                """
+                    INSERT INTO transactions 
+                        (
+                            user_id, connected_account_id, provider_account_id, provider_transaction_id,
+                            merchant_name, description, category, account_name, amount, currency,
+                            transaction_type, transaction_timestamp
+                        )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (user_id, provider_account_id, provider_transaction_id)
+                DO NOTHING
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setObject(2, account.dbId)
+                statement.setString(3, account.accountId)
+                statement.setString(4, transaction.transactionId)
+                statement.setString(5, transaction.merchantName ?: transaction.description)
+                statement.setString(6, transaction.description)
+                statement.setString(7, inferTransactionCategory(transaction))
+                statement.setString(8, account.accountName)
+                statement.setDouble(9, transaction.amount)
+                statement.setString(10, transaction.currency)
+                statement.setString(11, transaction.type)
+                statement.setTimestamp(12, Timestamp.from(Instant.parse(transaction.timestamp))
+                )
+                statement.executeUpdate() == 1
+            }
+
+            connection.commit()
+            inserted
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private fun getImportedTransactionsForUser(userId: UUID): List<ImportedTransactionResponse> {
+    return Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+                SELECT id, transaction_timestamp, merchant_name, category, account_name,
+                amount, currency FROM transactions WHERE user_id = ?
+                ORDER BY transaction_timestamp DESC
+                """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.executeQuery().use { result ->
+                val transactions = mutableListOf<ImportedTransactionResponse>()
+
+                while (result.next()) {
+                    transactions.add(
+                        ImportedTransactionResponse(
+                            id = result.getObject("id").toString(),
+                            date = result.getTimestamp("transaction_timestamp").toInstant().toString(),
+                            merchantName = result.getString("merchant_name"),
+                            category = result.getString("category"),
+                            accountName = result.getString("account_name"),
+                            amount = result.getDouble("amount"),
+                            currency = result.getString("currency")
+                        )
+                    )
+                }
+
+                transactions
+            }
+        }
+    }
+}
+
+private fun recordTransactionSyncSuccess(userId: UUID, syncedAt: Instant) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                    INSERT INTO transaction_sync_status
+                        (user_id, last_attempted_sync_at, last_successful_sync_at, last_error)
+                    VALUES (?, ?, ?, NULL) ON CONFLICT (user_id)
+                    DO UPDATE SET
+                        last_attempted_sync_at = EXCLUDED.last_attempted_sync_at,
+                        last_successful_sync_at = EXCLUDED.last_successful_sync_at,
+                        last_error = NULL
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setTimestamp(2, Timestamp.from(syncedAt))
+                statement.setTimestamp(3, Timestamp.from(syncedAt))
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private fun recordTransactionSyncFailure(userId: UUID, error: String) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                    INSERT INTO transaction_sync_status
+                        (user_id, last_attempted_sync_at, last_error)
+                    VALUES (?, now(), ?) ON CONFLICT (user_id)
+                    DO UPDATE SET
+                        last_attempted_sync_at = now(),
+                        last_error = EXCLUDED.last_error
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, error)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private fun getLastSuccessfulTransactionSync(userId: UUID) {
+    return Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+                SELECT last_successful_sync_at FROM transaction_sync_status WHERE user_id = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+
+            statement.executeQuery().use { result ->
+                if(result.next()) {
+                    result.getTimestamp("last_successful_sync_at")?.toInstant()?.toString()
+                } else {
+                    null
+                }
+            }
+        }
+    }
+}
+
+private fun inferTransactionCategory(transaction: TransactionResponse): String {
+    val text = "${transaction.merchantName.orEmpty()} ${transaction.description}".lowercase()
+
+    return when {
+        "salary" in text || "payroll" in text -> "Income"
+        "uber" in text || "train" in text || "bus" in text -> "Transport"
+        "starbucks" in text || "coffee" in text -> "Coffee"
+        "grocery" in text || "tesco" in text || "sainsbury" in text -> "Groceries"
+        "netflix" in text || "spotify" in text -> "Entertainment"
+        else -> "Uncategorised"
     }
 }
 
