@@ -18,6 +18,10 @@ import com.smart_finance_app.accounts.ConnectBankAccountScreen
 import com.smart_finance_app.accounts.ConnectedAccount
 import com.smart_finance_app.accounts.ConnectedAccountResult
 import com.smart_finance_app.dashboard.DashboardScreen
+import com.smart_finance_app.transactions.TransactionSyncResult
+import com.smart_finance_app.transactions.TransactionUI
+import com.smart_finance_app.transactions.TransactionsApi
+import com.smart_finance_app.transactions.TransactionsResult
 import com.smart_finance_app.transactions.TransactionsScreen
 import kotlinx.coroutines.launch
 
@@ -77,7 +81,8 @@ fun MainNavigation(apiBaseUrl: String, authToken: String, userName: String, onSi
                 authToken = authToken,
                 userName = userName,
                 onSignOut = onSignOut,
-                onNavigateToAccounts = { selected = AppNavigation.Accounts } // Pass navigation handler
+                onNavigateToAccounts = { selected = AppNavigation.Accounts }, // Pass navigation handler
+                onNavigateToTransactions = { selected = AppNavigation.Transactions }
             )
         }
     }
@@ -90,17 +95,71 @@ private fun NavigationContent(
     authToken: String,
     userName: String,
     onSignOut: () -> Unit,
-    onNavigateToAccounts: () -> Unit // Added callback parameter
+    onNavigateToAccounts: () -> Unit, // Added callback parameter
+    onNavigateToTransactions: () -> Unit
 ) {
+    val transactionsApi = remember(apiBaseUrl) { TransactionsApi(apiBaseUrl) }
+    var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
+    var transactionsLoading by remember { mutableStateOf(false) }
+    var transactionsError by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(transactionsApi) {
+        onDispose { transactionsApi.close() }
+    }
+
+    LaunchedEffect(authToken, navigation) {
+        if (navigation == AppNavigation.Transactions && authToken.isNotBlank()) {
+            transactionsLoading = true
+            transactionsError = null
+
+            when (val syncResult = transactionsApi.syncTransactions(authToken)) {
+                is TransactionSyncResult.Success -> {
+                }
+
+                is TransactionSyncResult.Failure -> {
+                    transactionsError = syncResult.message
+                }
+            }
+
+            when (val result = transactionsApi.getTransactions(authToken)) {
+                is TransactionsResult.Success -> {
+                    transactions = result.transactions.map { transaction ->
+                        TransactionUI(
+                            id = transaction.id,
+                            dateLabel = transaction.date.take(10),
+                            merchantName = transaction.merchantName,
+                            category = transaction.category,
+                            accountName = transaction.accountName,
+                            amount = transaction.amount
+                        )
+                    }
+                }
+
+                is TransactionsResult.Failure -> {
+                    transactionsError = result.message
+                }
+            }
+
+            transactionsLoading = false
+        }
+    }
+
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
             apiBaseUrl = apiBaseUrl,
             authToken = authToken,
             userName = userName,
-            onConnectAccountClicked = onNavigateToAccounts // Pass callback to DashboardScreen
+            onConnectAccountClicked = onNavigateToAccounts, // Pass callback to DashboardScreen
+            onViewAllTransactionsClicked = onNavigateToTransactions
         )
 
-        AppNavigation.Transactions -> TransactionsScreen()
+        AppNavigation.Transactions -> {
+            TransactionsScreen(
+                transactions = transactions,
+                isLoading = transactionsLoading,
+                errorMessage = transactionsError
+            )
+        }
 
         AppNavigation.Accounts -> {
             var showConnectBank by remember { mutableStateOf(false) }

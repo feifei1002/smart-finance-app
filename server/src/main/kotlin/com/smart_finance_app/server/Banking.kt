@@ -242,6 +242,16 @@ fun Route.bankingRoutes() {
             call.respond(balances)
         }
 
+        get("/api/banking/transactions/imported") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@get call.respond(
+                    HttpStatusCode.Unauthorized,
+                    ErrorResponse("Invalid token")
+                )
+            call.respond(getImportedTransactionsForUser(userId))
+        }
+
         /**
          * GET /api/banking/transactions
          *
@@ -285,23 +295,13 @@ fun Route.bankingRoutes() {
                 call.respond(
                     HttpStatusCode.BadGateway,
                     ErrorResponse(
-                        "Transaction sync failed. Last successful sync: ${lastSync ?: "Never"}"
+                        "Transaction sync failed: ${exception.message ?: "Unknown error"}. Last successful sync: ${lastSync ?: "Never"}"
                     )
                 )
                 return@post
             }
 
             call.respond(result)
-        }
-
-        get("/api/banking/transactions/imported") {
-            val principal = call.principal<JWTPrincipal>()
-            val userId = principal?.userIdOrNull()
-                ?: return@get call.respond(
-                    HttpStatusCode.Unauthorized,
-                    ErrorResponse("Invalid token")
-                )
-            call.respond(getImportedTransactionsForUser(userId))
         }
 
         get("/api/banking/providers") {
@@ -1075,7 +1075,7 @@ private fun recordTransactionSyncFailure(userId: UUID, error: String) {
     }
 }
 
-private fun getLastSuccessfulTransactionSync(userId: UUID) {
+private fun getLastSuccessfulTransactionSync(userId: UUID): String? {
     return Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """

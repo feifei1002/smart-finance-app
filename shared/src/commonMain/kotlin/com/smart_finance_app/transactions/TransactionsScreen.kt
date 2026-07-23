@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,43 +50,61 @@ import kotlin.math.min
 data class TransactionUI(val id: String, val dateLabel: String, val merchantName: String,
                          val category: String, val accountName: String, val amount: Double)
 
-private val demoTransactions = listOf(
-    TransactionUI("1", "Today", "Starbucks", "Coffee", "Chase Checking", -5.45),
-    TransactionUI("2", "Today", "Uber", "Transport", "Chase Checking", -18.30),
-    TransactionUI("3", "Yesterday", "Grocery Store", "Groceries", "Chase Checking", -64.21),
-    TransactionUI("4", "Yesterday", "Netflix", "Entertainment", "Bank of America", -15.49),
-    TransactionUI("5", "May 13, 2024", "Salary Deposit", "Income", "Chase Checking", 2500.00),
-    TransactionUI("6", "May 13, 2024", "Gas Station", "Transport", "Bank of America", -40.00),
-    TransactionUI("7", "May 12, 2024", "Refund", "Income", "Bank of America", 120.00)
-)
-
 @Composable
-fun TransactionsScreen(transactions: List<TransactionUI> = demoTransactions) {
+fun TransactionsScreen(
+    transactions: List<TransactionUI>,
+    isLoading: Boolean = false,
+    errorMessage: String? = null
+) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
-        if(transactions.isEmpty()) {
-            EmptyTransactionsState()
-        } else if (compact) {
-            MobileTransactionsList(transactions)
-        } else {
-            DesktopTransactionsTable(transactions)
+
+        when {
+            compact -> {
+                MobileTransactionsList(
+                    transactions = transactions,
+                    isLoading = isLoading,
+                    errorMessage = errorMessage
+                )
+            }
+            else -> {
+                DesktopTransactionsTable(
+                    transactions = transactions,
+                    isLoading = isLoading,
+                    errorMessage = errorMessage
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun MobileTransactionsList(transactions: List<TransactionUI>) {
+private fun MobileTransactionsList(
+    transactions: List<TransactionUI>,
+    isLoading: Boolean = false,
+    errorMessage: String? = null
+) {
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("All") }
 
     val searchTransactions = transactions.filter { transaction ->
         val query = searchQuery.trim()
 
-        query.isBlank() ||
-                transaction.merchantName.contains(query, ignoreCase = true) ||
-                transaction.category.contains(query, ignoreCase = true) ||
-                transaction.accountName.contains(query, ignoreCase = true) ||
-                transaction.dateLabel.contains(query, ignoreCase = true)
+        val matchesSearch =
+            query.isBlank() ||
+                    transaction.merchantName.contains(query, ignoreCase = true) ||
+                    transaction.category.contains(query, ignoreCase = true) ||
+                    transaction.accountName.contains(query, ignoreCase = true) ||
+                    transaction.dateLabel.contains(query, ignoreCase = true)
+
+        val matchesFilter = when (selectedFilter) {
+            "Income" -> transaction.amount > 0
+            "Expenses" -> transaction.amount < 0
+            else -> true
+        }
+
+        matchesSearch && matchesFilter
     }
     Column(
         modifier = Modifier
@@ -142,9 +161,21 @@ private fun MobileTransactionsList(transactions: List<TransactionUI>) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            FilterChip(selected = true, onClick = {}, label = { Text("All") })
-            FilterChip(selected = false, onClick = {}, label = { Text("Income") })
-            FilterChip(selected = false, onClick = {}, label = { Text("Expenses") })
+            FilterChip(
+                selected = selectedFilter == "All",
+                onClick = { selectedFilter = "All" },
+                label = { Text("All") }
+            )
+            FilterChip(
+                selected = selectedFilter == "Income",
+                onClick = { selectedFilter = "Income" },
+                label = { Text("Income") }
+            )
+            FilterChip(
+                selected = selectedFilter == "Expenses",
+                onClick = { selectedFilter = "Expenses" },
+                label = { Text("Expenses") }
+            )
         }
 
         Column(
@@ -154,22 +185,34 @@ private fun MobileTransactionsList(transactions: List<TransactionUI>) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if(searchTransactions.isEmpty()) {
-                Text(
-                    text = "No matching transactions.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 24.dp)
-                )
-            } else {
-                searchTransactions.groupBy { it.dateLabel }.forEach { (date, items) ->
-                    Text(
-                        text = date,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
+            when {
+                isLoading -> {
+                    LoadingTransactionsState()
+                }
 
-                    items.forEach { transaction -> MobileTransactionRow(transaction) }
+                errorMessage != null && searchTransactions.isEmpty() -> {
+                    TransactionsInlineMessage(
+                        message = errorMessage,
+                        isError = true
+                    )
+                }
+
+                searchTransactions.isEmpty() -> {
+                    TransactionsInlineMessage(
+                        message = "No transactions available."
+                    )
+                }
+
+                else -> {
+                    searchTransactions.groupBy { it.dateLabel }.forEach { (date, items) ->
+                        Text(
+                            text = date,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        items.forEach { transaction -> MobileTransactionRow(transaction) }
+                    }
                 }
             }
         }
@@ -225,18 +268,32 @@ private fun MobileTransactionRow(transaction: TransactionUI) {
 }
 
 @Composable
-private fun DesktopTransactionsTable(transactions: List<TransactionUI>) {
+private fun DesktopTransactionsTable(
+    transactions: List<TransactionUI>,
+    isLoading: Boolean = false,
+    errorMessage: String? = null
+) {
     var page by remember { mutableStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("All") }
 
     val searchTransactions = transactions.filter { transaction ->
         val query = searchQuery.trim()
 
-        query.isBlank() ||
-                transaction.merchantName.contains(query, ignoreCase = true) ||
-                transaction.category.contains(query, ignoreCase = true) ||
-                transaction.accountName.contains(query, ignoreCase = true) ||
-                transaction.dateLabel.contains(query, ignoreCase = true)
+        val matchesSearch =
+            query.isBlank() ||
+                    transaction.merchantName.contains(query, ignoreCase = true) ||
+                    transaction.category.contains(query, ignoreCase = true) ||
+                    transaction.accountName.contains(query, ignoreCase = true) ||
+                    transaction.dateLabel.contains(query, ignoreCase = true)
+
+        val matchesFilter = when (selectedFilter) {
+            "Income" -> transaction.amount >= 0
+            "Expenses" -> transaction.amount < 0
+            else -> true
+        }
+
+        matchesSearch && matchesFilter
     }
     val pageSize = 6
     val totalPages = ceil(searchTransactions.size / pageSize.toDouble()).toInt().coerceAtLeast(1)
@@ -306,21 +363,83 @@ private fun DesktopTransactionsTable(transactions: List<TransactionUI>) {
             }
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = selectedFilter == "All",
+                onClick = {
+                    selectedFilter = "All"
+                    page = 0
+                },
+                label = { Text("All") }
+            )
+
+            FilterChip(
+                selected = selectedFilter == "Income",
+                onClick = {
+                    selectedFilter = "Income"
+                    page = 0
+                },
+                label = { Text("Income") }
+            )
+
+            FilterChip(
+                selected = selectedFilter == "Expenses",
+                onClick = {
+                    selectedFilter = "Expenses"
+                    page = 0
+                },
+                label = { Text("Expenses") }
+            )
+        }
+
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(8.dp),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(12.dp)
-            ) {
-                TransactionTableHeader()
+            when {
+                isLoading -> {
+                    LoadingTransactionsState()
+                }
 
-                pageItems.forEach { transaction ->
-                    TransactionTableRow(transaction)
+                errorMessage != null && searchTransactions.isEmpty() -> {
+                    TransactionsInlineMessage(
+                        message = errorMessage,
+                        isError = true
+                    )
+                }
+
+                searchTransactions.isEmpty() -> {
+                    TransactionsInlineMessage(
+                        message = "No transactions available."
+                    )
+                }
+
+                else -> {
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(12.dp)
+                    ) {
+                        TransactionTableHeader()
+
+                        pageItems.forEach { transaction ->
+                            TransactionTableRow(transaction)
+                        }
+                    }
                 }
             }
         }
@@ -391,16 +510,41 @@ private fun RowScope.TableCell(text: String, weight: Float, bold: Boolean = fals
 }
 
 @Composable
-private fun EmptyTransactionsState() {
+private fun LoadingTransactionsState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        CircularProgressIndicator()
+
+        Text(
+            text = "Loading transactions...",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun TransactionsInlineMessage(message: String, isError: Boolean = false) {
     Box(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "No transactions available.",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = message,
+            color = if (isError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center
         )
     }
 }
