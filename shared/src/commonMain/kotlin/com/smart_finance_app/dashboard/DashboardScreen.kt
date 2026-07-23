@@ -1,7 +1,6 @@
 package com.smart_finance_app.dashboard
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -11,7 +10,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -38,8 +36,6 @@ import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
-import com.smart_finance_app.accounts.ConnectBankAccountScreen
-import androidx.compose.ui.text.drawText
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -60,7 +56,8 @@ private fun rememberGreeting(): String {
 }
 
 @Composable
-fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,onConnectAccountClicked: () -> Unit ) {
+fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
+                    onConnectAccountClicked: () -> Unit, onViewAllTransactionsClicked: () -> Unit ) {
     val api   = remember(apiBaseUrl) { DashboardApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
 
@@ -170,7 +167,8 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,onCo
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts, // Pass it down
                         onAccountsChanged = { selectedAccounts = it }, // Callback to update state
-                        onPeriodSelected = { spendingPeriod = it }
+                        onPeriodSelected = { spendingPeriod = it },
+                        onViewAllTransactionsClicked = onViewAllTransactionsClicked
                     )
                 } else {
                     DesktopDashboard(
@@ -179,7 +177,8 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,onCo
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
                         onAccountsChanged = { selectedAccounts = it },
-                        onPeriodSelected = { spendingPeriod = it }
+                        onPeriodSelected = { spendingPeriod = it },
+                        onViewAllTransactionsClicked = onViewAllTransactionsClicked
                     )
                 }
             }
@@ -194,7 +193,8 @@ private fun MobileDashboard(
     spendingPeriod: SpendingPeriod,
     selectedAccounts: Set<String>,
     onAccountsChanged: (Set<String>) -> Unit,
-    onPeriodSelected: (SpendingPeriod) -> Unit
+    onPeriodSelected: (SpendingPeriod) -> Unit,
+    onViewAllTransactionsClicked: () -> Unit
 ) {
     val greeting = rememberGreeting()
     val accountOptions = state.accounts.map { it.bankName }
@@ -443,11 +443,16 @@ private fun MobileDashboard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SectionTitle("Recent Transactions")
-                        Text(
-                            text = "See all",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        TextButton(
+                            onClick = onViewAllTransactionsClicked,
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = "See all",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                     if (state.recentTransactions.isEmpty()) {
                         Text(
@@ -471,7 +476,8 @@ private fun DesktopDashboard(
     spendingPeriod: SpendingPeriod,
     selectedAccounts: Set<String>,
     onAccountsChanged: (Set<String>) -> Unit,
-    onPeriodSelected: (SpendingPeriod) -> Unit
+    onPeriodSelected: (SpendingPeriod) -> Unit,
+    onViewAllTransactionsClicked: () -> Unit
 ) {
     val greeting = rememberGreeting()
     val accountOptions = state.accounts.map { it.bankName }
@@ -707,8 +713,16 @@ private fun DesktopDashboard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             SectionTitle("Recent Transactions")
-                            Text("View all", style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary)
+                            TextButton(
+                                onClick = onViewAllTransactionsClicked,
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    "View all",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                         if (state.recentTransactions.isEmpty()) {
                             Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
