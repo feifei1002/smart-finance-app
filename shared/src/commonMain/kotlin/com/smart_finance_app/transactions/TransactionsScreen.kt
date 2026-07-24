@@ -48,7 +48,8 @@ import kotlin.math.ceil
 import kotlin.math.min
 
 data class TransactionUI(val id: String, val dateLabel: String, val merchantName: String,
-                         val category: String, val accountName: String, val amount: Double)
+                         val category: String, val accountName: String, val amount: Double,
+                         val currency: String)
 
 @Composable
 fun TransactionsScreen(
@@ -255,7 +256,7 @@ private fun MobileTransactionRow(transaction: TransactionUI) {
         }
 
         Text(
-            text = formatAmount(transaction.amount),
+            text = formatAmount(transaction.amount, transaction.currency),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             color = if (transaction.amount >= 0) {
@@ -288,7 +289,7 @@ private fun DesktopTransactionsTable(
                     transaction.dateLabel.contains(query, ignoreCase = true)
 
         val matchesFilter = when (selectedFilter) {
-            "Income" -> transaction.amount >= 0
+            "Income" -> transaction.amount > 0
             "Expenses" -> transaction.amount < 0
             else -> true
         }
@@ -494,7 +495,7 @@ private fun TransactionTableRow(transaction: TransactionUI) {
         TableCell(transaction.merchantName, 1.5f)
         TableCell(transaction.category, 1.2f)
         TableCell(transaction.accountName, 1.5f)
-        TableCell(formatAmount(transaction.amount), 1f)
+        TableCell(formatAmount(transaction.amount, transaction.currency), 1f)
         TableCell("Edit", 0.8f)
     }
 }
@@ -549,7 +550,13 @@ private fun TransactionsInlineMessage(message: String, isError: Boolean = false)
     }
 }
 
-private fun formatAmount(amount: Double): String {
+private fun formatAmount(amount: Double, currency: String): String {
     val sign = if (amount >= 0) "+" else "-"
-    return "$sign£${kotlin.math.abs(amount)}"
+    val symbol = when (currency.uppercase()) {
+        "GBP" -> "£"
+        "USD" -> "$"
+        "EUR" -> "€"
+        else -> currency.uppercase()
+    }
+    return "$sign$symbol${kotlin.math.abs(amount)}"
 }

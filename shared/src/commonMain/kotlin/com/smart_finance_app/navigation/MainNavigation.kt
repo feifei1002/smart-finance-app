@@ -130,7 +130,8 @@ private fun NavigationContent(
                             merchantName = transaction.merchantName,
                             category = transaction.category,
                             accountName = transaction.accountName,
-                            amount = transaction.amount
+                            amount = transaction.amount,
+                            currency = transaction.currency
                         )
                     }
                 }
