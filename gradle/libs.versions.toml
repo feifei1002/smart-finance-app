@@ -24,6 +24,7 @@ kotlinx-datetime = "0.8.0"
 okhttp = "4.12.0"
 gson = "2.10.1"
 coil = "3.0.4"
+jakartaMail = "2.0.1"
 
 [libraries]
 androidx-material3-adaptive-navigation-suite = { module = "org.jetbrains.compose.material3:material3-adaptive-navigation-suite", version.ref = "material3" }
@@ -70,6 +71,7 @@ gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 coil-svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
+jakarta-mail = { module = "com.sun.mail:jakarta.mail", version.ref = "jakartaMail" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

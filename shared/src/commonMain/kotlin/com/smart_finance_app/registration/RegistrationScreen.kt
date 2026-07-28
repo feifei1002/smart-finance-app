@@ -87,7 +87,7 @@ fun RegistrationScreen (
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text("Create new account", style = MaterialTheme.typography.headlineMedium)
 

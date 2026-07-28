@@ -1,6 +1,7 @@
 package com.smart_finance_app
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.tooling.preview.Preview
 import com.smart_finance_app.consent.ConsentApi
@@ -11,6 +12,7 @@ import com.smart_finance_app.registration.RegistrationResult
 import com.smart_finance_app.registration.RegistrationScreen
 import com.smart_finance_app.signin.AuthSession
 import com.smart_finance_app.consent.ConsentResult
+import com.smart_finance_app.signin.PasswordResetApi
 import com.smart_finance_app.signin.SignInApi
 import com.smart_finance_app.signin.SignInResult
 import com.smart_finance_app.signin.SignInScreen
@@ -20,6 +22,7 @@ import kotlinx.coroutines.launch
 private enum class Screen {
     Registration,
     SignIn,
+    ForgotPassword,
     Consent,
     Main
 }
@@ -31,10 +34,16 @@ fun App(apiBaseUrl: String) {
 
         val signInApi = remember(apiBaseUrl) { SignInApi(apiBaseUrl) }
 
+        val passwordResetApi = remember(apiBaseUrl) { PasswordResetApi(apiBaseUrl) }
+
         val consentApi = remember(apiBaseUrl) { ConsentApi(apiBaseUrl) }
 
         DisposableEffect(signInApi) {
             onDispose { signInApi.close() }
+        }
+
+        DisposableEffect(passwordResetApi) {
+            onDispose { passwordResetApi.close() }
         }
 
         DisposableEffect(consentApi) {
@@ -107,9 +116,17 @@ fun App(apiBaseUrl: String) {
                     onCreateAccount = {
                         registrationError = null
                         screen = Screen.Registration
+                    },
+                    onForgotPassword = {
+                        screen = Screen.ForgotPassword
                     }
                 )
             }
+
+            Screen.ForgotPassword -> {
+                Text("Forgot password screen coming soon")
+            }
+
             Screen.Consent -> {
                 ReadOnlyConsentScreen(
                     errorMessage = consentError,

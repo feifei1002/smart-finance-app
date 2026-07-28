@@ -109,6 +109,7 @@ fun Application.module() {
                 )
                 .sign(jwtAlgorithm)
         }
+        passwordResetRoutes()
         consentRoutes()
         bankingRoutes()
 

@@ -27,4 +27,5 @@ dependencies {
     implementation(libs.bcrypt)
     implementation(libs.okhttp)
     implementation(libs.gson)
+    implementation(libs.jakarta.mail)
 }
