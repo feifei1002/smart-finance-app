@@ -1,7 +1,6 @@
 package com.smart_finance_app.dashboard
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -32,9 +31,7 @@ import com.smart_finance_app.budget.BudgetApi
 import com.smart_finance_app.budget.BudgetData
 import com.smart_finance_app.budget.BudgetRequest
 import com.smart_finance_app.budget.BudgetResult
-import com.smart_finance_app.budget.BudgetWithSpending
 import com.smart_finance_app.budget.AddBudgetDialog
-import com.smart_finance_app.budget.budgetCategories
 import com.smart_finance_app.budget.computeBudgetsWithSpending
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -47,15 +44,9 @@ import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
-import com.smart_finance_app.accounts.ConnectBankAccountScreen
-import androidx.compose.ui.text.drawText
-import smart_finance_app.shared.generated.resources.close
 import smart_finance_app.shared.generated.resources.edit
 import smart_finance_app.shared.generated.resources.delete
 import org.jetbrains.compose.resources.vectorResource
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -80,6 +71,7 @@ fun DashboardScreen(
     apiBaseUrl: String,
     authToken: String,
     userName: String,
+    transactions: List<TransactionData>,
     onConnectAccountClicked: () -> Unit,
     onViewAllTransactionsClicked: () -> Unit
 ) {
@@ -111,14 +103,12 @@ fun DashboardScreen(
         val balances = (b as DashboardResult.Success).data
 
         // Transactions are non-critical — if they fail, show dashboard with empty list
-        val t = api.getTransactions(authToken)
-        val transactions = if (t is DashboardResult.Success) t.data else emptyList()
 
         state     = computeDashboardState(balances, transactions, accounts)
         isLoading = false
     }
 
-    LaunchedEffect(authToken) { load() }
+    LaunchedEffect(authToken, transactions) { load() }
 
     DisposableEffect(api) { onDispose { api.close() } }
 
@@ -1456,98 +1446,4 @@ private fun UpcomingBillRow(name: String, date: String, amount: String) {
         Text(amount, style = MaterialTheme.typography.bodySmall,
             color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
     }
-}
-
-@Composable
-fun AddBudgetDialog(
-    existing: BudgetData? = null,
-    symbol: String,
-    usedCategories: List<String>,
-    serverError: String? = null,
-    onDismiss: () -> Unit,
-    onConfirm: (category: String, amount: Double, period: String) -> Unit
-) {
-    var category by remember { mutableStateOf(existing?.category ?: "") }
-    var amountText by remember { mutableStateOf(existing?.amount?.let { formatDp(it) } ?: "") }
-    var period by remember { mutableStateOf(existing?.period ?: "monthly") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            // Header Row: Title on the left, 'X' Close button on the top-right
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (existing != null) "Edit Budget" else "Add Budget",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = vectorResource(Res.drawable.close),
-                        contentDescription = "Close"
-                    )
-                }
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (serverError != null) {
-                    Text(
-                        text = serverError,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFDC2626)
-                    )
-                }
-
-                OutlinedTextField(
-                    value = category,
-                    onValueChange = { category = it },
-                    label = { Text("Category") },
-                    enabled = existing == null, // Category is read-only during edit
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it },
-                    label = { Text("Amount ($symbol)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = period == "monthly",
-                        onClick = { period = "monthly" },
-                        label = { Text("Monthly") }
-                    )
-                    FilterChip(
-                        selected = period == "weekly",
-                        onClick = { period = "weekly" },
-                        label = { Text("Weekly") }
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val parsedAmount = amountText.toDoubleOrNull()
-                    if (parsedAmount != null && parsedAmount > 0 && category.isNotBlank()) {
-                        onConfirm(category, parsedAmount, period)
-                    }
-                }
-            ) {
-                Text(if (existing != null) "Save Changes" else "Add Budget")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }

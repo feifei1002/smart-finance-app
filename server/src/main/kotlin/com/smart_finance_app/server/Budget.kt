@@ -12,8 +12,6 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import kotlinx.serialization.Serializable
-import java.sql.Timestamp
-import java.time.Instant
 import java.util.UUID
 
 // ── Request / Response models ─────────────────────────────────────────────────
@@ -116,18 +114,44 @@ fun Route.budgetRoutes() {
                 return@put
             }
 
+            if (request.category.isBlank()) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Category is required"))
+                return@put
+            }
+
             if (request.amount <= 0) {
                 call.respond(HttpStatusCode.BadRequest, ErrorResponse("Amount must be greater than 0"))
                 return@put
             }
 
-            val updated = updateBudget(userId, budgetId, request.amount)
-            if (!updated) {
-                call.respond(HttpStatusCode.NotFound, ErrorResponse("Budget not found"))
+            if (request.period !in listOf("monthly", "weekly")) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Period must be monthly or weekly"))
                 return@put
             }
 
-            call.respond(HttpStatusCode.OK, ErrorResponse("Budget updated"))
+            try {
+                val updated = updateBudget(userId, budgetId, request)
+                if (!updated) {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Budget not found"))
+                    return@put
+                }
+                call.respond(HttpStatusCode.OK, ErrorResponse("Budget updated"))
+            } catch (e: Exception) {
+                if (
+                    e.message?.contains("unique constraint", ignoreCase = true) == true ||
+                    e.message?.contains("duplicate key", ignoreCase = true) == true
+                ) {
+                    call.respond(
+                        HttpStatusCode.Conflict,
+                        ErrorResponse("A ${request.period} budget for ${request.category} already exists")
+                    )
+                } else {
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        ErrorResponse("DB Error: ${e.message ?: e.javaClass.simpleName}")
+                    )
+                }
+            }
         }
 
         /**
@@ -237,7 +261,7 @@ private fun createBudget(userId: UUID, request: BudgetRequest): BudgetResponse =
         }
     }
 
-private fun updateBudget(userId: UUID, budgetId: UUID, newAmount: Double): Boolean =
+private fun updateBudget(userId: UUID, budgetId: UUID, request: BudgetRequest): Boolean =
     Database.dataSource.connection.use { connection ->
         val previousAutoCommit = connection.autoCommit
         try {
@@ -245,13 +269,15 @@ private fun updateBudget(userId: UUID, budgetId: UUID, newAmount: Double): Boole
             val rows = connection.prepareStatement(
                 """
                 UPDATE budgets
-                SET amount = ?, updated_at = NOW()
+                SET category = ?, amount = ?, period = ?, updated_at = NOW()
                 WHERE id = ?::uuid AND user_id = ?::uuid
                 """.trimIndent()
             ).use { statement ->
-                statement.setDouble(1, newAmount)
-                statement.setString(2, budgetId.toString())
-                statement.setString(3, userId.toString())
+                statement.setString(1, request.category)
+                statement.setDouble(2, request.amount)
+                statement.setString(3, request.period)
+                statement.setString(4, budgetId.toString())
+                statement.setString(5, userId.toString())
                 statement.executeUpdate()
             }
             connection.commit()

@@ -231,8 +231,13 @@ fun BudgetScreen(
                             },
                             onDelete = {
                                 scope.launch {
-                                    api.deleteBudget(authToken, item.budget.id)
-                                    loadBudgets()
+                                    when (val res = api.deleteBudget(authToken, item.budget.id)) {
+                                        is BudgetResult.Success -> {
+                                            errorMsg = null
+                                            loadBudgets()
+                                        }
+                                        is BudgetResult.Failure -> errorMsg = res.message
+                                    }
                                 }
                             }
                         )
@@ -360,7 +365,7 @@ private fun EmptyBudgetCard(onAddClick: () -> Unit) {
 // ── Budget card ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun BudgetCard(
+fun BudgetCard(
     item: BudgetWithSpending,
     symbol: String,
     onEdit: () -> Unit,

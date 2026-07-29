@@ -9,7 +9,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
-
 import com.smart_finance_app.accounts.AccountsScreen
 import com.smart_finance_app.accounts.BankConnectionResult
 import com.smart_finance_app.accounts.BankOption
@@ -139,11 +138,26 @@ private fun NavigationContent(
         }
     }
 
+    val mappedTransactions = remember(transactions) {
+        transactions.map { tx ->
+            com.smart_finance_app.dashboard.TransactionData(
+                transactionId = tx.id,
+                timestamp = tx.dateLabel,
+                description = tx.merchantName,
+                amount = tx.amount,
+                currency = tx.currency,
+                type = if (tx.amount < 0) "DEBIT" else "CREDIT",
+                merchantName = tx.merchantName
+            )
+        }
+    }
+
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
             apiBaseUrl                  = apiBaseUrl,
             authToken                   = authToken,
             userName                    = userName,
+            transactions                = mappedTransactions,
             onConnectAccountClicked     = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions
         )
@@ -240,19 +254,6 @@ private fun NavigationContent(
         }
 
         AppNavigation.Budgets -> {
-            val mappedTransactions = remember(transactions) {
-                transactions.map { tx ->
-                    com.smart_finance_app.dashboard.TransactionData(
-                        transactionId = tx.id,
-                        timestamp     = tx.dateLabel,
-                        description   = tx.merchantName,
-                        amount        = tx.amount,
-                        currency      = tx.currency,
-                        type          = if (tx.amount < 0) "DEBIT" else "CREDIT",
-                        merchantName  = tx.merchantName
-                    )
-                }
-            }
             BudgetScreen(
                 apiBaseUrl   = apiBaseUrl,
                 authToken    = authToken,
