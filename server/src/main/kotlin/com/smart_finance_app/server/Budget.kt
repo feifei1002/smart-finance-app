@@ -67,13 +67,29 @@ fun Route.budgetRoutes() {
                 return@post
             }
 
+            // ── Fix 2: Same validation as PUT ────────────────────────────────
+            if (request.category.isBlank()) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Category is required"))
+                return@post
+            }
+
+            if (request.amount <= 0) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Amount must be greater than 0"))
+                return@post
+            }
+
+            if (request.period !in listOf("monthly", "weekly")) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Period must be monthly or weekly"))
+                return@post
+            }
+            // ─────────────────────────────────────────────────────────────────
+
             println("📥 RECEIVED BUDGET REQUEST: $request for userId: $userId")
 
             try {
                 val budget = createBudget(userId, request)
                 call.respond(HttpStatusCode.Created, budget)
             } catch (e: Exception) {
-                // Print the real error to your IDE Terminal/Console:
                 println("❌ CREATE BUDGET DATABASE ERROR:")
                 e.printStackTrace()
 
@@ -85,7 +101,6 @@ fun Route.budgetRoutes() {
                         ErrorResponse("A ${request.period} budget for ${request.category} already exists")
                     )
                 } else {
-                    // Return the actual exception message back to the UI!
                     call.respond(
                         HttpStatusCode.InternalServerError,
                         ErrorResponse("DB Error: ${e.message ?: e.javaClass.simpleName}")
@@ -93,6 +108,7 @@ fun Route.budgetRoutes() {
                 }
             }
         }
+
         /**
          * PUT /api/budgets/{id}
          * Updates the amount of an existing budget.
@@ -191,6 +207,25 @@ private fun getUserId(principal: JWTPrincipal?): UUID? =
 
 private fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
     Database.dataSource.connection.use { connection ->
+        // ── Fix 1: Create table if it doesn't exist yet ───────────────────────
+        connection.createStatement().use { stmt ->
+            stmt.execute(
+                """
+                CREATE TABLE IF NOT EXISTS budgets (
+                    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    category    TEXT NOT NULL,
+                    amount      DECIMAL(10,2) NOT NULL,
+                    period      TEXT NOT NULL CHECK (period IN ('monthly', 'weekly')),
+                    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE (user_id, category, period)
+                )
+                """.trimIndent()
+            )
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         connection.prepareStatement(
             """
             SELECT id, category, amount, period, created_at
@@ -205,11 +240,11 @@ private fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
                 while (result.next()) {
                     list.add(
                         BudgetResponse(
-                            id         = result.getObject("id").toString(),
-                            category   = result.getString("category"),
-                            amount     = result.getDouble("amount"),
-                            period     = result.getString("period"),
-                            createdAt  = result.getTimestamp("created_at").toString()
+                            id        = result.getObject("id").toString(),
+                            category  = result.getString("category"),
+                            amount    = result.getDouble("amount"),
+                            period    = result.getString("period"),
+                            createdAt = result.getTimestamp("created_at").toString()
                         )
                     )
                 }
@@ -224,7 +259,6 @@ private fun createBudget(userId: UUID, request: BudgetRequest): BudgetResponse =
         try {
             connection.autoCommit = false
 
-            // Explicitly cast user_id to UUID and use gen_random_uuid() / NOW() if defaults are missing
             val result = connection.prepareStatement(
                 """
                 INSERT INTO budgets (id, user_id, category, amount, period, created_at)
@@ -232,7 +266,7 @@ private fun createBudget(userId: UUID, request: BudgetRequest): BudgetResponse =
                 RETURNING id, category, amount, period, created_at
                 """.trimIndent()
             ).use { statement ->
-                statement.setString(1, userId.toString()) // Set string + cast in SQL for maximum driver compatibility
+                statement.setString(1, userId.toString())
                 statement.setString(2, request.category)
                 statement.setDouble(3, request.amount)
                 statement.setString(4, request.period)
@@ -253,7 +287,7 @@ private fun createBudget(userId: UUID, request: BudgetRequest): BudgetResponse =
             result
         } catch (e: Exception) {
             runCatching { connection.rollback() }
-            println("DATABASE ERROR IN CREATE_BUDGET: ${e.message}") // Log actual error to console
+            println("DATABASE ERROR IN CREATE_BUDGET: ${e.message}")
             e.printStackTrace()
             throw e
         } finally {
