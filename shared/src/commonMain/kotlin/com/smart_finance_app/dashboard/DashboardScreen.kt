@@ -1032,7 +1032,7 @@ private fun BudgetProgressCard(
     suspend fun loadBudgets() {
         when (val r = api.getBudgets(authToken)) {
             is BudgetResult.Success -> budgets = r.data
-            is BudgetResult.Failure -> {}
+            is BudgetResult.Failure -> {errorMsg = r.message}
         }
     }
 
