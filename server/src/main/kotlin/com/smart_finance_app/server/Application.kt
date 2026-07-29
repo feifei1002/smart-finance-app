@@ -111,6 +111,7 @@ fun Application.module() {
         }
         consentRoutes()
         bankingRoutes()
+        budgetRoutes()
 
         get("/") {
             call.respondText("Smart Finance backend is running")

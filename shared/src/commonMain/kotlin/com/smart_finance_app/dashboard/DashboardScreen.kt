@@ -1,7 +1,9 @@
 package com.smart_finance_app.dashboard
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -25,6 +28,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import com.smart_finance_app.budget.BudgetApi
+import com.smart_finance_app.budget.BudgetData
+import com.smart_finance_app.budget.BudgetRequest
+import com.smart_finance_app.budget.BudgetResult
+import com.smart_finance_app.budget.BudgetWithSpending
+import com.smart_finance_app.budget.AddBudgetDialog
+import com.smart_finance_app.budget.budgetCategories
+import com.smart_finance_app.budget.computeBudgetsWithSpending
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -36,6 +47,15 @@ import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
+import com.smart_finance_app.accounts.ConnectBankAccountScreen
+import androidx.compose.ui.text.drawText
+import smart_finance_app.shared.generated.resources.close
+import smart_finance_app.shared.generated.resources.edit
+import smart_finance_app.shared.generated.resources.delete
+import org.jetbrains.compose.resources.vectorResource
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -56,8 +76,13 @@ private fun rememberGreeting(): String {
 }
 
 @Composable
-fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
-                    onConnectAccountClicked: () -> Unit, onViewAllTransactionsClicked: () -> Unit ) {
+fun DashboardScreen(
+    apiBaseUrl: String,
+    authToken: String,
+    userName: String,
+    onConnectAccountClicked: () -> Unit,
+    onViewAllTransactionsClicked: () -> Unit
+) {
     val api   = remember(apiBaseUrl) { DashboardApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
 
@@ -164,9 +189,11 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
                     MobileDashboard(
                         state = state!!,
                         userName = userName,
+                        apiBaseUrl = apiBaseUrl,
+                        authToken = authToken,
                         spendingPeriod = spendingPeriod,
-                        selectedAccounts = selectedAccounts, // Pass it down
-                        onAccountsChanged = { selectedAccounts = it }, // Callback to update state
+                        selectedAccounts = selectedAccounts,
+                        onAccountsChanged = { selectedAccounts = it },
                         onPeriodSelected = { spendingPeriod = it },
                         onViewAllTransactionsClicked = onViewAllTransactionsClicked
                     )
@@ -174,6 +201,8 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
                     DesktopDashboard(
                         state = state!!,
                         userName = userName,
+                        apiBaseUrl = apiBaseUrl,
+                        authToken = authToken,
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
                         onAccountsChanged = { selectedAccounts = it },
@@ -190,6 +219,8 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
 private fun MobileDashboard(
     state: DashboardState,
     userName: String,
+    apiBaseUrl: String,
+    authToken: String,
     spendingPeriod: SpendingPeriod,
     selectedAccounts: Set<String>,
     onAccountsChanged: (Set<String>) -> Unit,
@@ -431,7 +462,7 @@ private fun MobileDashboard(
             }
         }
 
-        item { BudgetProgressCard() }
+        item { BudgetProgressCard(apiBaseUrl = apiBaseUrl, authToken = authToken, transactions = state.rawTransactions, currency = state.currency) }
 
         // Recent Transactions Card
         item {
@@ -443,16 +474,12 @@ private fun MobileDashboard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SectionTitle("Recent Transactions")
-                        TextButton(
-                            onClick = onViewAllTransactionsClicked,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text(
-                                text = "See all",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        Text(
+                            text = "See all",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { onViewAllTransactionsClicked() }
+                        )
                     }
                     if (state.recentTransactions.isEmpty()) {
                         Text(
@@ -473,6 +500,8 @@ private fun MobileDashboard(
 private fun DesktopDashboard(
     state: DashboardState,
     userName: String,
+    apiBaseUrl: String,
+    authToken: String,
     spendingPeriod: SpendingPeriod,
     selectedAccounts: Set<String>,
     onAccountsChanged: (Set<String>) -> Unit,
@@ -694,7 +723,7 @@ private fun DesktopDashboard(
                 }
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        BudgetProgressCard()
+                        BudgetProgressCard(apiBaseUrl = apiBaseUrl, authToken = authToken, transactions = state.rawTransactions, currency = state.currency)
                     }
                 }
             }
@@ -713,16 +742,9 @@ private fun DesktopDashboard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             SectionTitle("Recent Transactions")
-                            TextButton(
-                                onClick = onViewAllTransactionsClicked,
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(
-                                    "View all",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            Text("View all", style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable { onViewAllTransactionsClicked() })
                         }
                         if (state.recentTransactions.isEmpty()) {
                             Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
@@ -998,38 +1020,170 @@ private fun BarChart(data: List<MonthlyTopCategory>, modifier: Modifier = Modifi
 
 
 @Composable
-private fun BudgetProgressCard() {
-    var budgets by remember { mutableStateOf(emptyList<BudgetItem>()) }
+private fun BudgetProgressCard(
+    apiBaseUrl: String,
+    authToken: String,
+    transactions: List<com.smart_finance_app.dashboard.TransactionData>,
+    currency: String
+) {
+    val api    = remember(apiBaseUrl) { BudgetApi(apiBaseUrl) }
+    val scope  = rememberCoroutineScope()
+    val symbol = getCurrencySymbol(currency)
+
+    var budgets    by remember { mutableStateOf<List<BudgetData>>(emptyList()) }
+    var showDialog by remember { mutableStateOf(false) }
+    var editBudget by remember { mutableStateOf<BudgetData?>(null) }
+    var errorMsg   by remember { mutableStateOf<String?>(null) }
+
+    val budgetsWithSpending by derivedStateOf {
+        computeBudgetsWithSpending(budgets, transactions)
+    }
+
+    suspend fun loadBudgets() {
+        when (val r = api.getBudgets(authToken)) {
+            is BudgetResult.Success -> budgets = r.data
+            is BudgetResult.Failure -> {}
+        }
+    }
+
+    LaunchedEffect(authToken, transactions) {
+        loadBudgets()
+    }
+    DisposableEffect(api) { onDispose { api.close() } }
+
     DashboardCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("Budget Progress")
+            if (errorMsg != null) {
+                Text(
+                    text = errorMsg ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFDC2626)
+                )
+            }
             if (budgets.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(120.dp)
                         .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         IconButton(
-                            onClick = { /* TODO: open add budget form */ },
+                            onClick = {
+                                editBudget = null
+                                errorMsg = null
+                                showDialog = true
+                            },
                             modifier = Modifier.size(48.dp)
                                 .background(MaterialTheme.colorScheme.primary, CircleShape)
                         ) {
-                            Text("+", fontSize = 24.sp,
+                            Text(
+                                "+", fontSize = 24.sp,
                                 color = MaterialTheme.colorScheme.onPrimary,
-                                fontWeight = FontWeight.Light)
+                                fontWeight = FontWeight.Light
+                            )
                         }
-                        Text("Add a budget", style = MaterialTheme.typography.bodyMedium,
+                        Text(
+                            "Add a budget",
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
             } else {
-                budgets.forEach { BudgetProgressRow(it) }
+                // Show budgets with Edit and Delete icons
+                budgetsWithSpending.take(3).forEach { item ->
+                    val progress = (item.spent / item.budget.amount).toFloat().coerceIn(0f, 1f)
+                    val isOver   = item.spent > item.budget.amount
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Left side: Indicator color and Category Name
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(Modifier.size(8.dp).background(item.color, CircleShape))
+                                Text(
+                                    item.budget.category,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            // Right side: Spent/Budget text + Edit & Delete Action Icons
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    "$symbol${formatDp(item.spent)} / $symbol${formatDp(item.budget.amount)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isOver) Color(0xFFDC2626)
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                // EDIT ICON
+                                IconButton(
+                                    onClick = {
+                                        editBudget = item.budget
+                                        errorMsg = null
+                                        showDialog = true
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = vectorResource(Res.drawable.edit),
+                                        contentDescription = "Edit",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                // DELETE ICON
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            when (val res = api.deleteBudget(authToken, item.budget.id)) {
+                                                is BudgetResult.Success -> loadBudgets()
+                                                is BudgetResult.Failure -> errorMsg = res.message
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = vectorResource(Res.drawable.delete),
+                                        contentDescription = "Delete",
+                                        tint = Color(0xFFDC2626)
+                                    )
+                                }
+                            }
+                        }
+
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth().height(6.dp),
+                            color = if (isOver) Color(0xFFDC2626) else item.color,
+                            trackColor = item.color.copy(alpha = 0.2f)
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(4.dp))
                 OutlinedButton(
-                    onClick = { /* TODO: open add budget form */ },
+                    onClick = {
+                        editBudget = null
+                        errorMsg = null
+                        showDialog = true
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("+ Add Budget", style = MaterialTheme.typography.labelMedium)
@@ -1037,6 +1191,50 @@ private fun BudgetProgressCard() {
             }
         }
     }
+
+    if (showDialog) {
+        val currentEdit = editBudget
+        AddBudgetDialog(
+            existing       = currentEdit,
+            symbol         = symbol,
+            usedCategories = budgets.filter { currentEdit == null || it.id != currentEdit.id }
+                .map { it.category },
+            serverError    = errorMsg,
+            onDismiss      = {
+                showDialog = false
+                editBudget = null
+                errorMsg = null
+            },
+            onConfirm      = { category, amount, period ->
+                scope.launch {
+                    val result = if (currentEdit != null) {
+                        api.updateBudget(authToken, currentEdit.id, amount, category, period)
+                    } else {
+                        api.createBudget(authToken, BudgetRequest(category, amount, period))
+                    }
+                    when (result) {
+                        is BudgetResult.Success -> {
+                            showDialog = false
+                            editBudget = null
+                            errorMsg = null
+                            loadBudgets()
+                        }
+                        is BudgetResult.Failure -> {
+                            errorMsg = result.message
+                        }
+                    }
+                }
+            }
+        )
+    }
+}
+
+// KMP-compatible 2dp formatter
+private fun formatDp(value: Double): String {
+    val abs  = kotlin.math.abs(value)
+    val int  = abs.toLong()
+    val dec  = kotlin.math.round((abs - int) * 100).toLong()
+    return "$int.${dec.toString().padStart(2, '0')}"
 }
 
 @Composable
@@ -1258,4 +1456,98 @@ private fun UpcomingBillRow(name: String, date: String, amount: String) {
         Text(amount, style = MaterialTheme.typography.bodySmall,
             color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
     }
+}
+
+@Composable
+fun AddBudgetDialog(
+    existing: BudgetData? = null,
+    symbol: String,
+    usedCategories: List<String>,
+    serverError: String? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (category: String, amount: Double, period: String) -> Unit
+) {
+    var category by remember { mutableStateOf(existing?.category ?: "") }
+    var amountText by remember { mutableStateOf(existing?.amount?.let { formatDp(it) } ?: "") }
+    var period by remember { mutableStateOf(existing?.period ?: "monthly") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            // Header Row: Title on the left, 'X' Close button on the top-right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (existing != null) "Edit Budget" else "Add Budget",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.close),
+                        contentDescription = "Close"
+                    )
+                }
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (serverError != null) {
+                    Text(
+                        text = serverError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFDC2626)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = category,
+                    onValueChange = { category = it },
+                    label = { Text("Category") },
+                    enabled = existing == null, // Category is read-only during edit
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text("Amount ($symbol)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = period == "monthly",
+                        onClick = { period = "monthly" },
+                        label = { Text("Monthly") }
+                    )
+                    FilterChip(
+                        selected = period == "weekly",
+                        onClick = { period = "weekly" },
+                        label = { Text("Weekly") }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val parsedAmount = amountText.toDoubleOrNull()
+                    if (parsedAmount != null && parsedAmount > 0 && category.isNotBlank()) {
+                        onConfirm(category, parsedAmount, period)
+                    }
+                }
+            ) {
+                Text(if (existing != null) "Save Changes" else "Add Budget")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
