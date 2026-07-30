@@ -1,10 +1,15 @@
 package com.smart_finance_app.server
 
+import at.favre.lib.crypto.bcrypt.BCrypt
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
+import io.ktor.server.request.receiveParameters
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import jakarta.mail.Message
 import jakarta.mail.Session
 import jakarta.mail.Transport
@@ -23,7 +28,13 @@ import java.util.Base64
 data class PasswordResetRequest(val email: String)
 
 @Serializable
+data class PasswordResetConfirmRequest(val token: String, val newPassword: String)
+
+@Serializable
 data class PasswordResetRequestResponse(val message: String)
+
+@Serializable
+data class PasswordResetConfirmResponse(val message: String)
 
 fun Route.passwordResetRoutes() {
     post("/auth/password-reset/request") {
@@ -68,6 +79,81 @@ fun Route.passwordResetRoutes() {
         }
 
         call.respond(HttpStatusCode.OK, genericMessage)
+    }
+
+    get("/reset-password") {
+        val token = call.request.queryParameters["token"]
+
+        if (token.isNullOrBlank() || !isPasswordResetTokenValid(token)) {
+            call.respondText(
+                invalidResetLinkHtml(),
+                ContentType.Text.Html,
+                HttpStatusCode.BadRequest
+            )
+            return@get
+        }
+
+        call.respondText(
+            resetPasswordFormHtml(token),
+            ContentType.Text.Html
+        )
+    }
+
+    post("/auth/password-reset/confirm-form") {
+        val parameters = call.receiveParameters()
+        val token = parameters["token"].orEmpty()
+        val newPassword = parameters["newPassword"].orEmpty()
+        val confirmPassword = parameters["confirmPassword"].orEmpty()
+
+        if(newPassword != confirmPassword) {
+            call.respondText(
+                resetPasswordFormHtml(token, "Passwords do not match."),
+                ContentType.Text.Html,
+                HttpStatusCode.BadRequest
+            )
+            return@post
+        }
+
+        val result = runCatching { resetPassword(token, newPassword) }
+
+        if (result.isSuccess) {
+            call.respondText(
+                resetPasswordSuccessHtml(),
+                ContentType.Text.Html,
+            )
+        } else {
+            call.respondText(
+                resetPasswordFormHtml(
+                    token,
+                    "Reset link is invalid or expired, or the password is invalid."
+                ),
+                ContentType.Text.Html,
+                HttpStatusCode.BadRequest
+            )
+        }
+    }
+
+    post("/auth/password-reset/confirm") {
+        val request = runCatching { call.receive<PasswordResetConfirmRequest>() }
+            .getOrElse {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request"))
+                return@post
+            }
+
+        val result = runCatching {
+            resetPassword(token = request.token, newPassword = request.newPassword)
+        }
+
+        if (result.isSuccess) {
+            call.respond(
+                PasswordResetConfirmResponse("Password updated successfully.")
+            )
+        } else {
+            call.respond(
+                HttpStatusCode.BadRequest,
+                ErrorResponse("Reset link is invalid or expired.")
+            )
+        }
     }
 }
 
@@ -197,3 +283,148 @@ private fun sendPasswordResetEmail(to: String, resetLink: String) {
     Transport.send(message)
 }
 
+private fun isPasswordResetTokenValid(token: String): Boolean {
+    val tokenHash = hashToken(token)
+
+    return Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+                SELECT id FROM password_reset_tokens
+                WHERE token_hash = ? AND used_at IS NULL AND expires_at > now()
+            """.trimIndent()
+        ).use { statement ->
+            statement.setString(1, tokenHash)
+            statement.executeQuery().use { result ->
+                result.next()
+            }
+        }
+    }
+}
+
+private fun resetPassword(token: String, newPassword: String) {
+    val passwordBytes = newPassword.encodeToByteArray()
+
+    if(newPassword.length < 8 || passwordBytes.size > 72) {
+        error("Password must be between 8 and 72 characters")
+    }
+
+    val tokenHash = hashToken(token)
+    val newPasswordHash = BCrypt.withDefaults().hashToString(12, newPassword.toCharArray())
+
+    Database.dataSource.connection.use { connection ->
+        try {
+            val userId = connection.prepareStatement(
+                """
+                    SELECT user_id FROM password_reset_tokens
+                    WHERE token_hash = ? AND used_at IS NULL AND expires_at > now()
+                    FOR UPDATE
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, tokenHash)
+                statement.executeQuery().use { result ->
+                    if (!result.next()) {
+                        null
+                    } else {
+                        result.getObject("user_id", UUID::class.java)
+                    }
+                }
+            } ?: error("Invalid or expired reset token")
+
+            connection.prepareStatement(
+                """
+                    UPDATE users SET password_hash = ? WHERE id = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, newPasswordHash)
+                statement.setObject(2, userId)
+                statement.executeUpdate()
+            }
+
+            connection.prepareStatement(
+                """
+                    UPDATE password_reset_tokens SET used_at = now()
+                    WHERE user_id = ? AND used_at IS NULL
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private fun resetPasswordFormHtml(
+    token: String,
+    errorMessage: String? = null
+): String {
+    val errorHtml = errorMessage?.let {
+        """<p style="color:#b00020">$it</p>"""
+    }.orEmpty()
+
+    return """
+        <html>
+        <body style="font-family:sans-serif;max-width:420px;margin:60px auto;">
+            <h2>Create a new password</h2>
+            <p>Enter and confirm your new password.</p>
+
+            $errorHtml
+
+            <form method="post" action="/auth/password-reset/confirm-form">
+                <input type="hidden" name="token" value="$token" />
+
+                <label>New password</label><br/>
+                <input
+                    name="newPassword"
+                    type="password"
+                    minlength="8"
+                    required
+                    style="width:100%;padding:10px;margin:8px 0 16px;"
+                />
+
+                <label>Confirm password</label><br/>
+                <input
+                    name="confirmPassword"
+                    type="password"
+                    minlength="8"
+                    required
+                    style="width:100%;padding:10px;margin:8px 0 16px;"
+                />
+
+                <button
+                    type="submit"
+                    style="width:100%;padding:12px;"
+                >
+                    Update password
+                </button>
+            </form>
+        </body>
+        </html>
+    """.trimIndent()
+}
+
+private fun invalidResetLinkHtml(): String =
+    """
+    <html>
+    <body style="font-family:sans-serif;max-width:420px;margin:60px auto;">
+        <h2>Reset link expired</h2>
+        <p>This password reset link is invalid or has expired.</p>
+        <p>Please return to the app and request a new password reset email.</p>
+    </body>
+    </html>
+    """.trimIndent()
+
+private fun resetPasswordSuccessHtml(): String =
+    """
+    <html>
+    <body style="font-family:sans-serif;max-width:420px;margin:60px auto;">
+        <h2>Password updated</h2>
+        <p>Your password has been updated successfully.</p>
+        <p>You can now return to the app and sign in using your new password.</p>
+    </body>
+    </html>
+    """.trimIndent()
