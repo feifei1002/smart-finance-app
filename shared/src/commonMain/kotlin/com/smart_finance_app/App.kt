@@ -13,7 +13,10 @@ import com.smart_finance_app.signin.AuthSession
 import com.smart_finance_app.consent.ConsentResult
 import com.smart_finance_app.signin.ForgotPasswordScreen
 import com.smart_finance_app.signin.PasswordResetApi
+import com.smart_finance_app.signin.PasswordResetConfirmResult
 import com.smart_finance_app.signin.PasswordResetRequestResult
+import com.smart_finance_app.signin.PasswordResetValidateResult
+import com.smart_finance_app.signin.ResetPasswordScreen
 import com.smart_finance_app.signin.SignInApi
 import com.smart_finance_app.signin.SignInResult
 import com.smart_finance_app.signin.SignInScreen
@@ -24,12 +27,13 @@ private enum class Screen {
     Registration,
     SignIn,
     ForgotPassword,
+    ResetPassword,
     Consent,
     Main
 }
 
 @Composable
-fun App(apiBaseUrl: String) {
+fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordResetToken: String? = null) {
     MaterialTheme {
         val registrationApi = remember(apiBaseUrl) { RegistrationApi(apiBaseUrl) }
 
@@ -53,16 +57,45 @@ fun App(apiBaseUrl: String) {
 
         val scope = rememberCoroutineScope()
 
-        var screen by remember { mutableStateOf(Screen.Registration) }
+        var screen by remember {
+            mutableStateOf(
+                if (isPasswordResetRoute) {
+                    Screen.ResetPassword
+                } else {
+                    Screen.Registration
+                }
+            )
+        }
+
         var session by remember { mutableStateOf<AuthSession?>(null) }
         var registrationLoading by remember { mutableStateOf(false) }
         var registrationError by remember { mutableStateOf<String?>(null) }
         var signInLoading by remember { mutableStateOf(false) }
         var signInError by remember { mutableStateOf<String?>(null) }
+        var consentError by remember { mutableStateOf<String?>(null) }
         var forgotPasswordLoading by remember { mutableStateOf(false) }
         var forgotPasswordSuccess by remember { mutableStateOf<String?>(null) }
         var forgotPasswordError by remember { mutableStateOf<String?>(null) }
-        var consentError by remember { mutableStateOf<String?>(null) }
+        var resetPasswordLoading by remember { mutableStateOf(false) }
+        var resetPasswordError by remember { mutableStateOf<String?>(null) }
+        var resetPasswordSuccess by remember { mutableStateOf<String?>(null) }
+        var resetPasswordTokenInvalid by remember(passwordResetToken) {
+            mutableStateOf(passwordResetToken.isNullOrBlank())
+        }
+
+        LaunchedEffect(screen, passwordResetToken) {
+            if (screen == Screen.ResetPassword && !passwordResetToken.isNullOrBlank()) {
+                when (passwordResetApi.validateResetToken(passwordResetToken)) {
+                    is PasswordResetValidateResult.Success -> {
+                        resetPasswordTokenInvalid = false
+                    }
+
+                    is PasswordResetValidateResult.Failure -> {
+                        resetPasswordTokenInvalid = true
+                    }
+                }
+            }
+        }
 
         when (screen) {
             Screen.Registration -> {
@@ -159,6 +192,54 @@ fun App(apiBaseUrl: String) {
                     onBackToSignIn = {
                         forgotPasswordError = null
                         forgotPasswordSuccess = null
+                        screen = Screen.SignIn
+                    }
+                )
+            }
+            
+            Screen.ResetPassword -> {
+                ResetPasswordScreen(
+                    isLoading = resetPasswordLoading,
+                    errorMessage = resetPasswordError,
+                    successMessage = resetPasswordSuccess,
+                    tokenInvalid = resetPasswordTokenInvalid,
+                    onSubmit = { newPassword ->
+
+                        if(passwordResetToken.isNullOrBlank()) {
+                            resetPasswordTokenInvalid = true
+                            return@ResetPasswordScreen
+                        }
+
+                        scope.launch {
+                            resetPasswordLoading = true
+                            resetPasswordError = null
+
+                            when (
+                                val result = passwordResetApi.confirmReset(
+                                    token = passwordResetToken,
+                                    newPassword = newPassword
+                                )
+                            ) {
+                                is PasswordResetConfirmResult.Success -> {
+                                    resetPasswordSuccess =
+                                        "Your password has been updated successfully."
+                                }
+
+                                is PasswordResetConfirmResult.Failure -> {
+                                    if (
+                                        result.message.contains("expired", ignoreCase = true) ||
+                                        result.message.contains("invalid", ignoreCase = true)
+                                    ) {
+                                        resetPasswordTokenInvalid = true
+                                    } else {
+                                        resetPasswordError = result.message
+                                    }
+                                }
+                            }
+                            resetPasswordLoading = false
+                        }
+                    },
+                    onBackToSignIn = {
                         screen = Screen.SignIn
                     }
                 )
