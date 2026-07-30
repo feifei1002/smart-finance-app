@@ -1,7 +1,6 @@
 package com.smart_finance_app
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.tooling.preview.Preview
 import com.smart_finance_app.consent.ConsentApi
@@ -12,7 +11,9 @@ import com.smart_finance_app.registration.RegistrationResult
 import com.smart_finance_app.registration.RegistrationScreen
 import com.smart_finance_app.signin.AuthSession
 import com.smart_finance_app.consent.ConsentResult
+import com.smart_finance_app.signin.ForgotPasswordScreen
 import com.smart_finance_app.signin.PasswordResetApi
+import com.smart_finance_app.signin.PasswordResetRequestResult
 import com.smart_finance_app.signin.SignInApi
 import com.smart_finance_app.signin.SignInResult
 import com.smart_finance_app.signin.SignInScreen
@@ -58,6 +59,9 @@ fun App(apiBaseUrl: String) {
         var registrationError by remember { mutableStateOf<String?>(null) }
         var signInLoading by remember { mutableStateOf(false) }
         var signInError by remember { mutableStateOf<String?>(null) }
+        var forgotPasswordLoading by remember { mutableStateOf(false) }
+        var forgotPasswordSuccess by remember { mutableStateOf<String?>(null) }
+        var forgotPasswordError by remember { mutableStateOf<String?>(null) }
         var consentError by remember { mutableStateOf<String?>(null) }
 
         when (screen) {
@@ -118,13 +122,46 @@ fun App(apiBaseUrl: String) {
                         screen = Screen.Registration
                     },
                     onForgotPassword = {
+                        forgotPasswordError = null
+                        forgotPasswordSuccess = null
                         screen = Screen.ForgotPassword
                     }
                 )
             }
 
             Screen.ForgotPassword -> {
-                Text("Forgot password screen coming soon")
+                ForgotPasswordScreen(
+                    isLoading = forgotPasswordLoading,
+                    errorMessage = forgotPasswordError,
+                    successMessage = forgotPasswordSuccess,
+                    onSubmit = { email ->
+                        scope.launch {
+                            forgotPasswordLoading = true
+                            forgotPasswordError = null
+                            forgotPasswordSuccess = null
+
+                            try {
+                                when (val result = passwordResetApi.requestReset(email)) {
+                                    PasswordResetRequestResult.Success -> {
+                                        forgotPasswordSuccess =
+                                            "If an account exists for this email, a password reset link has been sent."
+                                    }
+
+                                    is PasswordResetRequestResult.Failure -> {
+                                        forgotPasswordError = result.message
+                                    }
+                                }
+                            } finally {
+                                forgotPasswordLoading = false
+                            }
+                        }
+                    },
+                    onBackToSignIn = {
+                        forgotPasswordError = null
+                        forgotPasswordSuccess = null
+                        screen = Screen.SignIn
+                    }
+                )
             }
 
             Screen.Consent -> {
