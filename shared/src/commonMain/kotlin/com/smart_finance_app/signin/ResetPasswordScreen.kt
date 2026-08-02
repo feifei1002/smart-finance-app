@@ -52,7 +52,7 @@ fun ResetPasswordScreen(isLoading: Boolean, errorMessage: String?, successMessag
     var showPassword by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
-    val valid = password.length >= 8 && password == confirmation && !isLoading
+    val valid = password.isNotBlank() && confirmation.isNotBlank() && !isLoading
 
     fun submit() {
         validationError = when {
@@ -217,7 +217,7 @@ fun ResetPasswordScreen(isLoading: Boolean, errorMessage: String?, successMessag
                         }
 
                         TextButton(onClick = onBackToSignIn) {
-                            Text("Back to login")
+                            Text("Back to sign in")
                         }
                     }
                 }
@@ -245,7 +245,7 @@ private fun ResetPasswordStatusContent(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Icon(
                     painter = painterResource(Res.drawable.lock),
                     contentDescription = null,
@@ -281,7 +281,7 @@ private fun ResetPasswordStatusContent(
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(8.dp)
         ) {
-            Text("Back to login")
+            Text("Back to sign in")
         }
     }
 }

@@ -304,3 +304,51 @@ private fun RegistrationScreenPreview() {
         )
     }
 }
+
+
+/* These are purely for checking how the UI is displayed,
+ as it might be difficult to check these pages on device emulator
+ */
+@Preview
+@Composable
+private fun ForgotPasswordScreenPreview() {
+    MaterialTheme {
+        ForgotPasswordScreen(
+            isLoading = false,
+            errorMessage = null,
+            successMessage = null,
+            onSubmit = {},
+            onBackToSignIn = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ResetPasswordExpiredPreview() {
+    MaterialTheme {
+        ResetPasswordScreen(
+            isLoading = false,
+            errorMessage = null,
+            successMessage = null,
+            tokenInvalid = true,
+            onSubmit = {},
+            onBackToSignIn = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ResetPasswordSuccessPreview() {
+    MaterialTheme {
+        ResetPasswordScreen(
+            isLoading = false,
+            errorMessage = null,
+            successMessage = "Your password has been updated successfully.",
+            tokenInvalid = false,
+            onSubmit = {},
+            onBackToSignIn = {}
+        )
+    }
+}

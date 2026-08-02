@@ -53,7 +53,7 @@ fun ForgotPasswordScreen(isLoading: Boolean, errorMessage: String?, successMessa
 
     val emailTrimmed = email.trim()
     val validEmail = emailTrimmed.contains("@") && emailTrimmed.contains(".")
-    val canSubmit = validEmail && !isLoading
+    val canSubmit = emailTrimmed.isNotBlank() && !isLoading
 
     fun submit() {
         if (!validEmail) {
@@ -256,7 +256,7 @@ private fun ResetPasswordContent(email: String, onEmailChange: (String) -> Unit,
         }
 
         TextButton(onClick = onBackToSignIn) {
-            Text("Back to login")
+            Text("Back to sign in")
         }
 
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
