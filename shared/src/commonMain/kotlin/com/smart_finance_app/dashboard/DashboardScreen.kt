@@ -2,6 +2,7 @@ package com.smart_finance_app.dashboard
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -25,6 +27,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import com.smart_finance_app.budget.BudgetApi
+import com.smart_finance_app.budget.BudgetData
+import com.smart_finance_app.budget.BudgetRequest
+import com.smart_finance_app.budget.BudgetResult
+import com.smart_finance_app.budget.AddBudgetDialog
+import com.smart_finance_app.budget.CompactBudgetProgressRow
+import com.smart_finance_app.budget.computeBudgetsWithSpending
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -56,8 +65,14 @@ private fun rememberGreeting(): String {
 }
 
 @Composable
-fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
-                    onConnectAccountClicked: () -> Unit, onViewAllTransactionsClicked: () -> Unit ) {
+fun DashboardScreen(
+    apiBaseUrl: String,
+    authToken: String,
+    userName: String,
+    transactions: List<TransactionData>,
+    onConnectAccountClicked: () -> Unit,
+    onViewAllTransactionsClicked: () -> Unit
+) {
     val api   = remember(apiBaseUrl) { DashboardApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
 
@@ -86,14 +101,12 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
         val balances = (b as DashboardResult.Success).data
 
         // Transactions are non-critical — if they fail, show dashboard with empty list
-        val t = api.getTransactions(authToken)
-        val transactions = if (t is DashboardResult.Success) t.data else emptyList()
 
         state     = computeDashboardState(balances, transactions, accounts)
         isLoading = false
     }
 
-    LaunchedEffect(authToken) { load() }
+    LaunchedEffect(authToken, transactions) { load() }
 
     DisposableEffect(api) { onDispose { api.close() } }
 
@@ -164,9 +177,11 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
                     MobileDashboard(
                         state = state!!,
                         userName = userName,
+                        apiBaseUrl = apiBaseUrl,
+                        authToken = authToken,
                         spendingPeriod = spendingPeriod,
-                        selectedAccounts = selectedAccounts, // Pass it down
-                        onAccountsChanged = { selectedAccounts = it }, // Callback to update state
+                        selectedAccounts = selectedAccounts,
+                        onAccountsChanged = { selectedAccounts = it },
                         onPeriodSelected = { spendingPeriod = it },
                         onViewAllTransactionsClicked = onViewAllTransactionsClicked
                     )
@@ -174,6 +189,8 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
                     DesktopDashboard(
                         state = state!!,
                         userName = userName,
+                        apiBaseUrl = apiBaseUrl,
+                        authToken = authToken,
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
                         onAccountsChanged = { selectedAccounts = it },
@@ -190,6 +207,8 @@ fun DashboardScreen(apiBaseUrl: String, authToken: String, userName: String,
 private fun MobileDashboard(
     state: DashboardState,
     userName: String,
+    apiBaseUrl: String,
+    authToken: String,
     spendingPeriod: SpendingPeriod,
     selectedAccounts: Set<String>,
     onAccountsChanged: (Set<String>) -> Unit,
@@ -431,7 +450,7 @@ private fun MobileDashboard(
             }
         }
 
-        item { BudgetProgressCard() }
+        item { BudgetProgressCard(apiBaseUrl = apiBaseUrl, authToken = authToken, transactions = state.rawTransactions, currency = state.currency) }
 
         // Recent Transactions Card
         item {
@@ -443,16 +462,12 @@ private fun MobileDashboard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SectionTitle("Recent Transactions")
-                        TextButton(
-                            onClick = onViewAllTransactionsClicked,
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text(
-                                text = "See all",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        Text(
+                            text = "See all",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { onViewAllTransactionsClicked() }
+                        )
                     }
                     if (state.recentTransactions.isEmpty()) {
                         Text(
@@ -473,6 +488,8 @@ private fun MobileDashboard(
 private fun DesktopDashboard(
     state: DashboardState,
     userName: String,
+    apiBaseUrl: String,
+    authToken: String,
     spendingPeriod: SpendingPeriod,
     selectedAccounts: Set<String>,
     onAccountsChanged: (Set<String>) -> Unit,
@@ -694,7 +711,7 @@ private fun DesktopDashboard(
                 }
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        BudgetProgressCard()
+                        BudgetProgressCard(apiBaseUrl = apiBaseUrl, authToken = authToken, transactions = state.rawTransactions, currency = state.currency)
                     }
                 }
             }
@@ -713,16 +730,9 @@ private fun DesktopDashboard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             SectionTitle("Recent Transactions")
-                            TextButton(
-                                onClick = onViewAllTransactionsClicked,
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(
-                                    "View all",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            Text("View all", style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable { onViewAllTransactionsClicked() })
                         }
                         if (state.recentTransactions.isEmpty()) {
                             Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
@@ -998,38 +1008,115 @@ private fun BarChart(data: List<MonthlyTopCategory>, modifier: Modifier = Modifi
 
 
 @Composable
-private fun BudgetProgressCard() {
-    var budgets by remember { mutableStateOf(emptyList<BudgetItem>()) }
+private fun BudgetProgressCard(
+    apiBaseUrl: String,
+    authToken: String,
+    transactions: List<TransactionData>,
+    currency: String
+) {
+    val api    = remember(apiBaseUrl) { BudgetApi(apiBaseUrl) }
+    val scope  = rememberCoroutineScope()
+    val symbol = getCurrencySymbol(currency)
+
+    var budgets    by remember { mutableStateOf<List<BudgetData>>(emptyList()) }
+    var showDialog by remember { mutableStateOf(false) }
+    var editBudget by remember { mutableStateOf<BudgetData?>(null) }
+    var errorMsg   by remember { mutableStateOf<String?>(null) }
+
+    val budgetsWithSpending by derivedStateOf {
+        computeBudgetsWithSpending(budgets, transactions)
+    }
+
+    suspend fun loadBudgets() {
+        when (val r = api.getBudgets(authToken)) {
+            is BudgetResult.Success -> budgets = r.data
+            is BudgetResult.Failure -> {errorMsg = r.message}
+        }
+    }
+
+    LaunchedEffect(authToken, transactions) {
+        loadBudgets()
+    }
+    DisposableEffect(api) { onDispose { api.close() } }
+
     DashboardCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("Budget Progress")
+            if (errorMsg != null) {
+                Text(
+                    text = errorMsg ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFDC2626)
+                )
+            }
             if (budgets.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(120.dp)
                         .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         IconButton(
-                            onClick = { /* TODO: open add budget form */ },
+                            onClick = {
+                                editBudget = null
+                                errorMsg = null
+                                showDialog = true
+                            },
                             modifier = Modifier.size(48.dp)
                                 .background(MaterialTheme.colorScheme.primary, CircleShape)
                         ) {
-                            Text("+", fontSize = 24.sp,
+                            Text(
+                                "+", fontSize = 24.sp,
                                 color = MaterialTheme.colorScheme.onPrimary,
-                                fontWeight = FontWeight.Light)
+                                fontWeight = FontWeight.Light
+                            )
                         }
-                        Text("Add a budget", style = MaterialTheme.typography.bodyMedium,
+                        Text(
+                            "Add a budget",
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
             } else {
-                budgets.forEach { BudgetProgressRow(it) }
+                // Show budgets with Edit and Delete icons
+                budgetsWithSpending.take(3).forEach { item ->
+                    CompactBudgetProgressRow(
+                        item = item,
+                        symbol = symbol,
+                        onEdit = {
+                            editBudget = item.budget
+                            errorMsg = null
+                            showDialog = true
+                        },
+                        onDelete = {
+                            scope.launch {
+                                when (val res = api.deleteBudget(authToken, item.budget.id)) {
+                                    is BudgetResult.Success -> {
+                                        errorMsg = null
+                                        loadBudgets()
+                                    }
+
+                                    is BudgetResult.Failure -> {
+                                        errorMsg = res.message
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+
                 Spacer(Modifier.height(4.dp))
                 OutlinedButton(
-                    onClick = { /* TODO: open add budget form */ },
+                    onClick = {
+                        editBudget = null
+                        errorMsg = null
+                        showDialog = true
+                    },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("+ Add Budget", style = MaterialTheme.typography.labelMedium)
@@ -1037,6 +1124,50 @@ private fun BudgetProgressCard() {
             }
         }
     }
+
+    if (showDialog) {
+        val currentEdit = editBudget
+        AddBudgetDialog(
+            existing       = currentEdit,
+            symbol         = symbol,
+            usedCategories = budgets.filter { currentEdit == null || it.id != currentEdit.id }
+                .map { it.category },
+            serverError    = errorMsg,
+            onDismiss      = {
+                showDialog = false
+                editBudget = null
+                errorMsg = null
+            },
+            onConfirm      = { category, amount, period ->
+                scope.launch {
+                    val result = if (currentEdit != null) {
+                        api.updateBudget(authToken, currentEdit.id, amount, category, period)
+                    } else {
+                        api.createBudget(authToken, BudgetRequest(category, amount, period))
+                    }
+                    when (result) {
+                        is BudgetResult.Success -> {
+                            showDialog = false
+                            editBudget = null
+                            errorMsg = null
+                            loadBudgets()
+                        }
+                        is BudgetResult.Failure -> {
+                            errorMsg = result.message
+                        }
+                    }
+                }
+            }
+        )
+    }
+}
+
+// KMP-compatible 2dp formatter
+private fun formatDp(value: Double): String {
+    val abs  = kotlin.math.abs(value)
+    val int  = abs.toLong()
+    val dec  = kotlin.math.round((abs - int) * 100).toLong()
+    return "$int.${dec.toString().padStart(2, '0')}"
 }
 
 @Composable
@@ -1162,25 +1293,6 @@ private fun CategoryLegendRow(cat: SpendingCategory) {
         Text("${cat.name} ${(cat.percent * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
         Text(cat.amount, style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun BudgetProgressRow(budget: BudgetItem) {
-    val progress = budget.spent / budget.total
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(budget.category, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-            Text("£${budget.spent.toInt()} / £${budget.total.toInt()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier.fillMaxWidth().height(8.dp),
-            color = budget.color,
-            trackColor = budget.color.copy(alpha = 0.2f)
-        )
     }
 }
 

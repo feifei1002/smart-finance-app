@@ -48,6 +48,9 @@ fun Application.module() {
 
     install(CORS) {
         anyHost()
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Delete)
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
     }
@@ -111,6 +114,7 @@ fun Application.module() {
         }
         consentRoutes()
         bankingRoutes()
+        budgetRoutes()
 
         get("/") {
             call.respondText("Smart Finance backend is running")

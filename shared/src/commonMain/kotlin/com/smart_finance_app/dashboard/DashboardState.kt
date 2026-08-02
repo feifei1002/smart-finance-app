@@ -5,6 +5,7 @@ import kotlin.time.Clock
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 
 /**
@@ -96,7 +97,7 @@ fun formatDate(timestamp: String): String {
         val months = listOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
         "${months[date[1].toInt()]} ${date[2].toInt()}, ${date[0]}"
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         timestamp.take(10)
     }
 }
@@ -118,7 +119,7 @@ fun computeSpendingCategories(
     currency: String
 ): List<SpendingCategory> {
     val symbol = getCurrencySymbol(currency)
-    val now    = Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+    val now    = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
     val filtered = transactions.filter { tx ->
         val parts = tx.timestamp.take(10).split("-")
@@ -127,14 +128,14 @@ fun computeSpendingCategories(
         val txMonth = parts[1].toIntOrNull() ?: return@filter false
         val txDay   = parts[2].toIntOrNull() ?: return@filter false
         when (period) {
-            SpendingPeriod.THIS_MONTH -> txYear == now.year && txMonth == now.monthNumber
+            SpendingPeriod.THIS_MONTH -> txYear == now.year && txMonth == now.month.number
             SpendingPeriod.LAST_MONTH -> {
-                val last = now.date.minus(kotlinx.datetime.DatePeriod(months = 1))
-                txYear == last.year && txMonth == last.monthNumber
+                val last = now.date.minus(DatePeriod(months = 1))
+                txYear == last.year && txMonth == last.month.number
             }
             SpendingPeriod.LAST_3_MONTHS -> {
-                val cutoff = now.date.minus(kotlinx.datetime.DatePeriod(months = 3))
-                (txYear > cutoff.year) || (txYear == cutoff.year && txMonth >= cutoff.monthNumber)
+                val cutoff = now.date.minus(DatePeriod(months = 3))
+                (txYear > cutoff.year) || (txYear == cutoff.year && txMonth >= cutoff.month.number)
             }
             SpendingPeriod.THIS_YEAR -> txYear == now.year
         }
@@ -174,7 +175,7 @@ fun computeDashboardState(
 
     // ── Current month income + expenses ───────────────────────────────────────
     val now          = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-    val currentMonth = now.monthNumber
+    val currentMonth = now.month.number
     val currentYear  = now.year
 
     val thisMonthTx = transactions.filter { tx ->
@@ -189,7 +190,7 @@ fun computeDashboardState(
 
     // ── Last month income + expenses calculation ──────────────────────────────
     val lastMonthDate  = now.date.minus(DatePeriod(months = 1))
-    val lastMonthNumber = lastMonthDate.monthNumber
+    val lastMonthNumber = lastMonthDate.month.number
     val lastMonthYear   = lastMonthDate.year
 
     val lastMonthTx = transactions.filter { tx ->
@@ -241,7 +242,7 @@ fun computeDashboardState(
     val monthLabels = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
     val monthlyTrend = (5 downTo 0).map { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
-        val targetMonth = targetDate.monthNumber
+        val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year
         val monthName   = monthLabels[targetMonth - 1]
 
@@ -274,7 +275,7 @@ fun computeDashboardState(
     }
 
     // ── Accounts overview ─────────────────────────────────────────────────────
-    val accountOverviews = accounts.mapNotNull { account ->
+    val accountOverviews = accounts.map { account ->
         val balance = balances.find { it.accountId == account.accountId }
         AccountOverview(
             bankName     = account.bankName,
@@ -287,7 +288,7 @@ fun computeDashboardState(
     val monthLabels2 = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
     val monthlyTopCategories = (5 downTo 0).mapNotNull { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
-        val targetMonth = targetDate.monthNumber
+        val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year
         val monthName   = monthLabels2[targetMonth - 1]
 
@@ -336,10 +337,10 @@ fun computeDashboardState(
  */
 fun filterCategoriesByPeriod(
     state: DashboardState,
-    period: com.smart_finance_app.dashboard.SpendingPeriod
+    period: SpendingPeriod
 ): List<SpendingCategory> {
     val now          = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-    val currentMonth = now.monthNumber
+    val currentMonth = now.month.number
     val currentYear  = now.year
     val symbol       = getCurrencySymbol(state.currency)
 
@@ -352,19 +353,19 @@ fun filterCategoriesByPeriod(
         if (tx.amount >= 0) return@filter false  // only expenses
 
         when (period) {
-            com.smart_finance_app.dashboard.SpendingPeriod.THIS_MONTH ->
+            SpendingPeriod.THIS_MONTH ->
                 txYear == currentYear && txMonth == currentMonth
-            com.smart_finance_app.dashboard.SpendingPeriod.LAST_MONTH -> {
+            SpendingPeriod.LAST_MONTH -> {
                 val lastMonth = if (currentMonth == 1) 12 else currentMonth - 1
                 val lastYear  = if (currentMonth == 1) currentYear - 1 else currentYear
                 txYear == lastYear && txMonth == lastMonth
             }
-            com.smart_finance_app.dashboard.SpendingPeriod.LAST_3_MONTHS -> {
+            SpendingPeriod.LAST_3_MONTHS -> {
                 val cutoff = now.date.minus(DatePeriod(months = 3))
                 val txDate = kotlinx.datetime.LocalDate(txYear, txMonth, txDay)
                 txDate >= cutoff
             }
-            com.smart_finance_app.dashboard.SpendingPeriod.THIS_YEAR ->
+            SpendingPeriod.THIS_YEAR ->
                 txYear == currentYear
         }
     }
@@ -374,12 +375,12 @@ fun filterCategoriesByPeriod(
     val totalSpend = filtered.sumOf { kotlin.math.abs(it.amount) }.takeIf { it > 0 } ?: 1.0
     val colorMap   = listOf("Housing","Food","Transport","Shopping","Entertainment","Other")
         .zip(listOf(
-            androidx.compose.ui.graphics.Color(0xFF6366F1),
-            androidx.compose.ui.graphics.Color(0xFF22C55E),
-            androidx.compose.ui.graphics.Color(0xFFF59E0B),
-            androidx.compose.ui.graphics.Color(0xFFEC4899),
-            androidx.compose.ui.graphics.Color(0xFF3B82F6),
-            androidx.compose.ui.graphics.Color(0xFF94A3B8)
+            Color(0xFF6366F1),
+            Color(0xFF22C55E),
+            Color(0xFFF59E0B),
+            Color(0xFFEC4899),
+            Color(0xFF3B82F6),
+            Color(0xFF94A3B8)
         )).toMap()
 
     return filtered
