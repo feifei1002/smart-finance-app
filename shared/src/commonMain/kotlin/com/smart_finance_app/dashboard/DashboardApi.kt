@@ -2,13 +2,10 @@ package com.smart_finance_app.dashboard
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 // ── Response models matching server Banking.kt ────────────────────────────────
 
@@ -60,7 +57,7 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
                 HttpStatusCode.Unauthorized -> DashboardResult.Failure("Session expired, please sign in again")
                 else                        -> DashboardResult.Failure("Failed to load balances (${response.status.value})")
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             DashboardResult.Failure("Cannot connect to the server")
         }
     }
@@ -75,7 +72,7 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
                 HttpStatusCode.Unauthorized -> DashboardResult.Failure("Session expired, please sign in again")
                 else                        -> DashboardResult.Failure("Failed to load transactions (${response.status.value})")
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             DashboardResult.Failure("Cannot connect to the server")
         }
     }
@@ -90,7 +87,7 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
                 HttpStatusCode.Unauthorized -> DashboardResult.Failure("Session expired, please sign in again")
                 else                        -> DashboardResult.Failure("Failed to load accounts (${response.status.value})")
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             DashboardResult.Failure("Cannot connect to the server")
         }
     }

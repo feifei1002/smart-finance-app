@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smart_finance_app.dashboard.TransactionData
 import com.smart_finance_app.dashboard.getCurrencySymbol
-import io.ktor.client.HttpClient
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.time.Clock

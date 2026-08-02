@@ -3,13 +3,11 @@ package com.smart_finance_app.registration
 import com.smart_finance_app.signin.AuthSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -65,7 +63,7 @@ class RegistrationApi(private val baseUrl: String, private val client: HttpClien
                     "Registration failed (${response.status.value})"
                 )
             }
-        } catch (exception: Exception) {
+        } catch (_: Exception) {
             RegistrationResult.Failure("Cannot connect to the server")
         }
     }
