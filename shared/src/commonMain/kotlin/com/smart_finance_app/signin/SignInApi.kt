@@ -52,7 +52,7 @@ class SignInApi(baseUrl: String, private val client: HttpClient) {
                     SignInResult.Failure(response.errorMessage("Sign in failed (${response.status.value})"))
                 }
             }
-        } catch (exception: Exception) {
+        } catch (_: Exception) {
             SignInResult.Failure("Cannot connect to the server")
         }
     }
