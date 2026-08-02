@@ -66,14 +66,14 @@ private fun rememberGreeting(): String {
 
 @Composable
 fun DashboardScreen(
-    apiBaseUrl: String,
     authToken: String,
     userName: String,
     transactions: List<TransactionData>,
     onConnectAccountClicked: () -> Unit,
-    onViewAllTransactionsClicked: () -> Unit
+    onViewAllTransactionsClicked: () -> Unit,
+    api: DashboardApi,
+    budgetApi: BudgetApi
 ) {
-    val api   = remember(apiBaseUrl) { DashboardApi(apiBaseUrl) }
     val scope = rememberCoroutineScope()
 
     var state          by remember { mutableStateOf<DashboardState?>(null) }
@@ -108,7 +108,6 @@ fun DashboardScreen(
 
     LaunchedEffect(authToken, transactions) { load() }
 
-    DisposableEffect(api) { onDispose { api.close() } }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         when {
@@ -177,25 +176,25 @@ fun DashboardScreen(
                     MobileDashboard(
                         state = state!!,
                         userName = userName,
-                        apiBaseUrl = apiBaseUrl,
                         authToken = authToken,
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
                         onAccountsChanged = { selectedAccounts = it },
                         onPeriodSelected = { spendingPeriod = it },
-                        onViewAllTransactionsClicked = onViewAllTransactionsClicked
+                        onViewAllTransactionsClicked = onViewAllTransactionsClicked,
+                        budgetApi = budgetApi
                     )
                 } else {
                     DesktopDashboard(
                         state = state!!,
                         userName = userName,
-                        apiBaseUrl = apiBaseUrl,
                         authToken = authToken,
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
                         onAccountsChanged = { selectedAccounts = it },
                         onPeriodSelected = { spendingPeriod = it },
-                        onViewAllTransactionsClicked = onViewAllTransactionsClicked
+                        onViewAllTransactionsClicked = onViewAllTransactionsClicked,
+                        budgetApi = budgetApi
                     )
                 }
             }
@@ -207,7 +206,7 @@ fun DashboardScreen(
 private fun MobileDashboard(
     state: DashboardState,
     userName: String,
-    apiBaseUrl: String,
+    budgetApi: BudgetApi,
     authToken: String,
     spendingPeriod: SpendingPeriod,
     selectedAccounts: Set<String>,
@@ -450,7 +449,7 @@ private fun MobileDashboard(
             }
         }
 
-        item { BudgetProgressCard(apiBaseUrl = apiBaseUrl, authToken = authToken, transactions = state.rawTransactions, currency = state.currency) }
+        item { BudgetProgressCard(authToken = authToken, transactions = state.rawTransactions, currency = state.currency, api = budgetApi) }
 
         // Recent Transactions Card
         item {
@@ -488,7 +487,7 @@ private fun MobileDashboard(
 private fun DesktopDashboard(
     state: DashboardState,
     userName: String,
-    apiBaseUrl: String,
+    budgetApi: BudgetApi,
     authToken: String,
     spendingPeriod: SpendingPeriod,
     selectedAccounts: Set<String>,
@@ -711,7 +710,7 @@ private fun DesktopDashboard(
                 }
                 DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
                     Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        BudgetProgressCard(apiBaseUrl = apiBaseUrl, authToken = authToken, transactions = state.rawTransactions, currency = state.currency)
+                        BudgetProgressCard(authToken = authToken, transactions = state.rawTransactions, currency = state.currency, api = budgetApi)
                     }
                 }
             }
@@ -1009,12 +1008,11 @@ private fun BarChart(data: List<MonthlyTopCategory>, modifier: Modifier = Modifi
 
 @Composable
 private fun BudgetProgressCard(
-    apiBaseUrl: String,
     authToken: String,
     transactions: List<TransactionData>,
-    currency: String
+    currency: String,
+    api: BudgetApi
 ) {
-    val api    = remember(apiBaseUrl) { BudgetApi(apiBaseUrl) }
     val scope  = rememberCoroutineScope()
     val symbol = getCurrencySymbol(currency)
 
@@ -1037,7 +1035,6 @@ private fun BudgetProgressCard(
     LaunchedEffect(authToken, transactions) {
         loadBudgets()
     }
-    DisposableEffect(api) { onDispose { api.close() } }
 
     DashboardCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

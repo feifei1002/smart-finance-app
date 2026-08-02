@@ -30,7 +30,13 @@ import smart_finance_app.shared.generated.resources.visibility_off
 data class SignInForm(val email: String, val password: String)
 
 @Composable
-fun SignInScreen(isLoading: Boolean, errorMessage: String?, onSignIn: (SignInForm) -> Unit, onCreateAccount: () -> Unit) {
+fun SignInScreen(
+    isLoading: Boolean,
+    errorMessage: String?,
+    onSignIn: (SignInForm) -> Unit,
+    onCreateAccount: () -> Unit,
+    onForgotPassword: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
@@ -73,7 +79,7 @@ fun SignInScreen(isLoading: Boolean, errorMessage: String?, onSignIn: (SignInFor
                         false
                     }
                 },
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 text = "Welcome back",
@@ -153,6 +159,18 @@ fun SignInScreen(isLoading: Boolean, errorMessage: String?, onSignIn: (SignInFor
                 ),
                 keyboardActions = KeyboardActions(onDone = { submitForm() })
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onForgotPassword,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Forgot password?")
+                }
+            }
 
             errorMessage?.let {
                 Text(

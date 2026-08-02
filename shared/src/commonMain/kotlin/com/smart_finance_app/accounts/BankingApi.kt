@@ -2,7 +2,6 @@ package com.smart_finance_app.accounts
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.post
@@ -10,9 +9,7 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 @Serializable
 private data class CreateBankConnectionRequest(val providerId: String, val providerName: String)
@@ -46,16 +43,8 @@ sealed interface BankProviderResult {
  * This class talks to the app backend, not directly to TrueLayer.
  * The backend is responsible for creating TrueLayer sessions and storing accounts.
  */
-class BankingApi(baseUrl: String) {
+class BankingApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
-
-    private val client = HttpClient {
-        expectSuccess = false
-
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys= true })
-        }
-    }
 
     /**
      * Starts a bank connection session for the selected bank.
@@ -157,9 +146,5 @@ class BankingApi(baseUrl: String) {
         } catch (_: Exception) {
             BankProviderResult.Failure("Cannot connect to the server.")
         }
-    }
-
-    fun close() {
-        client.close()
     }
 }

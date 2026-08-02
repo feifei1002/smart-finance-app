@@ -141,12 +141,11 @@ fun categoriseForBudget(description: String, merchantName: String?): String {
 
 @Composable
 fun BudgetScreen(
-    apiBaseUrl: String,
     authToken: String,
     transactions: List<TransactionData>,
-    currency: String
+    currency: String,
+    api: BudgetApi
 ) {
-    val api    = remember(apiBaseUrl) { BudgetApi(apiBaseUrl) }
     val scope  = rememberCoroutineScope()
     val symbol = getCurrencySymbol(currency)
 
@@ -172,7 +171,6 @@ fun BudgetScreen(
     }
 
     LaunchedEffect(authToken) { loadBudgets() }
-    DisposableEffect(api) { onDispose { api.close() } }
 
     Column(
         modifier = Modifier

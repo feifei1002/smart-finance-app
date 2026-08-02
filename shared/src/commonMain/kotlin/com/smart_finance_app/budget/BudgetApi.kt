@@ -2,7 +2,6 @@ package com.smart_finance_app.budget
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
@@ -13,9 +12,7 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
@@ -52,14 +49,7 @@ private suspend fun parseError(response: io.ktor.client.statement.HttpResponse, 
 
 // ── API client ────────────────────────────────────────────────────────────────
 
-class BudgetApi(private val baseUrl: String) {
-
-    private val client = HttpClient {
-        expectSuccess = false
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
+class BudgetApi(private val baseUrl: String, private val client: HttpClient) {
 
     suspend fun getBudgets(token: String): BudgetResult<List<BudgetData>> {
         return try {
@@ -124,8 +114,6 @@ class BudgetApi(private val baseUrl: String) {
             BudgetResult.Failure("Cannot connect to server: ${e.message}")
         }
     }
-
-    fun close() = client.close()
 }
 
 @Serializable

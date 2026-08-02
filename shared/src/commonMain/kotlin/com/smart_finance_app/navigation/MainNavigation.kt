@@ -17,6 +17,7 @@ import com.smart_finance_app.accounts.BankingApi
 import com.smart_finance_app.accounts.ConnectBankAccountScreen
 import com.smart_finance_app.accounts.ConnectedAccount
 import com.smart_finance_app.accounts.ConnectedAccountResult
+import com.smart_finance_app.budget.BudgetApi
 import com.smart_finance_app.dashboard.DashboardScreen
 import com.smart_finance_app.transactions.TransactionSyncResult
 import com.smart_finance_app.transactions.TransactionUI
@@ -24,6 +25,8 @@ import com.smart_finance_app.transactions.TransactionsApi
 import com.smart_finance_app.transactions.TransactionsResult
 import com.smart_finance_app.transactions.TransactionsScreen
 import com.smart_finance_app.budget.BudgetScreen
+import com.smart_finance_app.dashboard.DashboardApi
+import io.ktor.client.HttpClient
 import kotlinx.coroutines.launch
 
 @Composable
@@ -31,6 +34,9 @@ fun MainNavigation(
     apiBaseUrl: String,
     authToken: String,
     userName: String,
+    httpClient: HttpClient,
+    dashboardApi: DashboardApi,
+    budgetApi: BudgetApi,
     onSignOut: () -> Unit
 ) {
     var selected by remember { mutableStateOf(AppNavigation.Dashboard) }
@@ -75,6 +81,9 @@ fun MainNavigation(
                 apiBaseUrl               = apiBaseUrl,
                 authToken                = authToken,
                 userName                 = userName,
+                httpClient = httpClient,
+                dashboardApi = dashboardApi,
+                budgetApi = budgetApi,
                 onSignOut                = onSignOut,
                 onNavigateToAccounts     = { selected = AppNavigation.Accounts },
                 onNavigateToTransactions = { selected = AppNavigation.Transactions }
@@ -89,18 +98,17 @@ private fun NavigationContent(
     apiBaseUrl: String,
     authToken: String,
     userName: String,
+    httpClient: HttpClient,
+    dashboardApi: DashboardApi,
+    budgetApi: BudgetApi,
     onSignOut: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToTransactions: () -> Unit
 ) {
-    val transactionsApi = remember(apiBaseUrl) { TransactionsApi(apiBaseUrl) }
+    val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var transactionsLoading by remember { mutableStateOf(false) }
     var transactionsError by remember { mutableStateOf<String?>(null) }
-
-    DisposableEffect(transactionsApi) {
-        onDispose { transactionsApi.close() }
-    }
 
     // Fetch transactions globally on launch
     LaunchedEffect(authToken) {
@@ -158,12 +166,13 @@ private fun NavigationContent(
 
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
-            apiBaseUrl                  = apiBaseUrl,
             authToken                   = authToken,
             userName                    = userName,
             transactions                = mappedTransactions,
             onConnectAccountClicked     = onNavigateToAccounts,
-            onViewAllTransactionsClicked = onNavigateToTransactions
+            onViewAllTransactionsClicked = onNavigateToTransactions,
+            api = dashboardApi,
+            budgetApi = budgetApi
         )
 
         AppNavigation.Transactions -> {
@@ -187,11 +196,7 @@ private fun NavigationContent(
 
             val scope = rememberCoroutineScope()
             val uriHandler = LocalUriHandler.current
-            val bankingApi = remember(apiBaseUrl) { BankingApi(apiBaseUrl) }
-
-            DisposableEffect(bankingApi) {
-                onDispose { bankingApi.close() }
-            }
+            val bankingApi = remember(apiBaseUrl, httpClient) { BankingApi(apiBaseUrl, httpClient) }
 
             LaunchedEffect(showConnectBank, authToken) {
                 if (showConnectBank && authToken.isNotBlank()) {
@@ -259,10 +264,10 @@ private fun NavigationContent(
 
         AppNavigation.Budgets -> {
             BudgetScreen(
-                apiBaseUrl   = apiBaseUrl,
                 authToken    = authToken,
                 transactions = mappedTransactions,
-                currency     = resolvedCurrency
+                currency     = resolvedCurrency,
+                api = budgetApi
             )
         }
 
