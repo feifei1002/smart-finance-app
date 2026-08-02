@@ -2,12 +2,12 @@ package com.smart_finance_app.navigation
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import com.smart_finance_app.accounts.AccountsScreen
 import com.smart_finance_app.accounts.BankConnectionResult
@@ -23,23 +23,21 @@ import com.smart_finance_app.transactions.TransactionUI
 import com.smart_finance_app.transactions.TransactionsApi
 import com.smart_finance_app.transactions.TransactionsResult
 import com.smart_finance_app.transactions.TransactionsScreen
+import com.smart_finance_app.budget.BudgetScreen
 import kotlinx.coroutines.launch
 
-
 @Composable
-fun MainNavigation(apiBaseUrl: String, authToken: String, userName: String, onSignOut: () -> Unit) {
+fun MainNavigation(
+    apiBaseUrl: String,
+    authToken: String,
+    userName: String,
+    onSignOut: () -> Unit
+) {
     var selected by remember { mutableStateOf(AppNavigation.Dashboard) }
 
-    BoxWithConstraints(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
-
-        val destinations = if (compact) {
-            mobileNavigations
-        } else {
-            AppNavigation.entries
-        }
+        val destinations = if (compact) mobileNavigations else AppNavigation.entries
 
         LaunchedEffect(compact) {
             if (selected !in destinations) {
@@ -61,10 +59,7 @@ fun MainNavigation(apiBaseUrl: String, authToken: String, userName: String, onSi
                         },
                         label = {
                             Text(
-                                if (
-                                    compact &&
-                                    destination == AppNavigation.Dashboard
-                                ) {
+                                if (compact && destination == AppNavigation.Dashboard) {
                                     "Home"
                                 } else {
                                     destination.label
@@ -76,12 +71,12 @@ fun MainNavigation(apiBaseUrl: String, authToken: String, userName: String, onSi
             }
         ) {
             NavigationContent(
-                navigation = selected,
-                apiBaseUrl = apiBaseUrl,
-                authToken = authToken,
-                userName = userName,
-                onSignOut = onSignOut,
-                onNavigateToAccounts = { selected = AppNavigation.Accounts }, // Pass navigation handler
+                navigation               = selected,
+                apiBaseUrl               = apiBaseUrl,
+                authToken                = authToken,
+                userName                 = userName,
+                onSignOut                = onSignOut,
+                onNavigateToAccounts     = { selected = AppNavigation.Accounts },
                 onNavigateToTransactions = { selected = AppNavigation.Transactions }
             )
         }
@@ -95,7 +90,7 @@ private fun NavigationContent(
     authToken: String,
     userName: String,
     onSignOut: () -> Unit,
-    onNavigateToAccounts: () -> Unit, // Added callback parameter
+    onNavigateToAccounts: () -> Unit,
     onNavigateToTransactions: () -> Unit
 ) {
     val transactionsApi = remember(apiBaseUrl) { TransactionsApi(apiBaseUrl) }
@@ -107,15 +102,14 @@ private fun NavigationContent(
         onDispose { transactionsApi.close() }
     }
 
-    LaunchedEffect(authToken, navigation) {
-        if (navigation == AppNavigation.Transactions && authToken.isNotBlank()) {
+    // Fetch transactions globally on launch
+    LaunchedEffect(authToken) {
+        if (authToken.isNotBlank()) {
             transactionsLoading = true
             transactionsError = null
 
             when (val syncResult = transactionsApi.syncTransactions(authToken)) {
-                is TransactionSyncResult.Success -> {
-                }
-
+                is TransactionSyncResult.Success -> {}
                 is TransactionSyncResult.Failure -> {
                     transactionsError = syncResult.message
                 }
@@ -125,17 +119,16 @@ private fun NavigationContent(
                 is TransactionsResult.Success -> {
                     transactions = result.transactions.map { transaction ->
                         TransactionUI(
-                            id = transaction.id,
-                            dateLabel = transaction.date.take(10),
+                            id           = transaction.id,
+                            dateLabel    = transaction.date.take(10),
                             merchantName = transaction.merchantName,
-                            category = transaction.category,
-                            accountName = transaction.accountName,
-                            amount = transaction.amount,
-                            currency = transaction.currency
+                            category     = transaction.category,
+                            accountName  = transaction.accountName,
+                            amount       = transaction.amount,
+                            currency     = transaction.currency
                         )
                     }
                 }
-
                 is TransactionsResult.Failure -> {
                     transactionsError = result.message
                 }
@@ -145,20 +138,39 @@ private fun NavigationContent(
         }
     }
 
+    val mappedTransactions = remember(transactions) {
+        transactions.map { tx ->
+            com.smart_finance_app.dashboard.TransactionData(
+                transactionId = tx.id,
+                timestamp = tx.dateLabel,
+                description = tx.merchantName,
+                amount = tx.amount,
+                currency = tx.currency,
+                type = if (tx.amount < 0) "DEBIT" else "CREDIT",
+                merchantName = tx.merchantName
+            )
+        }
+    }
+
+    val resolvedCurrency = remember(transactions) {
+        transactions.firstOrNull { it.currency.isNotBlank() }?.currency ?: "GBP"
+    }
+
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
-            apiBaseUrl = apiBaseUrl,
-            authToken = authToken,
-            userName = userName,
-            onConnectAccountClicked = onNavigateToAccounts, // Pass callback to DashboardScreen
+            apiBaseUrl                  = apiBaseUrl,
+            authToken                   = authToken,
+            userName                    = userName,
+            transactions                = mappedTransactions,
+            onConnectAccountClicked     = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions
         )
 
         AppNavigation.Transactions -> {
             TransactionsScreen(
-                transactions = transactions,
-                isLoading = transactionsLoading,
-                errorMessage = transactionsError
+                transactions  = transactions,
+                isLoading     = transactionsLoading,
+                errorMessage  = transactionsError
             )
         }
 
@@ -166,11 +178,9 @@ private fun NavigationContent(
             var showConnectBank by remember { mutableStateOf(false) }
             var error by remember { mutableStateOf<String?>(null) }
             var loading by remember { mutableStateOf(false) }
-
             var accounts by remember { mutableStateOf<List<ConnectedAccount>>(emptyList()) }
             var accountsError by remember { mutableStateOf<String?>(null) }
             var accountsLoading by remember { mutableStateOf(false) }
-
             var banks by remember { mutableStateOf<List<BankOption>>(emptyList()) }
             var banksError by remember { mutableStateOf<String?>(null) }
             var banksLoading by remember { mutableStateOf(false) }
@@ -187,75 +197,53 @@ private fun NavigationContent(
                 if (showConnectBank && authToken.isNotBlank()) {
                     banksLoading = true
                     banksError = null
-
                     when (val result = bankingApi.getBankProviders(authToken)) {
                         is BankProviderResult.Success -> {
                             banks = result.providers.map {
-                                BankOption(
-                                    id = it.id,
-                                    name = it.name,
-                                    logoUrl = it.logoUrl
-                                )
+                                BankOption(id = it.id, name = it.name, logoUrl = it.logoUrl)
                             }
                         }
-
-                        is BankProviderResult.Failure -> {
-                            banksError = result.message
-                        }
+                        is BankProviderResult.Failure -> { banksError = result.message }
                     }
-
                     banksLoading = false
                 }
             }
 
             LaunchedEffect(authToken, showConnectBank) {
-                if(!showConnectBank && authToken.isNotBlank()) {
+                if (!showConnectBank && authToken.isNotBlank()) {
                     accountsLoading = true
                     accountsError = null
-
-                    when(val result = bankingApi.getConnectedAccounts(authToken)) {
+                    when (val result = bankingApi.getConnectedAccounts(authToken)) {
                         is ConnectedAccountResult.Success -> {
                             accounts = result.accounts.map {
                                 ConnectedAccount(
-                                    bankName = it.bankName,
+                                    bankName     = it.bankName,
                                     maskedNumber = it.maskedNumber,
-                                    isConnected = true
+                                    isConnected  = true
                                 )
                             }
                         }
-
-                        is ConnectedAccountResult.Failure -> {
-                            accountsError = result.message
-                        }
+                        is ConnectedAccountResult.Failure -> { accountsError = result.message }
                     }
-
                     accountsLoading = false
                 }
             }
 
-            if(showConnectBank) {
+            if (showConnectBank) {
                 ConnectBankAccountScreen(
-                    banks = banks,
-                    errorMessage = error ?: banksError,
-                    isLoading = loading || banksLoading,
-                    onCancel = { showConnectBank = false },
-                    onContinue = { selectedBank ->
+                    banks         = banks,
+                    errorMessage  = error ?: banksError,
+                    isLoading     = loading || banksLoading,
+                    onCancel      = { showConnectBank = false },
+                    onContinue    = { selectedBank ->
                         scope.launch {
                             loading = true
                             error = null
-
-                            when (
-                                val result = bankingApi.createConnectionSession(
-                                    token = authToken, bank = selectedBank
-                                )
-                            ) {
-                                is BankConnectionResult.Success -> {
-                                    uriHandler.openUri(result.authUrl)
-                                }
-
-                                is BankConnectionResult.Failure -> {
-                                    error = result.message
-                                }
+                            when (val result = bankingApi.createConnectionSession(
+                                token = authToken, bank = selectedBank
+                            )) {
+                                is BankConnectionResult.Success -> { uriHandler.openUri(result.authUrl) }
+                                is BankConnectionResult.Failure -> { error = result.message }
                             }
                             loading = false
                         }
@@ -263,10 +251,19 @@ private fun NavigationContent(
                 )
             } else {
                 AccountsScreen(
-                    accounts = accounts,
+                    accounts     = accounts,
                     onConnectBank = { showConnectBank = true }
                 )
             }
+        }
+
+        AppNavigation.Budgets -> {
+            BudgetScreen(
+                apiBaseUrl   = apiBaseUrl,
+                authToken    = authToken,
+                transactions = mappedTransactions,
+                currency     = resolvedCurrency
+            )
         }
 
         AppNavigation.Settings -> {
@@ -274,9 +271,7 @@ private fun NavigationContent(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Button(
-                    onClick = onSignOut
-                ) {
+                Button(onClick = onSignOut) {
                     Text("Sign out")
                 }
             }
@@ -288,6 +283,5 @@ private fun NavigationContent(
         ) {
             Text(navigation.label)
         }
-
     }
 }
