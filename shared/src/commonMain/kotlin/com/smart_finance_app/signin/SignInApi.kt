@@ -26,18 +26,8 @@ sealed interface SignInResult {
     data class Failure(val message: String): SignInResult
 }
 
-class SignInApi(baseUrl: String) {
+class SignInApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
-
-    private val client = HttpClient {
-        expectSuccess = false
-
-        install(ContentNegotiation) {
-            json(
-                Json { ignoreUnknownKeys = true }
-            )
-        }
-    }
 
     suspend fun signIn(form: SignInForm): SignInResult {
         return try {
@@ -68,10 +58,6 @@ class SignInApi(baseUrl: String) {
         } catch (exception: Exception) {
             SignInResult.Failure("Cannot connect to the server")
         }
-    }
-
-    fun close() {
-        client.close()
     }
 
     private suspend fun HttpResponse.errorMessage(fallback: String): String {

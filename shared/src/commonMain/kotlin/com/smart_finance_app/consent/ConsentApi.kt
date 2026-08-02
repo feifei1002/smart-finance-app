@@ -19,18 +19,8 @@ sealed interface ConsentResult {
 @Serializable
 private data class ErrorResponse(val message: String)
 
-class ConsentApi(baseUrl: String) {
+class ConsentApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
-
-    private val client = HttpClient {
-        expectSuccess = false
-
-        install(ContentNegotiation) {
-            json(
-                Json { ignoreUnknownKeys = true }
-            )
-        }
-    }
 
     suspend fun acceptConsent(token: String): ConsentResult {
         val url = "$normalizedBaseUrl/auth/consent"
@@ -55,10 +45,6 @@ class ConsentApi(baseUrl: String) {
         } catch (_: Exception) {
             ConsentResult.Failure("Cannot connect to the server")
         }
-    }
-
-    fun close() {
-        client.close()
     }
 
     private suspend fun HttpResponse.errorMessage(fallback: String): String {

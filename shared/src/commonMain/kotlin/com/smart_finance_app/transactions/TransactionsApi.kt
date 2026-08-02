@@ -39,16 +39,8 @@ sealed interface TransactionSyncResult {
     data class Failure(val message: String): TransactionSyncResult
 }
 
-class TransactionsApi(baseUrl: String) {
+class TransactionsApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
-
-    private val client = HttpClient {
-        expectSuccess = false
-
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
 
     suspend fun syncTransactions(token: String): TransactionSyncResult {
         return try {
@@ -80,9 +72,5 @@ class TransactionsApi(baseUrl: String) {
         } catch (_: Exception) {
             TransactionsResult.Failure("Cannot connect to the server.")
         }
-    }
-
-    fun close() {
-        client.close()
     }
 }

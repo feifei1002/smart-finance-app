@@ -52,14 +52,7 @@ private suspend fun parseError(response: io.ktor.client.statement.HttpResponse, 
 
 // ── API client ────────────────────────────────────────────────────────────────
 
-class BudgetApi(private val baseUrl: String) {
-
-    private val client = HttpClient {
-        expectSuccess = false
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
+class BudgetApi(private val baseUrl: String, private val client: HttpClient) {
 
     suspend fun getBudgets(token: String): BudgetResult<List<BudgetData>> {
         return try {
@@ -124,8 +117,6 @@ class BudgetApi(private val baseUrl: String) {
             BudgetResult.Failure("Cannot connect to server: ${e.message}")
         }
     }
-
-    fun close() = client.close()
 }
 
 @Serializable

@@ -46,16 +46,8 @@ sealed interface BankProviderResult {
  * This class talks to the app backend, not directly to TrueLayer.
  * The backend is responsible for creating TrueLayer sessions and storing accounts.
  */
-class BankingApi(baseUrl: String) {
+class BankingApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
-
-    private val client = HttpClient {
-        expectSuccess = false
-
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys= true })
-        }
-    }
 
     /**
      * Starts a bank connection session for the selected bank.
@@ -157,9 +149,5 @@ class BankingApi(baseUrl: String) {
         } catch (_: Exception) {
             BankProviderResult.Failure("Cannot connect to the server.")
         }
-    }
-
-    fun close() {
-        client.close()
     }
 }

@@ -2,16 +2,13 @@ package com.smart_finance_app.signin
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 
 @Serializable
 private data class PasswordResetValidateRequest(val token: String)
@@ -39,16 +36,8 @@ sealed interface PasswordResetConfirmResult {
     data class Failure(val message: String) : PasswordResetConfirmResult
 }
 
-class PasswordResetApi(baseUrl: String) {
+class PasswordResetApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
-
-    private val client = HttpClient {
-        expectSuccess = false
-
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
 
     suspend fun validateResetToken(token: String): PasswordResetValidateResult {
         return try {
@@ -114,10 +103,6 @@ class PasswordResetApi(baseUrl: String) {
         } catch (_: Exception) {
             PasswordResetConfirmResult.Failure("Cannot connect to the server.")
         }
-    }
-
-    fun close() {
-        client.close()
     }
 
     private suspend fun HttpResponse.errorMessage(fallback: String): String {

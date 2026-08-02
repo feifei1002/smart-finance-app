@@ -3,6 +3,7 @@ package com.smart_finance_app
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.tooling.preview.Preview
+import com.smart_finance_app.budget.BudgetApi
 import com.smart_finance_app.consent.ConsentApi
 import com.smart_finance_app.consent.ReadOnlyConsentScreen
 import com.smart_finance_app.navigation.MainNavigation
@@ -11,6 +12,7 @@ import com.smart_finance_app.registration.RegistrationResult
 import com.smart_finance_app.registration.RegistrationScreen
 import com.smart_finance_app.signin.AuthSession
 import com.smart_finance_app.consent.ConsentResult
+import com.smart_finance_app.dashboard.DashboardApi
 import com.smart_finance_app.signin.ForgotPasswordScreen
 import com.smart_finance_app.signin.PasswordResetApi
 import com.smart_finance_app.signin.PasswordResetConfirmResult
@@ -20,7 +22,11 @@ import com.smart_finance_app.signin.ResetPasswordScreen
 import com.smart_finance_app.signin.SignInApi
 import com.smart_finance_app.signin.SignInResult
 import com.smart_finance_app.signin.SignInScreen
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
 // Tracks which screen is currently shown
 private enum class Screen {
@@ -35,24 +41,32 @@ private enum class Screen {
 @Composable
 fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordResetToken: String? = null) {
     MaterialTheme {
-        val registrationApi = remember(apiBaseUrl) { RegistrationApi(apiBaseUrl) }
+        val httpClient = remember {
+            HttpClient {
+                expectSuccess = false
 
-        val signInApi = remember(apiBaseUrl) { SignInApi(apiBaseUrl) }
-
-        val passwordResetApi = remember(apiBaseUrl) { PasswordResetApi(apiBaseUrl) }
-
-        val consentApi = remember(apiBaseUrl) { ConsentApi(apiBaseUrl) }
-
-        DisposableEffect(signInApi) {
-            onDispose { signInApi.close() }
+                install(ContentNegotiation) {
+                    json(Json { ignoreUnknownKeys = true })
+                }
+            }
         }
 
-        DisposableEffect(passwordResetApi) {
-            onDispose { passwordResetApi.close() }
-        }
+        val registrationApi = remember(apiBaseUrl, httpClient) { RegistrationApi(apiBaseUrl, httpClient) }
 
-        DisposableEffect(consentApi) {
-            onDispose { consentApi.close() }
+        val signInApi = remember(apiBaseUrl, httpClient) { SignInApi(apiBaseUrl, httpClient) }
+
+        val dashboardApi = remember(apiBaseUrl, httpClient) { DashboardApi(apiBaseUrl, httpClient) }
+
+        val passwordResetApi = remember(apiBaseUrl, httpClient) { PasswordResetApi(apiBaseUrl, httpClient) }
+
+        val consentApi = remember(apiBaseUrl, httpClient) { ConsentApi(apiBaseUrl, httpClient) }
+
+        val budgetApi = remember(apiBaseUrl, httpClient) { BudgetApi(apiBaseUrl, httpClient) }
+
+        DisposableEffect(httpClient) {
+            onDispose {
+                httpClient.close()
+            }
         }
 
         val scope = rememberCoroutineScope()
@@ -85,13 +99,13 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
 
         LaunchedEffect(screen, passwordResetToken) {
             if (screen == Screen.ResetPassword && !passwordResetToken.isNullOrBlank()) {
-                when (passwordResetApi.validateResetToken(passwordResetToken)) {
+                resetPasswordTokenInvalid = when (passwordResetApi.validateResetToken(passwordResetToken)) {
                     is PasswordResetValidateResult.Success -> {
-                        resetPasswordTokenInvalid = false
+                        false
                     }
 
                     is PasswordResetValidateResult.Failure -> {
-                        resetPasswordTokenInvalid = true
+                        true
                     }
                 }
             }
@@ -280,6 +294,9 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
                     apiBaseUrl = apiBaseUrl,
                     authToken = session?.token.orEmpty(),
                     userName = resolvedName,
+                    httpClient = httpClient,
+                    dashboardApi = dashboardApi,
+                    budgetApi = budgetApi,
                     onSignOut = {
                         session = null
                         signInError = null

@@ -48,14 +48,7 @@ sealed interface DashboardResult<out T> {
 
 // ── API client ────────────────────────────────────────────────────────────────
 
-class DashboardApi(private val baseUrl: String) {
-
-    private val client = HttpClient {
-        expectSuccess = false
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
+class DashboardApi(private val baseUrl: String, private val client: HttpClient) {
 
     suspend fun getBalances(token: String): DashboardResult<List<BalanceData>> {
         return try {
@@ -101,6 +94,4 @@ class DashboardApi(private val baseUrl: String) {
             DashboardResult.Failure("Cannot connect to the server")
         }
     }
-
-    fun close() = client.close()
 }

@@ -35,12 +35,7 @@ sealed interface RegistrationResult {
     data class Failure(val message: String) : RegistrationResult
 }
 
-class RegistrationApi(private val baseUrl: String) {
-    private val client = HttpClient {
-        install(ContentNegotiation) {
-            json()
-        }
-    }
+class RegistrationApi(private val baseUrl: String, private val client: HttpClient) {
 
     suspend fun register(form: RegistrationForm): RegistrationResult {
         return try {

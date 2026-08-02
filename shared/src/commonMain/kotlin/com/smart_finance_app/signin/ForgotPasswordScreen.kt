@@ -92,7 +92,7 @@ fun ForgotPasswordScreen(isLoading: Boolean, errorMessage: String?, successMessa
                 )
             } else {
                 Surface(
-                    modifier = Modifier.widthIn(max = 560.dp).heightIn(min = 820.dp),
+                    modifier = Modifier.widthIn(max = 560.dp).heightIn(min = 860.dp),
                     shape = RoundedCornerShape(12.dp),
                     tonalElevation = 2.dp,
                     shadowElevation = 4.dp
