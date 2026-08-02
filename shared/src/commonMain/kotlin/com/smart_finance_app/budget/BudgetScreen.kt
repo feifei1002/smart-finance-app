@@ -25,9 +25,12 @@ import kotlin.math.abs
 import kotlin.time.Clock
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import org.jetbrains.compose.resources.vectorResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.close
+import smart_finance_app.shared.generated.resources.delete
+import smart_finance_app.shared.generated.resources.edit
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
@@ -48,7 +51,7 @@ private val categoryColors = mapOf(
 private fun Double.formatCurrency(): String {
     val totalCents = kotlin.math.round(this * 100).toLong()
     val whole = totalCents / 100
-    val cents = kotlin.math.abs(totalCents % 100)
+    val cents = abs(totalCents % 100)
     return "$whole.${cents.toString().padStart(2, '0')}"
 }
 
@@ -70,6 +73,8 @@ fun computeBudgetsWithSpending(
 
     return budgets.map { budget ->
         val relevant = transactions.filter { tx ->
+            // Only count money going out. Income/credits should not count as budget spending.
+            if (tx.amount >= 0) return@filter false
             // 2. Safely extract date parts regardless of ISO string lengths (e.g. "2026-07-28...")
             val dateOnly = tx.timestamp.split("T").firstOrNull() ?: tx.timestamp
             val parts = dateOnly.split("-")
@@ -83,7 +88,7 @@ fun computeBudgetsWithSpending(
             val periodNormalized = budget.period.trim().lowercase()
 
             val inPeriod = when (periodNormalized) {
-                "monthly" -> txYear == now.year && txMonth == now.monthNumber
+                "monthly" -> txYear == now.year && txMonth == now.month.number
                 "weekly"  -> {
                     val todayDayOfWeek = now.dayOfWeek.ordinal
                     val weekStart = now.date.minus(
@@ -482,10 +487,89 @@ fun BudgetCard(
     }
 }
 
-// ── Add / Edit budget dialog ──────────────────────────────────────────────────
+@Composable
+fun CompactBudgetProgressRow(
+    item: BudgetWithSpending,
+    symbol: String,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val progress = (item.spent / item.budget.amount).toFloat().coerceIn(0f, 1f)
+    val isOver = item.spent > item.budget.amount
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .background(item.color, CircleShape)
+                )
+
+                Text(
+                    text = item.budget.category,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = "$symbol${item.spent.formatCurrency()} / $symbol${item.budget.amount.formatCurrency()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isOver) {
+                        Color(0xFFDC2626)
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.edit),
+                        contentDescription = "Edit",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.delete),
+                        contentDescription = "Delete",
+                        tint = Color(0xFFDC2626)
+                    )
+                }
+            }
+        }
+
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp),
+            color = if (isOver) Color(0xFFDC2626) else item.color,
+            trackColor = item.color.copy(alpha = 0.2f)
+        )
+    }
+}
 
 // ── Add / Edit budget dialog ──────────────────────────────────────────────────
-
 @Composable
 fun AddBudgetDialog(
     existing: BudgetData?,

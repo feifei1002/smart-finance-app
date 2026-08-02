@@ -32,6 +32,7 @@ import com.smart_finance_app.budget.BudgetData
 import com.smart_finance_app.budget.BudgetRequest
 import com.smart_finance_app.budget.BudgetResult
 import com.smart_finance_app.budget.AddBudgetDialog
+import com.smart_finance_app.budget.CompactBudgetProgressRow
 import com.smart_finance_app.budget.computeBudgetsWithSpending
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -44,9 +45,6 @@ import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
-import smart_finance_app.shared.generated.resources.edit
-import smart_finance_app.shared.generated.resources.delete
-import org.jetbrains.compose.resources.vectorResource
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -1013,7 +1011,7 @@ private fun BarChart(data: List<MonthlyTopCategory>, modifier: Modifier = Modifi
 private fun BudgetProgressCard(
     apiBaseUrl: String,
     authToken: String,
-    transactions: List<com.smart_finance_app.dashboard.TransactionData>,
+    transactions: List<TransactionData>,
     currency: String
 ) {
     val api    = remember(apiBaseUrl) { BudgetApi(apiBaseUrl) }
@@ -1087,84 +1085,29 @@ private fun BudgetProgressCard(
             } else {
                 // Show budgets with Edit and Delete icons
                 budgetsWithSpending.take(3).forEach { item ->
-                    val progress = (item.spent / item.budget.amount).toFloat().coerceIn(0f, 1f)
-                    val isOver   = item.spent > item.budget.amount
-
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Left side: Indicator color and Category Name
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Box(Modifier.size(8.dp).background(item.color, CircleShape))
-                                Text(
-                                    item.budget.category,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-
-                            // Right side: Spent/Budget text + Edit & Delete Action Icons
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    "$symbol${formatDp(item.spent)} / $symbol${formatDp(item.budget.amount)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (isOver) Color(0xFFDC2626)
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-
-                                // EDIT ICON
-                                IconButton(
-                                    onClick = {
-                                        editBudget = item.budget
+                    CompactBudgetProgressRow(
+                        item = item,
+                        symbol = symbol,
+                        onEdit = {
+                            editBudget = item.budget
+                            errorMsg = null
+                            showDialog = true
+                        },
+                        onDelete = {
+                            scope.launch {
+                                when (val res = api.deleteBudget(authToken, item.budget.id)) {
+                                    is BudgetResult.Success -> {
                                         errorMsg = null
-                                        showDialog = true
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = vectorResource(Res.drawable.edit),
-                                        contentDescription = "Edit",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
+                                        loadBudgets()
+                                    }
 
-                                // DELETE ICON
-                                IconButton(
-                                    onClick = {
-                                        scope.launch {
-                                            when (val res = api.deleteBudget(authToken, item.budget.id)) {
-                                                is BudgetResult.Success -> loadBudgets()
-                                                is BudgetResult.Failure -> errorMsg = res.message
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = vectorResource(Res.drawable.delete),
-                                        contentDescription = "Delete",
-                                        tint = Color(0xFFDC2626)
-                                    )
+                                    is BudgetResult.Failure -> {
+                                        errorMsg = res.message
+                                    }
                                 }
                             }
                         }
-
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth().height(6.dp),
-                            color = if (isOver) Color(0xFFDC2626) else item.color,
-                            trackColor = item.color.copy(alpha = 0.2f)
-                        )
-                    }
+                    )
                 }
 
                 Spacer(Modifier.height(4.dp))
@@ -1350,25 +1293,6 @@ private fun CategoryLegendRow(cat: SpendingCategory) {
         Text("${cat.name} ${(cat.percent * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
         Text(cat.amount, style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun BudgetProgressRow(budget: BudgetItem) {
-    val progress = budget.spent / budget.total
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(budget.category, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-            Text("£${budget.spent.toInt()} / £${budget.total.toInt()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier.fillMaxWidth().height(8.dp),
-            color = budget.color,
-            trackColor = budget.color.copy(alpha = 0.2f)
-        )
     }
 }
 

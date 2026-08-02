@@ -152,6 +152,10 @@ private fun NavigationContent(
         }
     }
 
+    val resolvedCurrency = remember(transactions) {
+        transactions.firstOrNull { it.currency.isNotBlank() }?.currency ?: "GBP"
+    }
+
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
             apiBaseUrl                  = apiBaseUrl,
@@ -258,7 +262,7 @@ private fun NavigationContent(
                 apiBaseUrl   = apiBaseUrl,
                 authToken    = authToken,
                 transactions = mappedTransactions,
-                currency     = "GBP"
+                currency     = resolvedCurrency
             )
         }
 

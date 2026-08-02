@@ -90,7 +90,7 @@ fun Route.budgetRoutes() {
                 val budget = createBudget(userId, request)
                 call.respond(HttpStatusCode.Created, budget)
             } catch (e: Exception) {
-                println("❌ CREATE BUDGET DATABASE ERROR:")
+                println("CREATE BUDGET DATABASE ERROR:")
                 e.printStackTrace()
 
                 if (e.message?.contains("unique constraint", ignoreCase = true) == true ||
@@ -101,9 +101,12 @@ fun Route.budgetRoutes() {
                         ErrorResponse("A ${request.period} budget for ${request.category} already exists")
                     )
                 } else {
+                    println("CREATE BUDGET DATABASE ERROR:")
+                    e.printStackTrace()
+
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        ErrorResponse("DB Error: ${e.message ?: e.javaClass.simpleName}")
+                        ErrorResponse("Something went wrong while saving your budget. Please try again.")
                     )
                 }
             }
@@ -162,9 +165,12 @@ fun Route.budgetRoutes() {
                         ErrorResponse("A ${request.period} budget for ${request.category} already exists")
                     )
                 } else {
+                    println("CREATE BUDGET DATABASE ERROR:")
+                    e.printStackTrace()
+
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        ErrorResponse("DB Error: ${e.message ?: e.javaClass.simpleName}")
+                        ErrorResponse("Something went wrong while saving your budget. Please try again.")
                     )
                 }
             }
