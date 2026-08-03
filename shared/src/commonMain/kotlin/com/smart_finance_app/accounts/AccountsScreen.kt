@@ -3,19 +3,27 @@ package com.smart_finance_app.accounts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.add
+import smart_finance_app.shared.generated.resources.cancel
 
 data class ConnectedAccount(
     val bankName: String,
@@ -28,9 +36,23 @@ fun AccountsScreen(
     accounts: List<ConnectedAccount> = emptyList(),
     onConnectBank: () -> Unit = {}
 ) {
+    var showConsentDialog by remember { mutableStateOf(false) }
+
+    // Consent Popup Window
+    if (showConsentDialog) {
+        BankConsentDialog(
+            onDismiss = { showConsentDialog = false },
+            onConsent = {
+                showConsentDialog = false
+                onConnectBank() // Redirects to ConnectBankAccountScreen
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -41,8 +63,6 @@ fun AccountsScreen(
             fontWeight = FontWeight.Bold
         )
 
-
-
         Text(
             text = "Securely connect your bank accounts\nto import transactions automatically.",
             style = MaterialTheme.typography.bodyMedium,
@@ -51,7 +71,7 @@ fun AccountsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        ConnectBankCard(onConnectBank = onConnectBank)
+        ConnectBankCard(onConnectBank = { showConsentDialog = true })
 
         Text(
             text = "Your Accounts",
@@ -78,6 +98,127 @@ fun AccountsScreen(
 }
 
 @Composable
+private fun BankConsentDialog(
+    onDismiss: () -> Unit,
+    onConsent: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "About Read-Only Access",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(Res.drawable.cancel),
+                            contentDescription = "Close dialog",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .size(6.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {}
+
+                        Text(
+                            text = "This app uses read-only access to view and import your bank transactions automatically.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .size(6.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {}
+
+                        Text(
+                            text = "We cannot move, transfer, or manage your money in any way.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = onConsent,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Continue")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ConnectBankCard(onConnectBank: () -> Unit) {
     Card(
         modifier = Modifier
@@ -95,7 +236,6 @@ private fun ConnectBankCard(onConnectBank: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Circle + icon
             IconButton(onClick = onConnectBank) {
                 Box(
                     modifier = Modifier
