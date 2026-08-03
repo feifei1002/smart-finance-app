@@ -124,7 +124,7 @@ private fun BankConsentDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Read-Only Access",
+                        text = "About Read-Only Access",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -159,7 +159,7 @@ private fun BankConsentDialog(
                         ) {}
 
                         Text(
-                            text = "Grant this app read-only access to view and import your bank transactions automatically.",
+                            text = "This app uses read-only access to view and import your bank transactions automatically.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -210,7 +210,7 @@ private fun BankConsentDialog(
                             .height(44.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Consent")
+                        Text("Continue")
                     }
                 }
             }
