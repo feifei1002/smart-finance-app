@@ -133,7 +133,8 @@ private fun NavigationContent(
                             category     = transaction.category,
                             accountName  = transaction.accountName,
                             amount       = transaction.amount,
-                            currency     = transaction.currency
+                            currency     = transaction.currency,
+                            merchantLogoUrl = transaction.merchantLogoUrl
                         )
                     }
                 }
