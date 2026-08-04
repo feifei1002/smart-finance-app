@@ -36,9 +36,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.download
@@ -49,7 +51,7 @@ import kotlin.math.min
 
 data class TransactionUI(val id: String, val dateLabel: String, val merchantName: String,
                          val category: String, val accountName: String, val amount: Double,
-                         val currency: String)
+                         val currency: String, val merchantLogoUrl: String? = null)
 
 @Composable
 fun TransactionsScreen(
@@ -229,18 +231,11 @@ private fun MobileTransactionRow(transaction: TransactionUI) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Surface(
-            modifier = Modifier.size(40.dp),
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = transaction.merchantName.first().uppercase(),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        MerchantLogo(
+            merchantName = transaction.merchantName,
+            logoUrl = transaction.merchantLogoUrl,
+            modifier = Modifier.size(40.dp)
+        )
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -492,7 +487,7 @@ private fun TransactionTableRow(transaction: TransactionUI) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         TableCell(transaction.dateLabel, 1f)
-        TableCell(transaction.merchantName, 1.5f)
+        MerchantTableCell(transaction, 1.5f)
         TableCell(transaction.category, 1.2f)
         TableCell(transaction.accountName, 1.5f)
         TableCell(formatAmount(transaction.amount, transaction.currency), 1f)
@@ -508,6 +503,27 @@ private fun RowScope.TableCell(text: String, weight: Float, bold: Boolean = fals
         style = MaterialTheme.typography.bodySmall,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal
     )
+}
+
+@Composable
+private fun RowScope.MerchantTableCell(transaction: TransactionUI, weight: Float) {
+    Row(
+        modifier = Modifier.weight(weight),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        MerchantLogo(
+            merchantName = transaction.merchantName,
+            logoUrl = transaction.merchantLogoUrl,
+            modifier = Modifier.size(28.dp)
+        )
+
+        Text(
+            text = transaction.merchantName,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Normal
+        )
+    }
 }
 
 @Composable
@@ -547,6 +563,44 @@ private fun TransactionsInlineMessage(message: String, isError: Boolean = false)
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+@Composable
+private fun MerchantLogo(merchantName: String, logoUrl: String?, modifier: Modifier = Modifier) {
+    var imageFailed by remember(logoUrl) { mutableStateOf(false) }
+    Surface(
+        modifier = modifier,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
+        ) {
+            if (!logoUrl.isNullOrBlank() && !imageFailed) {
+                AsyncImage(
+                    model = logoUrl,
+                    contentDescription = "$merchantName logo",
+                    contentScale = ContentScale.Fit,
+                    onError = { imageFailed = true },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = merchantName.firstOrNull()?.uppercase() ?: "?",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
