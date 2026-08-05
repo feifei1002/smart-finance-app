@@ -1037,7 +1037,6 @@ private fun saveImportedTransaction(
     }
 }
 
-@Suppress("SuspiciousIndentation")
 private fun getImportedTransactionsForUser(
     userId: UUID,
     page: Int,
