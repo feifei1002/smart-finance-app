@@ -281,7 +281,9 @@ fun Route.bankingRoutes() {
                 ?.coerceIn(1, 100)
                 ?: 25
 
-            call.respond(getImportedTransactionsForUser(userId, page, pageSize))
+            val type = call.request.queryParameters["type"]
+
+            call.respond(getImportedTransactionsForUser(userId, page, pageSize, type))
         }
 
         /**
@@ -1039,14 +1041,21 @@ private fun saveImportedTransaction(
 private fun getImportedTransactionsForUser(
     userId: UUID,
     page: Int,
-    pageSize: Int
+    pageSize: Int,
+    type: String?
 ): PaginatedTransactionsResponse {
     val offset = page * pageSize
+    val typeCondition = when (type?.lowercase()) {
+        "income" -> "AND amount > 0"
+        "expenses" -> "AND amount < 0"
+        else -> ""
+    }
 
         return Database.dataSource.connection.use { connection ->
             val totalCount = connection.prepareStatement(
                 """
                     SELECT COUNT(*) FROM transactions WHERE user_id = ?
+                    $typeCondition
                 """.trimIndent()
             ).use { statement ->
                 statement.setObject(1, userId)
@@ -1060,6 +1069,7 @@ private fun getImportedTransactionsForUser(
                 """
                     SELECT id, transaction_timestamp, merchant_name, category, account_name,
                     amount, currency, merchant_logo_url FROM transactions WHERE user_id = ?
+                    $typeCondition
                     ORDER BY transaction_timestamp DESC, id DESC LIMIT ? OFFSET ?
                     """.trimIndent()
                 ).use { statement ->

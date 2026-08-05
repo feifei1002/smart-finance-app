@@ -67,12 +67,16 @@ class TransactionsApi(baseUrl: String, private val client: HttpClient) {
         }
     }
 
-    suspend fun getTransactions(token: String, page: Int, pageSize: Int): TransactionsResult {
+    suspend fun getTransactions(token: String, page: Int, pageSize: Int, type: String): TransactionsResult {
         return try {
             val response = client.get("$normalizedBaseUrl/api/banking/transactions/imported") {
                 bearerAuth(token)
                 parameter("page", page)
                 parameter("pageSize", pageSize)
+
+                if (type != "All") {
+                    parameter("type", type.lowercase())
+                }
             }
 
             when (response.status) {

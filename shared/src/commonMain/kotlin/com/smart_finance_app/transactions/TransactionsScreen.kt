@@ -65,8 +65,10 @@ fun TransactionsScreen(
     totalCount: Int = 0,
     pageSize: Int = 25,
     hasMore: Boolean = false,
+    selectedFilter: String = "All",
+    onFilterSelected: (String) -> Unit = {},
     onLoadNextPage: () -> Unit = {},
-    onPageSelected: (Int) -> Unit = {}
+    onPageSelected: (Int) -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -78,6 +80,8 @@ fun TransactionsScreen(
                     isLoading = isLoading,
                     errorMessage = errorMessage,
                     hasMore = hasMore,
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = onFilterSelected,
                     onLoadNextPage = onLoadNextPage
                 )
             }
@@ -89,6 +93,8 @@ fun TransactionsScreen(
                     currentPage = currentPage,
                     totalCount = totalCount,
                     pageSize = pageSize,
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = onFilterSelected,
                     onPageSelected = onPageSelected
                 )
             }
@@ -102,15 +108,21 @@ private fun MobileTransactionsList(
     isLoading: Boolean = false,
     errorMessage: String? = null,
     hasMore: Boolean = false,
+    selectedFilter: String = "All",
+    onFilterSelected: (String) -> Unit = {},
     onLoadNextPage: () -> Unit = {}
 ) {
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("All") }
+    var lastRequestedPage by remember { mutableStateOf(-1) }
 
     val listState = rememberLazyListState()
 
-    val shouldLoadMore by remember {
+    val shouldLoadMore by remember(
+        hasMore,
+        isLoading,
+        transactions.size,
+        lastRequestedPage) {
         derivedStateOf {
             val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
             val totalItems = listState.layoutInfo.totalItemsCount
@@ -118,12 +130,15 @@ private fun MobileTransactionsList(
             hasMore &&
                     !isLoading &&
                     lastVisibleItem != null &&
-                    lastVisibleItem.index >= totalItems - 3
+                    totalItems > 0 &&
+                    lastVisibleItem.index >= totalItems - 3 &&
+                    lastRequestedPage != transactions.size
         }
     }
 
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
+            lastRequestedPage = transactions.size
             onLoadNextPage()
         }
     }
@@ -204,17 +219,17 @@ private fun MobileTransactionsList(
         ) {
             FilterChip(
                 selected = selectedFilter == "All",
-                onClick = { selectedFilter = "All" },
+                onClick = { onFilterSelected("All") },
                 label = { Text("All") }
             )
             FilterChip(
                 selected = selectedFilter == "Income",
-                onClick = { selectedFilter = "Income" },
+                onClick = { onFilterSelected("Income") },
                 label = { Text("Income") }
             )
             FilterChip(
                 selected = selectedFilter == "Expenses",
-                onClick = { selectedFilter = "Expenses" },
+                onClick = { onFilterSelected("Expenses") },
                 label = { Text("Expenses") }
             )
         }
@@ -326,10 +341,11 @@ private fun DesktopTransactionsTable(
     currentPage: Int = 0,
     totalCount: Int = 0,
     pageSize: Int = 6,
+    selectedFilter: String = "All",
+    onFilterSelected: (String) -> Unit = {},
     onPageSelected: (Int) -> Unit = {}
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("All") }
 
     val searchTransactions = transactions.filter { transaction ->
         val query = searchQuery.trim()
@@ -420,17 +436,14 @@ private fun DesktopTransactionsTable(
         ) {
             FilterChip(
                 selected = selectedFilter == "All",
-                onClick = {
-                    selectedFilter = "All"
-                    onPageSelected(0)
-                },
+                onClick = { onFilterSelected("All") },
                 label = { Text("All") }
             )
 
             FilterChip(
                 selected = selectedFilter == "Income",
                 onClick = {
-                    selectedFilter = "Income"
+                    onFilterSelected("Income")
                     onPageSelected(0)
                 },
                 label = { Text("Income") }
@@ -439,7 +452,7 @@ private fun DesktopTransactionsTable(
             FilterChip(
                 selected = selectedFilter == "Expenses",
                 onClick = {
-                    selectedFilter = "Expenses"
+                    onFilterSelected("Expenses")
                     onPageSelected(0)
                 },
                 label = { Text("Expenses") }
