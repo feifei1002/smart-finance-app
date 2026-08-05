@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -30,6 +32,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,7 +51,6 @@ import smart_finance_app.shared.generated.resources.download
 import smart_finance_app.shared.generated.resources.filter
 import smart_finance_app.shared.generated.resources.search
 import kotlin.math.ceil
-import kotlin.math.min
 
 data class TransactionUI(val id: String, val dateLabel: String, val merchantName: String,
                          val category: String, val accountName: String, val amount: Double,
@@ -57,7 +60,13 @@ data class TransactionUI(val id: String, val dateLabel: String, val merchantName
 fun TransactionsScreen(
     transactions: List<TransactionUI>,
     isLoading: Boolean = false,
-    errorMessage: String? = null
+    errorMessage: String? = null,
+    currentPage: Int = 0,
+    totalCount: Int = 0,
+    pageSize: Int = 25,
+    hasMore: Boolean = false,
+    onLoadNextPage: () -> Unit = {},
+    onPageSelected: (Int) -> Unit = {}
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -67,14 +76,20 @@ fun TransactionsScreen(
                 MobileTransactionsList(
                     transactions = transactions,
                     isLoading = isLoading,
-                    errorMessage = errorMessage
+                    errorMessage = errorMessage,
+                    hasMore = hasMore,
+                    onLoadNextPage = onLoadNextPage
                 )
             }
             else -> {
                 DesktopTransactionsTable(
                     transactions = transactions,
                     isLoading = isLoading,
-                    errorMessage = errorMessage
+                    errorMessage = errorMessage,
+                    currentPage = currentPage,
+                    totalCount = totalCount,
+                    pageSize = pageSize,
+                    onPageSelected = onPageSelected
                 )
             }
         }
@@ -85,11 +100,33 @@ fun TransactionsScreen(
 private fun MobileTransactionsList(
     transactions: List<TransactionUI>,
     isLoading: Boolean = false,
-    errorMessage: String? = null
+    errorMessage: String? = null,
+    hasMore: Boolean = false,
+    onLoadNextPage: () -> Unit = {}
 ) {
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
+
+    val listState = rememberLazyListState()
+
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
+            val totalItems = listState.layoutInfo.totalItemsCount
+
+            hasMore &&
+                    !isLoading &&
+                    lastVisibleItem != null &&
+                    lastVisibleItem.index >= totalItems - 3
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            onLoadNextPage()
+        }
+    }
 
     val searchTransactions = transactions.filter { transaction ->
         val query = searchQuery.trim()
@@ -147,7 +184,8 @@ private fun MobileTransactionsList(
         if (showSearch) {
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = { searchQuery = it },
+                onValueChange = {
+                    searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = {
@@ -181,40 +219,57 @@ private fun MobileTransactionsList(
             )
         }
 
-        Column(
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
+                .weight(1f),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             when {
-                isLoading -> {
-                    LoadingTransactionsState()
+                isLoading && transactions.isEmpty() -> {
+                    item { LoadingTransactionsState() }
                 }
 
                 errorMessage != null && searchTransactions.isEmpty() -> {
-                    TransactionsInlineMessage(
-                        message = errorMessage,
-                        isError = true
-                    )
+                    item {
+                        TransactionsInlineMessage(
+                            message = errorMessage,
+                            isError = true
+                        )
+                    }
                 }
 
                 searchTransactions.isEmpty() -> {
-                    TransactionsInlineMessage(
-                        message = "No transactions available."
-                    )
+                    item {
+                        TransactionsInlineMessage(
+                            message = "No transactions available."
+                        )
+                    }
                 }
 
                 else -> {
-                    searchTransactions.groupBy { it.dateLabel }.forEach { (date, items) ->
-                        Text(
-                            text = date,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    searchTransactions.groupBy { it.dateLabel }.forEach { (date, dayTransactions) ->
+                        item {
+                            Text(
+                                text = date,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
 
-                        items.forEach { transaction -> MobileTransactionRow(transaction) }
+                        items(
+                            items = dayTransactions,
+                            key = { transaction -> transaction.id }
+                        ) { transaction ->
+                            MobileTransactionRow(transaction)
+                        }
+                    }
+
+                    if (hasMore && isLoading) {
+                        item {
+                            LoadingTransactionsState()
+                        }
                     }
                 }
             }
@@ -267,9 +322,12 @@ private fun MobileTransactionRow(transaction: TransactionUI) {
 private fun DesktopTransactionsTable(
     transactions: List<TransactionUI>,
     isLoading: Boolean = false,
-    errorMessage: String? = null
+    errorMessage: String? = null,
+    currentPage: Int = 0,
+    totalCount: Int = 0,
+    pageSize: Int = 6,
+    onPageSelected: (Int) -> Unit = {}
 ) {
-    var page by remember { mutableStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
 
@@ -291,10 +349,7 @@ private fun DesktopTransactionsTable(
 
         matchesSearch && matchesFilter
     }
-    val pageSize = 6
-    val totalPages = ceil(searchTransactions.size / pageSize.toDouble()).toInt().coerceAtLeast(1)
-    val start = page * pageSize
-    val pageItems = searchTransactions.subList(start, min(start + pageSize, searchTransactions.size))
+    val totalPages = ceil(totalCount / pageSize.toDouble()).toInt().coerceAtLeast(1)
 
     Column(
         modifier = Modifier
@@ -317,7 +372,7 @@ private fun DesktopTransactionsTable(
                 value = searchQuery,
                 onValueChange = {
                     searchQuery = it
-                    page = 0
+                    onPageSelected(0)
                 },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
@@ -367,7 +422,7 @@ private fun DesktopTransactionsTable(
                 selected = selectedFilter == "All",
                 onClick = {
                     selectedFilter = "All"
-                    page = 0
+                    onPageSelected(0)
                 },
                 label = { Text("All") }
             )
@@ -376,7 +431,7 @@ private fun DesktopTransactionsTable(
                 selected = selectedFilter == "Income",
                 onClick = {
                     selectedFilter = "Income"
-                    page = 0
+                    onPageSelected(0)
                 },
                 label = { Text("Income") }
             )
@@ -385,7 +440,7 @@ private fun DesktopTransactionsTable(
                 selected = selectedFilter == "Expenses",
                 onClick = {
                     selectedFilter = "Expenses"
-                    page = 0
+                    onPageSelected(0)
                 },
                 label = { Text("Expenses") }
             )
@@ -432,7 +487,7 @@ private fun DesktopTransactionsTable(
                     ) {
                         TransactionTableHeader()
 
-                        pageItems.forEach { transaction ->
+                        searchTransactions.forEach { transaction ->
                             TransactionTableRow(transaction)
                         }
                     }
@@ -446,17 +501,17 @@ private fun DesktopTransactionsTable(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(
-                enabled = page > 0,
-                onClick = { page-- }
+                enabled = currentPage > 0,
+                onClick = { onPageSelected(currentPage - 1) }
             ) {
                 Text("Previous")
             }
 
-            Text("${page + 1} / $totalPages")
+            Text("${currentPage  + 1} / $totalPages")
 
             TextButton(
-                enabled = page < totalPages - 1,
-                onClick = { page++ }
+                enabled = currentPage  < totalPages - 1,
+                onClick = { onPageSelected(currentPage + 1) }
             ) {
                 Text("Next")
             }
