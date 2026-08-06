@@ -77,6 +77,15 @@ data class TransactionSyncResponse(
 )
 
 @Serializable
+data class PaginatedTransactionsResponse(
+    val transactions: List<ImportedTransactionResponse>,
+    val page: Int,
+    val pageSize: Int,
+    val totalCount: Int,
+    val hasMore: Boolean
+)
+
+@Serializable
 data class BankProviderResponse(
     val id: String,
     val name: String,
@@ -261,7 +270,20 @@ fun Route.bankingRoutes() {
                     HttpStatusCode.Unauthorized,
                     ErrorResponse("Invalid token")
                 )
-            call.respond(getImportedTransactionsForUser(userId))
+
+            val page = call.request.queryParameters["page"]
+                ?.toIntOrNull()
+                ?.coerceAtLeast(0)
+                ?: 0
+
+            val pageSize = call.request.queryParameters["pageSize"]
+                ?.toIntOrNull()
+                ?.coerceIn(1, 100)
+                ?: 25
+
+            val type = call.request.queryParameters["type"]
+
+            call.respond(getImportedTransactionsForUser(userId, page, pageSize, type))
         }
 
         /**
@@ -1015,39 +1037,77 @@ private fun saveImportedTransaction(
     }
 }
 
-private fun getImportedTransactionsForUser(userId: UUID): List<ImportedTransactionResponse> {
-    return Database.dataSource.connection.use { connection ->
-        connection.prepareStatement(
-            """
-                SELECT id, transaction_timestamp, merchant_name, category, account_name,
-                amount, currency, merchant_logo_url FROM transactions WHERE user_id = ?
-                ORDER BY transaction_timestamp DESC
-                """.trimIndent()
-        ).use { statement ->
-            statement.setObject(1, userId)
-            statement.executeQuery().use { result ->
-                val transactions = mutableListOf<ImportedTransactionResponse>()
+private fun getImportedTransactionsForUser(
+    userId: UUID,
+    page: Int,
+    pageSize: Int,
+    type: String?
+): PaginatedTransactionsResponse {
+    val offset = page * pageSize
+    val typeCondition = when (type?.lowercase()) {
+        "income" -> "AND amount > 0"
+        "expenses" -> "AND amount < 0"
+        else -> ""
+    }
 
-                while (result.next()) {
-                    transactions.add(
-                        ImportedTransactionResponse(
-                            id = result.getObject("id").toString(),
-                            date = result.getTimestamp("transaction_timestamp").toInstant().toString(),
-                            merchantName = result.getString("merchant_name"),
-                            category = result.getString("category"),
-                            accountName = result.getString("account_name"),
-                            amount = result.getDouble("amount"),
-                            currency = result.getString("currency"),
-                            merchantLogoUrl = result.getString("merchant_logo_url")
-                        )
-                    )
+        return Database.dataSource.connection.use { connection ->
+            val totalCount = connection.prepareStatement(
+                """
+                    SELECT COUNT(*) FROM transactions WHERE user_id = ?
+                    $typeCondition
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.executeQuery().use { result ->
+                    result.next()
+                    result.getInt(1)
+                }
+            }
+
+            val transactions = connection.prepareStatement(
+                """
+                    SELECT id, transaction_timestamp, merchant_name, category, account_name,
+                    amount, currency, merchant_logo_url FROM transactions WHERE user_id = ?
+                    $typeCondition
+                    ORDER BY transaction_timestamp DESC, id DESC LIMIT ? OFFSET ?
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setObject(1, userId)
+                    statement.setInt(2, pageSize)
+                    statement.setInt(3, offset)
+
+                    statement.executeQuery().use { result ->
+                        val items = mutableListOf<ImportedTransactionResponse>()
+
+                        while (result.next()) {
+                            items.add(
+                                ImportedTransactionResponse(
+                                    id = result.getObject("id").toString(),
+                                    date = result.getTimestamp("transaction_timestamp").toInstant()
+                                        .toString(),
+                                    merchantName = result.getString("merchant_name"),
+                                    category = result.getString("category"),
+                                    accountName = result.getString("account_name"),
+                                    amount = result.getDouble("amount"),
+                                    currency = result.getString("currency"),
+                                    merchantLogoUrl = result.getString("merchant_logo_url")
+                                )
+                            )
+                        }
+
+                        items
+                    }
                 }
 
-                transactions
-            }
+            PaginatedTransactionsResponse(
+                transactions = transactions,
+                page = page,
+                pageSize = pageSize,
+                totalCount = totalCount,
+                hasMore = offset + transactions.size < totalCount
+            )
         }
     }
-}
 
 private fun recordTransactionSyncSuccess(userId: UUID, syncedAt: Instant) {
     Database.dataSource.connection.use { connection ->

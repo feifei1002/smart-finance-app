@@ -19,13 +19,13 @@ import com.smart_finance_app.accounts.ConnectedAccount
 import com.smart_finance_app.accounts.ConnectedAccountResult
 import com.smart_finance_app.budget.BudgetApi
 import com.smart_finance_app.dashboard.DashboardScreen
-import com.smart_finance_app.transactions.TransactionSyncResult
 import com.smart_finance_app.transactions.TransactionUI
 import com.smart_finance_app.transactions.TransactionsApi
 import com.smart_finance_app.transactions.TransactionsResult
 import com.smart_finance_app.transactions.TransactionsScreen
 import com.smart_finance_app.budget.BudgetScreen
 import com.smart_finance_app.dashboard.DashboardApi
+import com.smart_finance_app.transactions.TransactionSyncResult
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.launch
 
@@ -84,6 +84,7 @@ fun MainNavigation(
                 httpClient = httpClient,
                 dashboardApi = dashboardApi,
                 budgetApi = budgetApi,
+                compact = compact,
                 onSignOut                = onSignOut,
                 onNavigateToAccounts     = { selected = AppNavigation.Accounts },
                 onNavigateToTransactions = { selected = AppNavigation.Transactions }
@@ -101,6 +102,7 @@ private fun NavigationContent(
     httpClient: HttpClient,
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
+    compact: Boolean,
     onSignOut: () -> Unit,
     onNavigateToAccounts: () -> Unit,
     onNavigateToTransactions: () -> Unit
@@ -109,46 +111,143 @@ private fun NavigationContent(
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var transactionsLoading by remember { mutableStateOf(false) }
     var transactionsError by remember { mutableStateOf<String?>(null) }
+    var transactionsPage by remember { mutableStateOf(0) }
+    var transactionsHasMore by remember { mutableStateOf(false) }
+    var transactionsTotalCount by remember { mutableStateOf(0) }
+    var transactionsLoadedOnce by remember { mutableStateOf(false) }
+    var loadingTransactionsPage by remember { mutableStateOf<Int?>(null) }
+    var transactionsSyncing by remember { mutableStateOf(false) }
+    var transactionsFilter by remember { mutableStateOf("All") }
+    var dashboardRecentTransactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
+    var lastSyncedToken by remember { mutableStateOf<String?>(null) }
 
-    // Fetch transactions globally on launch
+    val transactionsPageSize = if (compact) 25 else 6
+    val scope = rememberCoroutineScope()
+
+    // Fetch transactions by page
+    suspend fun loadTransactionsPage(page: Int, append: Boolean) {
+        if (loadingTransactionsPage != null) return
+
+        loadingTransactionsPage = page
+
+        transactionsLoading = true
+        transactionsError = null
+
+        try {
+            when (val result =
+                transactionsApi.getTransactions(
+                    token = authToken,
+                    page = page,
+                    pageSize = transactionsPageSize,
+                    type = transactionsFilter
+                )) {
+                is TransactionsResult.Success -> {
+                    val newItems = result.page.transactions.map { transaction ->
+                        TransactionUI(
+                            id = transaction.id,
+                            dateLabel = transaction.date.take(10),
+                            merchantName = transaction.merchantName,
+                            category = transaction.category,
+                            accountName = transaction.accountName,
+                            amount = transaction.amount,
+                            currency = transaction.currency,
+                            merchantLogoUrl = transaction.merchantLogoUrl
+                        )
+                    }
+
+                    transactions = if (append) transactions + newItems else newItems
+                    transactionsPage = result.page.page
+                    transactionsHasMore = result.page.hasMore
+                    transactionsTotalCount = result.page.totalCount
+                    transactionsLoadedOnce = true
+                }
+
+                is TransactionsResult.Failure -> {
+                    transactionsError = result.message
+                }
+            }
+        } finally {
+            transactionsLoading = false
+            loadingTransactionsPage = null
+        }
+    }
+
+    LaunchedEffect(navigation, authToken, transactionsFilter) {
+        if (navigation == AppNavigation.Transactions && authToken.isNotBlank()) {
+            if (!transactionsLoadedOnce) {
+                loadTransactionsPage(page = 0, append = false)
+            }
+        }
+    }
+
     LaunchedEffect(authToken) {
-        if (authToken.isNotBlank()) {
-            transactionsLoading = true
-            transactionsError = null
+        if (authToken.isBlank()) {
+            lastSyncedToken = null
+            return@LaunchedEffect
+        }
 
+        if (lastSyncedToken == authToken) {
+            return@LaunchedEffect
+        }
+
+        lastSyncedToken = authToken
+        transactionsSyncing = true
+
+        try {
             when (val syncResult = transactionsApi.syncTransactions(authToken)) {
-                is TransactionSyncResult.Success -> {}
+                is TransactionSyncResult.Success -> Unit
+
                 is TransactionSyncResult.Failure -> {
                     transactionsError = syncResult.message
                 }
             }
 
-            when (val result = transactionsApi.getTransactions(authToken)) {
-                is TransactionsResult.Success -> {
-                    transactions = result.transactions.map { transaction ->
-                        TransactionUI(
-                            id           = transaction.id,
-                            dateLabel    = transaction.date.take(10),
-                            merchantName = transaction.merchantName,
-                            category     = transaction.category,
-                            accountName  = transaction.accountName,
-                            amount       = transaction.amount,
-                            currency     = transaction.currency,
-                            merchantLogoUrl = transaction.merchantLogoUrl
-                        )
-                    }
-                }
-                is TransactionsResult.Failure -> {
-                    transactionsError = result.message
-                }
-            }
+            transactions = emptyList()
+            transactionsPage = 0
+            transactionsLoadedOnce = false
 
-            transactionsLoading = false
+            loadTransactionsPage(page = 0, append = false)
+        } finally {
+            transactionsSyncing = false
         }
     }
 
-    val mappedTransactions = remember(transactions) {
-        transactions.map { tx ->
+    suspend fun loadDashboardTransactions() {
+        when (
+            val result = transactionsApi.getTransactions(
+                token = authToken,
+                page = 0,
+                pageSize = 10,
+                type = "All"
+            )
+        ) {
+            is TransactionsResult.Success -> {
+                dashboardRecentTransactions = result.page.transactions.map { transaction ->
+                    TransactionUI(
+                        id = transaction.id,
+                        dateLabel = transaction.date.take(10),
+                        merchantName = transaction.merchantName,
+                        category = transaction.category,
+                        accountName = transaction.accountName,
+                        amount = transaction.amount,
+                        currency = transaction.currency,
+                        merchantLogoUrl = transaction.merchantLogoUrl
+                    )
+                }
+            }
+
+            is TransactionsResult.Failure -> Unit
+        }
+    }
+
+    LaunchedEffect(authToken) {
+        if (authToken.isNotBlank()) {
+            loadDashboardTransactions()
+        }
+    }
+
+    val mappedTransactions = remember(dashboardRecentTransactions) {
+        dashboardRecentTransactions.map { tx ->
             com.smart_finance_app.dashboard.TransactionData(
                 transactionId = tx.id,
                 timestamp = tx.dateLabel,
@@ -180,7 +279,41 @@ private fun NavigationContent(
             TransactionsScreen(
                 transactions  = transactions,
                 isLoading     = transactionsLoading,
-                errorMessage  = transactionsError
+                isSyncing = transactionsSyncing,
+                errorMessage  = transactionsError,
+                currentPage = transactionsPage,
+                totalCount = transactionsTotalCount,
+                pageSize = transactionsPageSize,
+                hasMore = transactionsHasMore,
+                selectedFilter = transactionsFilter,
+                onFilterSelected = { filter ->
+                    transactionsFilter = filter
+                    transactions = emptyList()
+                    transactionsPage = 0
+                    transactionsLoadedOnce = false
+
+                    scope.launch {
+                        loadTransactionsPage(page = 0, append = false)
+                    }
+                },
+                onLoadNextPage = {
+                    if (transactionsHasMore && loadingTransactionsPage == null) {
+                        scope.launch {
+                            loadTransactionsPage(
+                                page = transactionsPage + 1,
+                                append = true
+                            )
+                        }
+                    }
+                },
+                onPageSelected = {page ->
+                    scope.launch {
+                        loadTransactionsPage(
+                            page = page,
+                            append = false
+                        )
+                    }
+                },
             )
         }
 
@@ -248,7 +381,9 @@ private fun NavigationContent(
                             when (val result = bankingApi.createConnectionSession(
                                 token = authToken, bank = selectedBank
                             )) {
-                                is BankConnectionResult.Success -> { uriHandler.openUri(result.authUrl) }
+                                is BankConnectionResult.Success -> {
+                                    uriHandler.openUri(result.authUrl)
+                                }
                                 is BankConnectionResult.Failure -> { error = result.message }
                             }
                             loading = false
