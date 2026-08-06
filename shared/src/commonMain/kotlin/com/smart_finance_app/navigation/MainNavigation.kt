@@ -119,6 +119,7 @@ private fun NavigationContent(
     var transactionsSyncing by remember { mutableStateOf(false) }
     var transactionsFilter by remember { mutableStateOf("All") }
     var dashboardRecentTransactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
+    var lastSyncedToken by remember { mutableStateOf<String?>(null) }
 
     val transactionsPageSize = if (compact) 25 else 6
     val scope = rememberCoroutineScope()
@@ -171,30 +172,43 @@ private fun NavigationContent(
         }
     }
 
-    LaunchedEffect(navigation, authToken) {
+    LaunchedEffect(navigation, authToken, transactionsFilter) {
         if (navigation == AppNavigation.Transactions && authToken.isNotBlank()) {
             if (!transactionsLoadedOnce) {
                 loadTransactionsPage(page = 0, append = false)
             }
+        }
+    }
 
-            if (!transactionsSyncing) {
-                transactionsSyncing = true
+    LaunchedEffect(authToken) {
+        if (authToken.isBlank()) {
+            lastSyncedToken = null
+            return@LaunchedEffect
+        }
 
-                try {
-                    when (val syncResult = transactionsApi.syncTransactions(authToken)) {
-                        is TransactionSyncResult.Success -> Unit
+        if (lastSyncedToken == authToken) {
+            return@LaunchedEffect
+        }
 
-                        is TransactionSyncResult.Failure -> {
-                            transactionsError = syncResult.message
-                        }
-                    }
+        lastSyncedToken = authToken
+        transactionsSyncing = true
 
-                    // Force the visible list back to the newest first page after sync.
-                    loadTransactionsPage(page = 0, append = false)
-                } finally {
-                    transactionsSyncing = false
+        try {
+            when (val syncResult = transactionsApi.syncTransactions(authToken)) {
+                is TransactionSyncResult.Success -> Unit
+
+                is TransactionSyncResult.Failure -> {
+                    transactionsError = syncResult.message
                 }
             }
+
+            transactions = emptyList()
+            transactionsPage = 0
+            transactionsLoadedOnce = false
+
+            loadTransactionsPage(page = 0, append = false)
+        } finally {
+            transactionsSyncing = false
         }
     }
 
@@ -265,6 +279,7 @@ private fun NavigationContent(
             TransactionsScreen(
                 transactions  = transactions,
                 isLoading     = transactionsLoading,
+                isSyncing = transactionsSyncing,
                 errorMessage  = transactionsError,
                 currentPage = transactionsPage,
                 totalCount = transactionsTotalCount,

@@ -60,6 +60,7 @@ data class TransactionUI(val id: String, val dateLabel: String, val merchantName
 fun TransactionsScreen(
     transactions: List<TransactionUI>,
     isLoading: Boolean = false,
+    isSyncing: Boolean = false,
     errorMessage: String? = null,
     currentPage: Int = 0,
     totalCount: Int = 0,
@@ -78,6 +79,7 @@ fun TransactionsScreen(
                 MobileTransactionsList(
                     transactions = transactions,
                     isLoading = isLoading,
+                    isSyncing = isSyncing,
                     errorMessage = errorMessage,
                     hasMore = hasMore,
                     selectedFilter = selectedFilter,
@@ -89,6 +91,7 @@ fun TransactionsScreen(
                 DesktopTransactionsTable(
                     transactions = transactions,
                     isLoading = isLoading,
+                    isSyncing = isSyncing,
                     errorMessage = errorMessage,
                     currentPage = currentPage,
                     totalCount = totalCount,
@@ -106,6 +109,7 @@ fun TransactionsScreen(
 private fun MobileTransactionsList(
     transactions: List<TransactionUI>,
     isLoading: Boolean = false,
+    isSyncing: Boolean = false,
     errorMessage: String? = null,
     hasMore: Boolean = false,
     selectedFilter: String = "All",
@@ -242,6 +246,11 @@ private fun MobileTransactionsList(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             when {
+                isSyncing && transactions.isEmpty() -> {
+                    item {
+                        LoadingTransactionsState()
+                    }
+                }
                 isLoading && transactions.isEmpty() -> {
                     item { LoadingTransactionsState() }
                 }
@@ -337,6 +346,7 @@ private fun MobileTransactionRow(transaction: TransactionUI) {
 private fun DesktopTransactionsTable(
     transactions: List<TransactionUI>,
     isLoading: Boolean = false,
+    isSyncing: Boolean = false,
     errorMessage: String? = null,
     currentPage: Int = 0,
     totalCount: Int = 0,
@@ -473,6 +483,10 @@ private fun DesktopTransactionsTable(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             when {
+                isSyncing && transactions.isEmpty() -> {
+                    LoadingTransactionsState()
+                }
+
                 isLoading -> {
                     LoadingTransactionsState()
                 }
