@@ -28,7 +28,7 @@ data class CreateBankConnectionRequest(val providerId: String, val providerName:
 // ── Response models ───────────────────────────────────────────────────────────
 
 @Serializable
-data class ConnectBankResponse(val authUrl: String)
+data class ConnectBankResponse(val authUrl: String, val state: String)
 
 @Serializable
 data class AccountResponse(
@@ -91,6 +91,9 @@ data class BankProviderResponse(
     val name: String,
     val logoUrl: String? = null
 )
+
+@Serializable
+data class BankConnectionStatusResponse(val status: String)
 // ── TrueLayer config ─────────────────────────────────────────────────────────
 
 private object TrueLayerConfig {
@@ -218,7 +221,7 @@ fun Route.bankingRoutes() {
             )
 
             val authUrl = buildTrueLayerAuthUrl(state = state, providerId = request.providerId)
-            call.respond(ConnectBankResponse(authUrl = authUrl))
+            call.respond(ConnectBankResponse(authUrl = authUrl, state = state))
         }
 
         /**
@@ -358,6 +361,29 @@ fun Route.bankingRoutes() {
                     )
                 }
             )
+        }
+
+        get("/api/banking/connection-session/{state}") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@get call.respond(
+                    HttpStatusCode.Unauthorized,
+                    ErrorResponse("Invalid token")
+                )
+
+            val state = call.parameters["state"]
+                ?: return@get call.respond(
+                    HttpStatusCode.BadRequest,
+                    ErrorResponse("Missing state")
+                )
+
+            val status = getBankConnectionSessionStatus(userId, state)
+                ?: return@get call.respond(
+                    HttpStatusCode.NotFound,
+                    ErrorResponse("Connection session not found")
+                )
+
+            call.respond(BankConnectionStatusResponse(status))
         }
     }
 
@@ -824,6 +850,23 @@ private fun createBankConnectionSession(userId: UUID, state: String, providerId:
         }
     }
 }
+
+private fun getBankConnectionSessionStatus(userId: UUID, state: String): String? =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+                SELECT status FROM bank_connection_sessions
+                WHERE user_id = ? AND state = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.setString(2, state)
+
+            statement.executeQuery().use { result ->
+                if (result.next()) result.getString("status") else null
+            }
+        }
+    }
 
 /**
  * Builds the TrueLayer authorisation URL for the selected bank provider.

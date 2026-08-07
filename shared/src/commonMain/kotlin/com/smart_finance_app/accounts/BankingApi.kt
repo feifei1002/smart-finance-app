@@ -15,7 +15,13 @@ import kotlinx.serialization.Serializable
 private data class CreateBankConnectionRequest(val providerId: String, val providerName: String)
 
 @Serializable
-private data class ConnectBankResponse(val authUrl: String)
+private data class ConnectBankResponse(
+    val authUrl: String,
+    val state: String
+)
+
+@Serializable
+private data class BankConnectionStatusResponse(val status: String)
 
 @Serializable
 data class ConnectedAccountResponse(val accountId: String, val bankName: String, val maskedNumber: String, val provider: String)
@@ -23,7 +29,7 @@ data class ConnectedAccountResponse(val accountId: String, val bankName: String,
 @Serializable
 data class BankProviderResponse(val id: String, val name: String, val logoUrl: String? = null)
 sealed interface BankConnectionResult {
-    data class Success(val authUrl: String): BankConnectionResult
+    data class Success(val authUrl: String, val state: String): BankConnectionResult
     data class Failure(val message: String): BankConnectionResult
 }
 
@@ -35,6 +41,11 @@ sealed interface ConnectedAccountResult {
 sealed interface BankProviderResult {
     data class Success(val providers: List<BankProviderResponse>): BankProviderResult
     data class Failure(val message: String): BankProviderResult
+}
+
+sealed interface BankConnectionStatusResult {
+    data class Success(val status: String) : BankConnectionStatusResult
+    data class Failure(val message: String) : BankConnectionStatusResult
 }
 
 /**
@@ -70,7 +81,7 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
             when(response.status) {
                 HttpStatusCode.OK -> {
                     val body = response.body<ConnectBankResponse>()
-                    BankConnectionResult.Success(body.authUrl)
+                    BankConnectionResult.Success(body.authUrl, body.state)
                 }
 
                 HttpStatusCode.Unauthorized -> {
@@ -145,6 +156,34 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
             }
         } catch (_: Exception) {
             BankProviderResult.Failure("Cannot connect to the server.")
+        }
+    }
+
+    suspend fun getConnectionStatus(token: String, state: String): BankConnectionStatusResult {
+        return try {
+            val response = client.get("$normalizedBaseUrl/api/banking/connection-session/$state") {
+                bearerAuth(token)
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> {
+                    BankConnectionStatusResult.Success(
+                        response.body<BankConnectionStatusResponse>().status
+                    )
+                }
+
+                HttpStatusCode.Unauthorized -> {
+                    BankConnectionStatusResult.Failure( "Your session expired. Please connect again.")
+                }
+
+                else -> {
+                    BankConnectionStatusResult.Failure(
+                        "Could not check bank connection status. Status: ${response.status.value}"
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            BankConnectionStatusResult.Failure("Cannot connect to the server.")
         }
     }
 }

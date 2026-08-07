@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import com.smart_finance_app.accounts.AccountsScreen
 import com.smart_finance_app.accounts.BankConnectionResult
+import com.smart_finance_app.accounts.BankConnectionStatusResult
 import com.smart_finance_app.accounts.BankOption
 import com.smart_finance_app.accounts.BankProviderResult
 import com.smart_finance_app.accounts.BankingApi
@@ -27,7 +28,9 @@ import com.smart_finance_app.budget.BudgetScreen
 import com.smart_finance_app.dashboard.DashboardApi
 import com.smart_finance_app.transactions.TransactionSyncResult
 import io.ktor.client.HttpClient
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun MainNavigation(
@@ -120,6 +123,7 @@ private fun NavigationContent(
     var transactionsFilter by remember { mutableStateOf("All") }
     var dashboardRecentTransactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var lastSyncedToken by remember { mutableStateOf<String?>(null) }
+    var bankConnectionRefreshRequest by remember { mutableStateOf(0) }
 
     val transactionsPageSize = if (compact) 25 else 6
     val scope = rememberCoroutineScope()
@@ -264,6 +268,35 @@ private fun NavigationContent(
         transactions.firstOrNull { it.currency.isNotBlank() }?.currency ?: "GBP"
     }
 
+    suspend fun syncAndReloadTransactions() {
+        transactionsSyncing = true
+        transactionsError = null
+
+        try {
+            when (val syncResult = transactionsApi.syncTransactions(authToken)) {
+                is TransactionSyncResult.Success -> Unit
+                is TransactionSyncResult.Failure -> {
+                    transactionsError = syncResult.message
+                }
+            }
+
+            transactions = emptyList()
+            transactionsPage = 0
+            transactionsLoadedOnce = false
+
+            loadTransactionsPage(page = 0, append = false)
+            loadDashboardTransactions()
+        } finally {
+            transactionsSyncing = false
+        }
+    }
+
+    LaunchedEffect(bankConnectionRefreshRequest) {
+        if (bankConnectionRefreshRequest > 0 && authToken.isNotBlank()) {
+            syncAndReloadTransactions()
+        }
+    }
+
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
             authToken                   = authToken,
@@ -327,10 +360,42 @@ private fun NavigationContent(
             var banks by remember { mutableStateOf<List<BankOption>>(emptyList()) }
             var banksError by remember { mutableStateOf<String?>(null) }
             var banksLoading by remember { mutableStateOf(false) }
+            var pendingConnectionState by remember { mutableStateOf<String?>(null) }
 
             val scope = rememberCoroutineScope()
             val uriHandler = LocalUriHandler.current
             val bankingApi = remember(apiBaseUrl, httpClient) { BankingApi(apiBaseUrl, httpClient) }
+
+            LaunchedEffect(pendingConnectionState, authToken) {
+                val state = pendingConnectionState ?: return@LaunchedEffect
+
+                while (true) {
+                    delay(2_000.milliseconds)
+
+                    when (val result = bankingApi.getConnectionStatus(authToken, state)) {
+                        is BankConnectionStatusResult.Success -> {
+                            when (result.status) {
+                                "completed" -> {
+                                    pendingConnectionState = null
+                                    bankConnectionRefreshRequest++
+                                    onNavigateToTransactions()
+                                    break
+                                }
+
+                                "failed" -> {
+                                    pendingConnectionState = null
+                                    error = "Bank connection failed. Please try again."
+                                    break
+                                }
+                            }
+                        }
+
+                        is BankConnectionStatusResult.Failure -> {
+                            error = result.message
+                        }
+                    }
+                }
+            }
 
             LaunchedEffect(showConnectBank, authToken) {
                 if (showConnectBank && authToken.isNotBlank()) {
@@ -382,6 +447,7 @@ private fun NavigationContent(
                                 token = authToken, bank = selectedBank
                             )) {
                                 is BankConnectionResult.Success -> {
+                                    pendingConnectionState = result.state
                                     uriHandler.openUri(result.authUrl)
                                 }
                                 is BankConnectionResult.Failure -> { error = result.message }
