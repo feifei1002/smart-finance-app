@@ -26,6 +26,7 @@ import com.smart_finance_app.transactions.TransactionsResult
 import com.smart_finance_app.transactions.TransactionsScreen
 import com.smart_finance_app.budget.BudgetScreen
 import com.smart_finance_app.dashboard.DashboardApi
+import com.smart_finance_app.settings.SettingsScreen
 import com.smart_finance_app.transactions.TransactionSyncResult
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.delay
@@ -474,14 +475,11 @@ private fun NavigationContent(
         }
 
         AppNavigation.Settings -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Button(onClick = onSignOut) {
-                    Text("Sign out")
-                }
-            }
+            SettingsScreen(
+                userName = userName,
+                userEmail = "new@user.com",
+                onSignOut = onSignOut
+            )
         }
 
         else -> Box(
