@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smart_finance_app.dashboard.TransactionData
 import com.smart_finance_app.dashboard.getCurrencySymbol
+import com.smart_finance_app.transactions.TransactionCategories
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.time.Clock
@@ -34,9 +35,11 @@ import smart_finance_app.shared.generated.resources.edit
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
-val budgetCategories = listOf(
-    "Housing", "Food", "Transport", "Shopping", "Entertainment", "Other"
-)
+//val budgetCategories = listOf(
+//    "Housing", "Food", "Transport", "Shopping", "Entertainment", "Other"
+//)
+
+val budgetCategories = TransactionCategories.all
 
 private val categoryColors = mapOf(
     "Housing"       to Color(0xFF6366F1),
@@ -103,7 +106,8 @@ fun computeBudgetsWithSpending(
 
             if (!inPeriod) return@filter false
 
-            categoriseForBudget(tx.description, tx.merchantName) == budget.category
+//            categoriseForBudget(tx.description, tx.merchantName) == budget.category
+            TransactionCategories.normalize(tx.category) == budget.category
         }
 
         BudgetWithSpending(

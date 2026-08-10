@@ -385,6 +385,18 @@ fun Route.bankingRoutes() {
 
             call.respond(BankConnectionStatusResponse(status))
         }
+
+        post("/api/banking/transactions/recategorize") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    ErrorResponse("Invalid token")
+                )
+
+            val updatedCount = recategorizeTransactionsForUser(userId)
+            call.respond(mapOf("updatedCount" to updatedCount))
+        }
     }
 
     /**
@@ -631,7 +643,7 @@ private fun fetchTransactions(accessToken: String, accountId: String): List<Tran
 
 // ── Token refresh ─────────────────────────────────────────────────────────────
 
-private data class StoredAccount(
+data class StoredAccount(
     val accountId: String,
     val accountName: String,
     val accessToken: String,
@@ -984,7 +996,8 @@ private fun markBankConnectionSession(state: String, status: String) {
     }
 }
 
-private fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
+//private fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
+suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
     val storedAccounts = getStoredAccountsWithTokens(userId)
 
     var importedCount = 0
@@ -1020,7 +1033,8 @@ private fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
     }
 }
 
-private fun saveImportedTransaction(
+//private fun saveImportedTransaction(
+suspend fun saveImportedTransaction(
     userId: UUID,
     account: StoredAccount,
     transaction: TransactionResponse
@@ -1379,17 +1393,90 @@ private fun merchantNameForLogoLookup(transaction: TransactionResponse): String?
     return if (notMerchant) null else cleanMerchantNameForLogoLookup(candidate)
 }
 
-private fun inferTransactionCategory(transaction: TransactionResponse): String {
-    val text = "${transaction.merchantName.orEmpty()} ${transaction.description}".lowercase()
+//private fun inferTransactionCategory(transaction: TransactionResponse): String {
+//    val text = "${transaction.merchantName.orEmpty()} ${transaction.description}".lowercase()
+//
+//    return when {
+//        "salary" in text || "payroll" in text -> "Income"
+//        "uber" in text || "train" in text || "bus" in text -> "Transport"
+//        "starbucks" in text || "coffee" in text -> "Coffee"
+//        "grocery" in text || "tesco" in text || "sainsbury" in text -> "Groceries"
+//        "netflix" in text || "spotify" in text -> "Entertainment"
+//        else -> "Uncategorised"
+//    }
+//}
+private suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
+    val transactions = Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT id, provider_transaction_id, transaction_timestamp, description,
+                   amount, currency, transaction_type, merchant_name
+            FROM transactions
+            WHERE user_id = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
 
-    return when {
-        "salary" in text || "payroll" in text -> "Income"
-        "uber" in text || "train" in text || "bus" in text -> "Transport"
-        "starbucks" in text || "coffee" in text -> "Coffee"
-        "grocery" in text || "tesco" in text || "sainsbury" in text -> "Groceries"
-        "netflix" in text || "spotify" in text -> "Entertainment"
-        else -> "Uncategorised"
+            statement.executeQuery().use { result ->
+                val items = mutableListOf<Pair<UUID, TransactionResponse>>()
+
+                while (result.next()) {
+                    items.add(
+                        result.getObject("id", UUID::class.java) to TransactionResponse(
+                            transactionId = result.getString("provider_transaction_id"),
+                            timestamp = result.getTimestamp("transaction_timestamp").toInstant().toString(),
+                            description = result.getString("description"),
+                            amount = result.getDouble("amount"),
+                            currency = result.getString("currency"),
+                            type = result.getString("transaction_type"),
+                            merchantName = result.getString("merchant_name")
+                        )
+                    )
+                }
+
+                items
+            }
+        }
     }
+
+    var updatedCount = 0
+
+    transactions.forEach { (id, transaction) ->
+        val category = inferTransactionCategory(transaction)
+
+        Database.dataSource.connection.use { connection ->
+            try {
+                val updated = connection.prepareStatement(
+                    """
+                    UPDATE transactions
+                    SET category = ?
+                    WHERE id = ?
+                    """.trimIndent()
+                ).use { statement ->
+                    statement.setString(1, category)
+                    statement.setObject(2, id)
+                    statement.executeUpdate()
+                }
+
+                connection.commit()
+                updatedCount += updated
+            } catch (exception: Exception) {
+                connection.rollback()
+                throw exception
+            }
+        }
+    }
+
+    return updatedCount
+}
+
+suspend fun inferTransactionCategory(transaction: TransactionResponse): String {
+    val rawDescription = "${transaction.merchantName.orEmpty()} ${transaction.description}".trim()
+    val cleanDesc = rawDescription.split(Regex("[#\\-\\(]")).first().trim()
+
+    if (cleanDesc.isEmpty()) return "Miscellaneous"
+
+    return CategoryServiceClient.classify(cleanDesc)
 }
 
 /**

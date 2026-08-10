@@ -25,7 +25,8 @@ data class TransactionData(
     val amount: Double,
     val currency: String,
     val type: String,           // "CREDIT" or "DEBIT"
-    val merchantName: String? = null
+    val merchantName: String? = null,
+    val category: String? = null
 )
 
 @Serializable
@@ -62,20 +63,20 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
         }
     }
 
-    suspend fun getTransactions(token: String): DashboardResult<List<TransactionData>> {
-        return try {
-            val response = client.get("${baseUrl.trimEnd('/')}/api/banking/transactions") {
-                bearerAuth(token)
-            }
-            when (response.status) {
-                HttpStatusCode.OK           -> DashboardResult.Success(response.body())
-                HttpStatusCode.Unauthorized -> DashboardResult.Failure("Session expired, please sign in again")
-                else                        -> DashboardResult.Failure("Failed to load transactions (${response.status.value})")
-            }
-        } catch (_: Exception) {
-            DashboardResult.Failure("Cannot connect to the server")
-        }
-    }
+//    suspend fun getTransactions(token: String): DashboardResult<List<TransactionData>> {
+//        return try {
+//            val response = client.get("${baseUrl.trimEnd('/')}/api/banking/transactions") {
+//                bearerAuth(token)
+//            }
+//            when (response.status) {
+//                HttpStatusCode.OK           -> DashboardResult.Success(response.body())
+//                HttpStatusCode.Unauthorized -> DashboardResult.Failure("Session expired, please sign in again")
+//                else                        -> DashboardResult.Failure("Failed to load transactions (${response.status.value})")
+//            }
+//        } catch (_: Exception) {
+//            DashboardResult.Failure("Cannot connect to the server")
+//        }
+//    }
 
     suspend fun getAccounts(token: String): DashboardResult<List<AccountData>> {
         return try {

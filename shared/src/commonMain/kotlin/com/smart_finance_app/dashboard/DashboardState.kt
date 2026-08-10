@@ -1,6 +1,7 @@
 package com.smart_finance_app.dashboard
 
 import androidx.compose.ui.graphics.Color
+import com.smart_finance_app.transactions.TransactionCategories
 import kotlin.time.Clock
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.TimeZone
@@ -46,9 +47,11 @@ private val categoryColors = listOf(
     Color(0xFF94A3B8),
 )
 
-private val categoryNames = listOf(
-    "Housing", "Food", "Transport", "Shopping", "Entertainment", "Other"
-)
+//private val categoryNames = listOf(
+//    "Housing", "Food", "Transport", "Shopping", "Entertainment", "Other"
+//)
+
+private val categoryNames = TransactionCategories.all
 
 // Keyword-based categorisation — replace with ML/backend logic later
 private fun categorise(description: String, merchantName: String?): String {
@@ -145,7 +148,8 @@ fun computeSpendingCategories(
     val colorMap   = categoryNames.zip(categoryColors).toMap()
 
     return filtered
-        .groupBy { categorise(it.description, it.merchantName) }
+//        .groupBy { categorise(it.description, it.merchantName) }
+        .groupBy { TransactionCategories.normalize(it.category) }
         .entries
         .sortedByDescending { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
         .mapIndexed { index, (category, txList) ->
@@ -225,7 +229,8 @@ fun computeDashboardState(
     val colorMap   = categoryNames.zip(categoryColors).toMap()
 
     val spendingCategories = debitTx
-        .groupBy { categorise(it.description, it.merchantName) }
+//        .groupBy { categorise(it.description, it.merchantName) }
+        .groupBy { TransactionCategories.normalize(it.category) }
         .entries
         .sortedByDescending { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
         .mapIndexed { index, (category, txList) ->
@@ -302,7 +307,8 @@ fun computeDashboardState(
         if (monthDebits.isEmpty()) return@mapNotNull null
 
         val topCategory = monthDebits
-            .groupBy { categorise(it.description, it.merchantName) }
+//            .groupBy { categorise(it.description, it.merchantName) }
+            .groupBy { TransactionCategories.normalize(it.category) }
             .maxByOrNull { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
             ?: return@mapNotNull null
 
@@ -384,7 +390,8 @@ fun filterCategoriesByPeriod(
         )).toMap()
 
     return filtered
-        .groupBy { categorise(it.description, it.merchantName) }
+//        .groupBy { categorise(it.description, it.merchantName) }
+        .groupBy { TransactionCategories.normalize(it.category) }
         .entries
         .sortedByDescending { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
         .mapIndexed { i, (category, txList) ->

@@ -263,7 +263,8 @@ private fun NavigationContent(
                 amount = tx.amount,
                 currency = tx.currency,
                 type = if (tx.amount < 0) "DEBIT" else "CREDIT",
-                merchantName = tx.merchantName
+                merchantName = tx.merchantName,
+                category = tx.category
             )
         }
     }
