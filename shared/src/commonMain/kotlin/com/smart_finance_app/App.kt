@@ -289,11 +289,13 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
                 )
             }
             Screen.Main -> {
-                val resolvedName: String = session?.email?.substringBefore("@") ?: ""
+                val resolvedName = session?.name.orEmpty()
+                val resolvedEmail = session?.email.orEmpty()
                 MainNavigation(
                     apiBaseUrl = apiBaseUrl,
                     authToken = session?.token.orEmpty(),
                     userName = resolvedName,
+                    userEmail = resolvedEmail,
                     httpClient = httpClient,
                     dashboardApi = dashboardApi,
                     budgetApi = budgetApi,

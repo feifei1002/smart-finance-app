@@ -21,6 +21,7 @@ private data class RegisterRequest(
 data class RegisterResponse(
     val token: String,
     val userId: String,
+    val name: String,
     val email: String,
     val consentAccepted: Boolean
 )
@@ -52,6 +53,7 @@ class RegistrationApi(private val baseUrl: String, private val client: HttpClien
                         AuthSession(
                             token = body.token,
                             userId = body.userId,
+                            name = body.name,
                             email = body.email,
                             consentAccepted = body.consentAccepted
                         )

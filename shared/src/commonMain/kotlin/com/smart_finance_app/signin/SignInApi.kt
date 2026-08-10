@@ -13,7 +13,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 private data class SignInRequest(val email: String, val password: String)
 @Serializable
-data class AuthSession(val token: String, val userId: String, val email: String, val consentAccepted: Boolean)
+data class AuthSession(val token: String, val userId: String, val name: String,
+                       val email: String, val consentAccepted: Boolean)
 
 @Serializable
 private data class ErrorResponse(val message: String)
