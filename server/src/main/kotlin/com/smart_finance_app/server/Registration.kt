@@ -20,6 +20,7 @@ data class RegisterRequest(
 data class RegisterResponse (
     val token: String,
     val userId: String,
+    val name: String,
     val email: String,
     val consentAccepted: Boolean
 )
@@ -66,6 +67,7 @@ fun Route.registrationRoutes(createToken: (UUID) -> String) {
             RegisterResponse(
                 token = createToken(userId),
                 userId = userId.toString(),
+                name = name,
                 email = email,
                 consentAccepted = false
             )

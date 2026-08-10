@@ -38,6 +38,7 @@ fun MainNavigation(
     apiBaseUrl: String,
     authToken: String,
     userName: String,
+    userEmail: String,
     httpClient: HttpClient,
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
@@ -85,6 +86,7 @@ fun MainNavigation(
                 apiBaseUrl               = apiBaseUrl,
                 authToken                = authToken,
                 userName                 = userName,
+                userEmail = userEmail,
                 httpClient = httpClient,
                 dashboardApi = dashboardApi,
                 budgetApi = budgetApi,
@@ -103,6 +105,7 @@ private fun NavigationContent(
     apiBaseUrl: String,
     authToken: String,
     userName: String,
+    userEmail: String,
     httpClient: HttpClient,
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
@@ -477,7 +480,7 @@ private fun NavigationContent(
         AppNavigation.Settings -> {
             SettingsScreen(
                 userName = userName,
-                userEmail = "new@user.com",
+                userEmail = userEmail,
                 onSignOut = onSignOut
             )
         }
