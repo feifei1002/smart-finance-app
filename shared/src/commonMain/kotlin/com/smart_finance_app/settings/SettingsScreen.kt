@@ -53,11 +53,13 @@ import smart_finance_app.shared.generated.resources.language
 import smart_finance_app.shared.generated.resources.light_mode
 import smart_finance_app.shared.generated.resources.logout
 import smart_finance_app.shared.generated.resources.person
+import com.smart_finance_app.payments.PlanScreen
 
 private enum class SettingsPanel {
     Main,
     EditProfile,
-    Subscription
+    SubscriptionPayments,
+    SubscriptionPlan
 }
 
 @Composable
@@ -124,9 +126,10 @@ fun SettingsScreen(userName: String, userEmail: String, onSignOut: () -> Unit) {
                 selectedAppearance = selectedAppearance,
                 onAppearanceSelected = { selectedAppearance = it },
                 onUpdateProfile = { panel = SettingsPanel.EditProfile },
-                onManageSubscription = { panel = SettingsPanel.Subscription },
+                onSubscriptionPaymentsClick = { panel = SettingsPanel.SubscriptionPayments },
+                onManageSubscription = { panel = SettingsPanel.SubscriptionPlan },
                 onLanguageClick = { showLanguageDialog = true },
-                onCurrencyClick = {showCurrencyDialog = true },
+                onCurrencyClick = { showCurrencyDialog = true },
                 onSignOutClick = { showSignOutDialog = true }
             )
         }
@@ -139,10 +142,16 @@ fun SettingsScreen(userName: String, userEmail: String, onSignOut: () -> Unit) {
             )
         }
 
-        SettingsPanel.Subscription -> {
+        SettingsPanel.SubscriptionPayments -> {
             PlaceholderSettingsSubScreen(
                 title = "Subscription & Payments",
-                description = "Subscription and payment management screen coming soon.",
+                description = "Payment methods and billing history coming soon.",
+                onBack = { panel = SettingsPanel.Main }
+            )
+        }
+
+        SettingsPanel.SubscriptionPlan -> {
+            PlanScreen(
                 onBack = { panel = SettingsPanel.Main }
             )
         }
@@ -150,11 +159,20 @@ fun SettingsScreen(userName: String, userEmail: String, onSignOut: () -> Unit) {
 }
 
 @Composable
-private fun SettingsMainContent(userName: String, userEmail: String, selectedLanguage: String,
-                                selectedCurrency: String, selectedAppearance: String,
-                                onAppearanceSelected: (String) -> Unit, onUpdateProfile: () -> Unit,
-                                onManageSubscription: () -> Unit, onLanguageClick: () -> Unit,
-                                onCurrencyClick: () -> Unit, onSignOutClick: () -> Unit) {
+private fun SettingsMainContent(
+    userName: String,
+    userEmail: String,
+    selectedLanguage: String,
+    selectedCurrency: String,
+    selectedAppearance: String,
+    onAppearanceSelected: (String) -> Unit,
+    onUpdateProfile: () -> Unit,
+    onSubscriptionPaymentsClick: () -> Unit,
+    onManageSubscription: () -> Unit,
+    onLanguageClick: () -> Unit,
+    onCurrencyClick: () -> Unit,
+    onSignOutClick: () -> Unit
+) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
@@ -235,7 +253,7 @@ private fun SettingsMainContent(userName: String, userEmail: String, selectedLan
                             icon = Res.drawable.credit_card,
                             title = "Subscription & Payments",
                             value = null,
-                            onClick = onManageSubscription
+                            onClick = onSubscriptionPaymentsClick
                         )
 
                         SettingsDivider()
@@ -313,7 +331,7 @@ private fun ProfileHeader(userName: String, userEmail: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
+    ) {
         Surface(
             modifier = Modifier.size(72.dp),
             shape = CircleShape,
@@ -373,8 +391,12 @@ private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun SettingsActionRow(icon: DrawableResource, title: String,
-                              value: String?, onClick: () -> Unit) {
+private fun SettingsActionRow(
+    icon: DrawableResource,
+    title: String,
+    value: String?,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -517,8 +539,13 @@ private fun SettingsDivider() {
 }
 
 @Composable
-private fun SettingOptionDialog(title: String, options: List<String>, selectedOption: String,
-                                onSelected: (String) -> Unit, onDismiss: () -> Unit) {
+private fun SettingOptionDialog(
+    title: String,
+    options: List<String>,
+    selectedOption: String,
+    onSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
