@@ -14,6 +14,7 @@ import com.smart_finance_app.accounts.BankConnectionResult
 import com.smart_finance_app.accounts.BankConnectionStatusResult
 import com.smart_finance_app.accounts.BankOption
 import com.smart_finance_app.accounts.BankProviderResult
+import com.smart_finance_app.accounts.BankProviderVariant
 import com.smart_finance_app.accounts.BankingApi
 import com.smart_finance_app.accounts.ConnectBankAccountScreen
 import com.smart_finance_app.accounts.ConnectedAccount
@@ -407,8 +408,19 @@ private fun NavigationContent(
                     banksError = null
                     when (val result = bankingApi.getBankProviders(authToken)) {
                         is BankProviderResult.Success -> {
-                            banks = result.providers.map {
-                                BankOption(id = it.id, name = it.name, logoUrl = it.logoUrl)
+                            banks = result.providers.map { provider ->
+                                BankOption(
+                                    id = provider.id,
+                                    name = provider.name,
+                                    logoUrl = provider.logoUrl,
+                                    variants = provider.variants.map { variant ->
+                                        BankProviderVariant(
+                                            id = variant.id,
+                                            label = variant.label,
+                                            name = variant.name
+                                        )
+                                    }
+                                )
                             }
                         }
                         is BankProviderResult.Failure -> { banksError = result.message }

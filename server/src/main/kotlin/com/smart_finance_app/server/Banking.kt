@@ -86,10 +86,17 @@ data class PaginatedTransactionsResponse(
 )
 
 @Serializable
+data class BankProviderVariantResponse(
+    val id: String,
+    val label: String,
+    val name: String
+)
+@Serializable
 data class BankProviderResponse(
     val id: String,
     val name: String,
-    val logoUrl: String? = null
+    val logoUrl: String? = null,
+    val variants: List<BankProviderVariantResponse> = emptyList()
 )
 
 @Serializable
@@ -352,15 +359,7 @@ fun Route.bankingRoutes() {
                 return@get
             }
 
-            call.respond(
-                providers.map {
-                    BankProviderResponse(
-                        id = it.providerId,
-                        name = it.displayName,
-                        logoUrl = it.logoUrl
-                    )
-                }
-            )
+            call.respond(groupBankProviders(providers))
         }
 
         get("/api/banking/connection-session/{state}") {
@@ -896,6 +895,8 @@ private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
     * only the Mock Bank works for sandbox TrueLayer auth connection testing */
     val url = buildString {
         append("${TrueLayerConfig.PROVIDERS_BASE_URL}/api/providers")
+        append("?clientId=${URLEncoder.encode(TrueLayerConfig.clientId, "UTF-8")}")
+        append("&scopes=${URLEncoder.encode(TrueLayerConfig.SCOPES, "UTF-8")}")
     }
 
     val request = Request.Builder().url(url).get().build()
@@ -926,6 +927,68 @@ private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
         else -> {
             error("Unexpected provider response: $responseBody")
         }
+    }
+}
+
+private fun groupBankProviders(providers: List<TrueLayerProvider>): List<BankProviderResponse> {
+    val providersWithMock = providers.toMutableList()
+
+    return providersWithMock
+        .groupBy { normalisedBankName(it) }
+        .map { (bankName, group) ->
+            val sortedVariants = group.sortedWith(
+                compareBy<TrueLayerProvider> { providerVariantLabel(it) != "Personal" }
+                    .thenBy { it.displayName }
+            )
+
+            val primary = sortedVariants.first()
+
+            BankProviderResponse(
+                id = primary.providerId,
+                name = bankName,
+                logoUrl = group.firstNotNullOfOrNull { it.logoUrl },
+                variants = sortedVariants.map {
+                    BankProviderVariantResponse(
+                        id = it.providerId,
+                        label = providerVariantLabel(it),
+                        name = it.displayName
+                    )
+                }.distinctBy { it.label }
+            )
+        }
+        .sortedWith(
+            compareBy<BankProviderResponse> { it.id != "uk-cs-mock" }
+                .thenBy { it.name }
+        )
+}
+
+private fun normalisedBankName(provider: TrueLayerProvider): String {
+    val cleanedName = provider.displayName
+        .replace(Regex("\\s*\\((personal|business|corporate|commercial).*\\)", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\s+-\\s+(personal|business|corporate|commercial).*", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\b(personal|business|corporate|commercial)\\b", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    return cleanedName.ifBlank {
+        provider.providerId
+            .removePrefix("ob-")
+            .split("-")
+            .filterNot { it in setOf("personal", "business", "corporate", "commercial") }
+            .joinToString(" ") { token ->
+                token.replaceFirstChar { char -> char.titlecase() }
+            }
+    }
+}
+
+private fun providerVariantLabel(provider: TrueLayerProvider): String {
+    val value = "${provider.providerId} ${provider.displayName}".lowercase()
+
+    return when {
+        "business" in value -> "Business"
+        "corporate" in value -> "Corporate"
+        "commercial" in value -> "Commercial"
+        else -> "Personal"
     }
 }
 

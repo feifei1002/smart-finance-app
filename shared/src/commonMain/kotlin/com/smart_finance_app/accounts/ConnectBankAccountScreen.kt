@@ -2,6 +2,7 @@ package com.smart_finance_app.accounts
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -46,7 +48,17 @@ import smart_finance_app.shared.generated.resources.lock
 import smart_finance_app.shared.generated.resources.question_mark
 import smart_finance_app.shared.generated.resources.search
 
-data class BankOption(val id: String, val name: String, val logoUrl: String? = null)
+data class BankProviderVariant(
+    val id: String,
+    val label: String,
+    val name: String
+)
+data class BankOption(
+    val id: String,
+    val name: String,
+    val logoUrl: String? = null,
+    val variants: List<BankProviderVariant> = emptyList()
+    )
 
 /**
  * First step of the bank connection flow.
@@ -65,6 +77,7 @@ fun ConnectBankAccountScreen(
 
     var search by remember { mutableStateOf("") }
     var selectedBank by remember { mutableStateOf<BankOption?>(null) }
+    var selectedVariant by remember { mutableStateOf<BankProviderVariant?>(null) }
 
     val filteredBanks = banks.filter { it.name.contains(search, ignoreCase = true) }
 
@@ -167,7 +180,10 @@ fun ConnectBankAccountScreen(
                                     bank = bank,
                                     selected = bank == selectedBank,
                                     compact = compact,
-                                    onClick = { selectedBank = bank }
+                                    onClick = {
+                                        selectedBank = bank
+                                        selectedVariant = bank.variants.distinctBy { it.label }.firstOrNull()
+                                    }
                                 )
                             }
                         }
@@ -202,9 +218,37 @@ fun ConnectBankAccountScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    selectedBank?.let { bank ->
+                        val uniqueVariants = bank.variants.distinctBy { it.label }
+
+                        if (uniqueVariants.size > 1) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                uniqueVariants.forEach { variant ->
+                                    FilterChip(
+                                        selected = selectedVariant?.id == variant.id,
+                                        onClick = { selectedVariant = variant },
+                                        label = { Text(variant.label, maxLines = 1) }
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Button(
                         enabled = selectedBank != null && !isLoading,
-                        onClick = { selectedBank?.let(onContinue) },
+                        onClick = {
+                            selectedBank?.let { bank ->
+                                val selectedProviderId = selectedVariant?.id ?: bank.id
+
+                                onContinue(
+                                    bank.copy(id = selectedProviderId)
+                                )
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp)

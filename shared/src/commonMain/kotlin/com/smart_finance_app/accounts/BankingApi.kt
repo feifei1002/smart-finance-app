@@ -27,7 +27,18 @@ private data class BankConnectionStatusResponse(val status: String)
 data class ConnectedAccountResponse(val accountId: String, val bankName: String, val maskedNumber: String, val provider: String)
 
 @Serializable
-data class BankProviderResponse(val id: String, val name: String, val logoUrl: String? = null)
+data class BankProviderVariantResponse(
+    val id: String,
+    val label: String,
+    val name: String
+)
+@Serializable
+data class BankProviderResponse(
+    val id: String,
+    val name: String,
+    val logoUrl: String? = null,
+    val variants: List<BankProviderVariantResponse> = emptyList()
+)
 sealed interface BankConnectionResult {
     data class Success(val authUrl: String, val state: String): BankConnectionResult
     data class Failure(val message: String): BankConnectionResult
