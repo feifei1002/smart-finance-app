@@ -3,6 +3,7 @@ package com.smart_finance_app.server
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
+import com.google.gson.reflect.TypeToken
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
@@ -199,6 +200,13 @@ private data class LogoDevSearchResult(val name: String, val domain: String)
 private val httpClient = OkHttpClient()
 private val gson = Gson()
 
+// Bank Provider List Cache
+private const val PROVIDER_CACHE_TTL_DAYS = 7L
+
+private val trueLayerProviderListType = object : TypeToken<List<TrueLayerProvider>>() {}.type
+
+private const val PROVIDER_CACHE_KEY = "truelayer-providers:all"
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 fun Route.bankingRoutes() {
@@ -350,7 +358,7 @@ fun Route.bankingRoutes() {
 
         get("/api/banking/providers") {
             val providers = runCatching {
-                fetchTrueLayerProviders()
+                fetchTrueLayerProvidersFromDB()
             }.getOrElse { exception ->
                 call.respond(
                     HttpStatusCode.BadGateway,
@@ -926,6 +934,101 @@ private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
 
         else -> {
             error("Unexpected provider response: $responseBody")
+        }
+    }
+}
+
+private fun fetchTrueLayerProvidersFromDB(): List<TrueLayerProvider> {
+
+    val cachedProviders = getCachedTrueLayerProviders(
+        cacheKey = PROVIDER_CACHE_KEY,
+        allowExpired = false
+    )
+
+    if (cachedProviders != null) {
+        println("Using cached TrueLayer providers: ${cachedProviders.size}")
+        return cachedProviders
+    }
+
+    return runCatching {
+        val freshProviders = fetchTrueLayerProviders()
+        saveCachedTrueLayerProviders(PROVIDER_CACHE_KEY, freshProviders)
+
+        println("Fetched fresh TrueLayer providers: ${freshProviders.size}")
+        freshProviders
+    }.getOrElse { exception ->
+        val expiredCache = getCachedTrueLayerProviders(
+            cacheKey = PROVIDER_CACHE_KEY,
+            allowExpired = true
+        )
+
+        if (expiredCache != null) {
+            println("TrueLayer fetch failed, using expired provider cache: ${expiredCache.size}")
+            expiredCache
+        } else {
+            throw exception
+        }
+    }
+}
+
+private fun getCachedTrueLayerProviders(
+    cacheKey: String,
+    allowExpired: Boolean
+): List<TrueLayerProvider>? {
+    val sql = if (allowExpired) {
+        """
+            SELECT providers_json FROM bank_provider_cache WHERE cache_key = ?
+        """.trimIndent()
+    } else {
+        """
+            SELECT providers_json FROM bank_provider_cache WHERE cache_key = ?
+            AND fetched_at >= NOW() - INTERVAL '$PROVIDER_CACHE_TTL_DAYS days'
+        """.trimIndent()
+    }
+
+    val providersJson = Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(sql).use { statement ->
+            statement.setString(1, cacheKey)
+
+            statement.executeQuery().use { result ->
+                if (result.next()) {
+                    result.getString("providers_json")
+                } else {
+                    null
+                }
+            }
+        }
+    }
+
+    return providersJson?.let {
+        gson.fromJson(it, trueLayerProviderListType)
+    }
+}
+
+private fun saveCachedTrueLayerProviders(
+    cacheKey: String,
+    providers: List<TrueLayerProvider>
+) {
+    val providersJson = gson.toJson(providers)
+
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                INSERT INTO bank_provider_cache (cache_key, providers_json, fetched_at)
+                VALUES (?, ?::jsonb, NOW()) ON CONFLICT (cache_key) DO UPDATE SET
+                    providers_json = EXCLUDED.providers_json,
+                    fetched_at = NOW()
+            """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, cacheKey)
+                statement.setString(2, providersJson)
+                statement.executeUpdate()
+            }
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
         }
     }
 }
