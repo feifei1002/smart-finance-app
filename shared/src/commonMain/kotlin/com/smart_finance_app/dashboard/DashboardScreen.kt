@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.derivedStateOf
@@ -45,6 +46,7 @@ import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
+import smart_finance_app.shared.generated.resources.add
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -217,6 +219,7 @@ private fun MobileDashboard(
     val greeting = rememberGreeting()
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
+    var showCustomizeSheet by remember { mutableStateOf(false) }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
     val activeAccounts = remember(selectedAccounts, state.accounts) {
@@ -247,6 +250,12 @@ private fun MobileDashboard(
     else if (selectedAccounts.size == 1) selectedAccounts.first()
     else "${selectedAccounts.size} accounts"
 
+    @OptIn(ExperimentalMaterial3Api::class)
+    if (showCustomizeSheet) {
+        DashboardCustomizeBottomSheet(
+            onDismiss = { showCustomizeSheet = false }
+        )
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -449,8 +458,25 @@ private fun MobileDashboard(
             }
         }
 
-        item { BudgetProgressCard(authToken = authToken, transactions = state.rawTransactions, currency = state.currency, api = budgetApi) }
+//        item { BudgetProgressCard(authToken = authToken, transactions = state.rawTransactions, currency = state.currency, api = budgetApi) }
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                BudgetProgressCard(
+                    api = budgetApi,
+                    authToken = authToken,
+                    transactions = state.rawTransactions,
+                    currency = state.currency
+                )
 
+                DashboardCustomizeButton(
+                    onClick = { showCustomizeSheet = true }
+                )
+            }
+        }
         // Recent Transactions Card
         item {
             DashboardCard {
@@ -498,6 +524,7 @@ private fun DesktopDashboard(
     val greeting = rememberGreeting()
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
+    var showCustomizeSheet by remember { mutableStateOf(false) }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
     val activeAccounts = remember(selectedAccounts, state.accounts) {
@@ -527,6 +554,12 @@ private fun DesktopDashboard(
     else if (selectedAccounts.size == 1) selectedAccounts.first()
     else "${selectedAccounts.size} accounts"
 
+    @OptIn(ExperimentalMaterial3Api::class)
+    if (showCustomizeSheet) {
+        DashboardCustomizeBottomSheet(
+            onDismiss = { showCustomizeSheet = false }
+        )
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -708,9 +741,31 @@ private fun DesktopDashboard(
                         BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
                     }
                 }
-                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        BudgetProgressCard(authToken = authToken, transactions = state.rawTransactions, currency = state.currency, api = budgetApi)
+//                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
+//                    Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+//                        BudgetProgressCard(authToken = authToken, transactions = state.rawTransactions, currency = state.currency, api = budgetApi)
+//                    }
+//                }
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+
+                ) {
+                    BudgetProgressCard(
+                        api = budgetApi,
+                        authToken = authToken,
+                        transactions = state.rawTransactions,
+                        currency = state.currency
+                    )
+
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        DashboardCustomizeButton(
+                            onClick = { showCustomizeSheet = true }
+                        )
                     }
                 }
             }
@@ -1366,5 +1421,157 @@ private fun UpcomingBillRow(name: String, date: String, amount: String) {
         }
         Text(amount, style = MaterialTheme.typography.bodySmall,
             color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun DashboardCustomizeButton(
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.height(36.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(18.dp)
+    ) {
+        Icon(
+            painter = painterResource(Res.drawable.add),
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+        )
+
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Text(
+            text = "Customise",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DashboardCustomizeBottomSheet(
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Customise Dashboard",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    MinusIcon(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                DashboardCustomizeOption(
+                    title = "Balance overview",
+                    description = "Show total balance, income, expenses, and savings."
+                )
+
+                DashboardCustomizeOption(
+                    title = "Spending chart",
+                    description = "Show spending breakdown by category."
+                )
+
+                DashboardCustomizeOption(
+                    title = "Income and expenses chart",
+                    description = "Show monthly income and expense trends."
+                )
+
+                DashboardCustomizeOption(
+                    title = "Budget progress",
+                    description = "Show budget usage and remaining amounts."
+                )
+
+                DashboardCustomizeOption(
+                    title = "Recent transactions",
+                    description = "Show the latest imported transactions."
+                )
+
+                DashboardCustomizeOption(
+                    title = "Monthly top categories",
+                    description = "Show the highest spending category for each month."
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardCustomizeOption(
+    title: String,
+    description: String
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun MinusIcon(
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Canvas(modifier = modifier) {
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.2f, size.height * 0.5f),
+            end = Offset(size.width * 0.8f, size.height * 0.5f),
+            strokeWidth = 3.dp.toPx(),
+            cap = StrokeCap.Round
+        )
     }
 }
