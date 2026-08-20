@@ -3,9 +3,11 @@ package com.smart_finance_app.dashboard
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +58,13 @@ data class BudgetItem(val category: String, val spent: Float, val total: Float, 
 data class MonthlyPoint(val month: String, val income: Float, val expenses: Float)
 data class Transaction(val name: String, val date: String, val amount: String, val isIncome: Boolean)
 data class AccountOverview(val bankName: String, val maskedNumber: String, val balance: String)
+
+/** Swaps two items in a MutableList by index. */
+private fun <T> MutableList<T>.move(from: Int, to: Int) {
+    if (from == to) return
+    val item = removeAt(from)
+    add(to, item)
+}
 
 @Composable
 private fun rememberGreeting(): String {
@@ -219,7 +230,14 @@ private fun MobileDashboard(
     val greeting = rememberGreeting()
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
+    var isCustomizing by remember { mutableStateOf(false) }
     var showCustomizeSheet by remember { mutableStateOf(false) }
+    // Track which card keys have been deleted by the user
+    var deletedCards by remember { mutableStateOf(setOf<String>()) }
+    // Ordered list of movable card keys (Recent Transactions is fixed below, not here)
+    val cardOrder = remember {
+        mutableStateListOf("spending", "trend", "top_categories", "budget")
+    }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
     val activeAccounts = remember(selectedAccounts, state.accounts) {
@@ -252,88 +270,168 @@ private fun MobileDashboard(
 
     @OptIn(ExperimentalMaterial3Api::class)
     if (showCustomizeSheet) {
-        DashboardCustomizeBottomSheet(
-            onDismiss = { showCustomizeSheet = false }
-        )
+        DashboardCustomizeBottomSheet(onDismiss = { showCustomizeSheet = false })
     }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp)
     ) {
+        // Header block: greeting, subtitle, and controls all tightly grouped
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "$greeting, $userName ",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "$greeting, $userName",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Here's your financial overview",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DashboardCustomizeButton(
+                        isCustomizing = isCustomizing,
+                        onClick = { isCustomizing = !isCustomizing }
                     )
-                    Text(
-                        text = "Here's your financial overview",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // Account selector dropdown
-                Box {
-                    OutlinedButton(
-                        onClick = { accountDropdownExpanded = true },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(selectorLabel, style = MaterialTheme.typography.labelSmall)
-                        Icon(
-                            painter = painterResource(Res.drawable.arrow_drop_down),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = accountDropdownExpanded,
-                        onDismissRequest = { accountDropdownExpanded = false }
-                    ) {
-                        // "All Accounts" option
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
-                                        checked = selectedAccounts.isEmpty(),
-                                        onCheckedChange = { onAccountsChanged(setOf()) }
-                                    )
-                                    Text("All Accounts", style = MaterialTheme.typography.bodySmall)
-                                }
-                            },
-                            onClick = {
-                                onAccountsChanged(setOf())
-                                accountDropdownExpanded = false
-                            }
-                        )
-                        HorizontalDivider()
-
-                        // Individual Account options
-                        accountOptions.forEach { account ->
+                    Box {
+                        OutlinedButton(
+                            onClick = { accountDropdownExpanded = true },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                        ) {
+                            Text(selectorLabel, style = MaterialTheme.typography.labelSmall)
+                            Icon(
+                                painter = painterResource(Res.drawable.arrow_drop_down),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = accountDropdownExpanded,
+                            onDismissRequest = { accountDropdownExpanded = false }
+                        ) {
                             DropdownMenuItem(
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Checkbox(
-                                            checked = account in selectedAccounts,
-                                            onCheckedChange = { checked ->
-                                                val next = if (checked) selectedAccounts + account else selectedAccounts - account
-                                                onAccountsChanged(next)
-                                            }
+                                            checked = selectedAccounts.isEmpty(),
+                                            onCheckedChange = { onAccountsChanged(setOf()) }
                                         )
-                                        Text(account, style = MaterialTheme.typography.bodySmall)
+                                        Text("All Accounts", style = MaterialTheme.typography.bodySmall)
                                     }
                                 },
                                 onClick = {
-                                    val next = if (account in selectedAccounts) selectedAccounts - account else selectedAccounts + account
-                                    onAccountsChanged(next)
+                                    onAccountsChanged(setOf())
+                                    accountDropdownExpanded = false
                                 }
+                            )
+                            HorizontalDivider()
+                            accountOptions.forEach { account ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(
+                                                checked = account in selectedAccounts,
+                                                onCheckedChange = { checked ->
+                                                    val next = if (checked) selectedAccounts + account else selectedAccounts - account
+                                                    onAccountsChanged(next)
+                                                }
+                                            )
+                                            Text(account, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    },
+                                    onClick = {
+                                        val next = if (account in selectedAccounts) selectedAccounts - account else selectedAccounts + account
+                                        onAccountsChanged(next)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Merged Balance + Income + Expenses card (fixed, not deletable/movable) ──
+        item {
+            FinancialOverviewCard(
+                balance = formatCurrency(displayBalance, getCurrencySymbol(state.currency)),
+                balanceTrend = state.balanceChangePercent,
+                income = formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)),
+                incomeTrend = state.incomeChangePercent,
+                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)),
+                expensesTrend = state.expenseChangePercent
+            )
+        }
+
+        // Movable + deletable cards rendered in user-defined order
+        itemsIndexed(cardOrder, key = { _, key -> key }) { index, cardKey ->
+            if (cardKey !in deletedCards) {
+                CustomizableCard(
+                    cardKey      = cardKey,
+                    isCustomizing = isCustomizing,
+                    onDelete     = { deletedCards = deletedCards + it },
+                    onMoveUp     = { if (index > 0) cardOrder.move(index, index - 1) },
+                    onMoveDown   = { if (index < cardOrder.lastIndex) cardOrder.move(index, index + 1) }
+                ) {
+                    when (cardKey) {
+                        "spending" -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
+                                val filteredCategories = computeSpendingCategories(
+                                    transactions = filteredRawTransactions,
+                                    period = spendingPeriod,
+                                    currency = state.currency
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    DonutChart(categories = filteredCategories, modifier = Modifier.size(120.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        if (filteredCategories.isEmpty()) {
+                                            Text(
+                                                text = "No spending data yet",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        } else {
+                                            filteredCategories.forEach { cat -> CategoryLegendRow(cat) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        "trend" -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SectionTitle("Monthly Trend")
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    LegendDot(color = Color(0xFF16A34A), label = "In")
+                                    LegendDot(color = Color(0xFFEF4444), label = "Out")
+                                }
+                                LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(120.dp))
+                            }
+                        }
+                        "top_categories" -> {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SectionTitle("Highest Spending")
+                                BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(120.dp))
+                            }
+                        }
+                        "budget" -> {
+                            BudgetProgressCardContent(
+                                api = budgetApi,
+                                authToken = authToken,
+                                transactions = state.rawTransactions,
+                                currency = state.currency
                             )
                         }
                     }
@@ -341,143 +439,14 @@ private fun MobileDashboard(
             }
         }
 
-        // Current Balance Card (Uses dynamic displayBalance)
+        // + Charts button (opens bottom sheet for chart visibility toggles)
         item {
-            DashboardCard {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Current Balance",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = formatCurrency(displayBalance, getCurrencySymbol(state.currency)),
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    TrendIndicator(percentageChange = state.balanceChangePercent)
-                }
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DashboardChartsButton(onClick = { showCustomizeSheet = true })
             }
         }
 
-        // Monthly Income & Expenses Card
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                DashboardCard(modifier = Modifier.weight(1f)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "Monthly Income",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        TrendIndicator(percentageChange = state.incomeChangePercent)
-                    }
-                }
-                DashboardCard(modifier = Modifier.weight(1f)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "Monthly Expenses",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        TrendIndicator(percentageChange = state.expenseChangePercent)
-                    }
-                }
-            }
-        }
-
-        // Spending Overview Card (Filters categories based on filteredRawTransactions)
-        item {
-            DashboardCard {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-
-                    val filteredCategories = computeSpendingCategories(
-                        transactions = filteredRawTransactions,
-                        period = spendingPeriod,
-                        currency = state.currency
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DonutChart(categories = filteredCategories, modifier = Modifier.size(120.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (filteredCategories.isEmpty()) {
-                                Text(
-                                    text = "No spending data yet",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
-                                filteredCategories.forEach { cat -> CategoryLegendRow(cat) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Charts Row
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionTitle("Monthly Trend")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            LegendDot(color = Color(0xFF16A34A), label = "In")
-                            LegendDot(color = Color(0xFFEF4444), label = "Out")
-                        }
-                        LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(120.dp))
-                    }
-                }
-                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionTitle("Highest Spending")
-                        BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(120.dp))
-                    }
-                }
-            }
-        }
-
-//        item { BudgetProgressCard(authToken = authToken, transactions = state.rawTransactions, currency = state.currency, api = budgetApi) }
-        item {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                BudgetProgressCard(
-                    api = budgetApi,
-                    authToken = authToken,
-                    transactions = state.rawTransactions,
-                    currency = state.currency
-                )
-
-                DashboardCustomizeButton(
-                    onClick = { showCustomizeSheet = true }
-                )
-            }
-        }
-        // Recent Transactions Card
+        // Recent Transactions Card — fixed, cannot be deleted or moved
         item {
             DashboardCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -524,7 +493,9 @@ private fun DesktopDashboard(
     val greeting = rememberGreeting()
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
+    var isCustomizing by remember { mutableStateOf(false) }
     var showCustomizeSheet by remember { mutableStateOf(false) }
+    var deletedCards by remember { mutableStateOf(setOf<String>()) }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
     val activeAccounts = remember(selectedAccounts, state.accounts) {
@@ -556,160 +527,145 @@ private fun DesktopDashboard(
 
     @OptIn(ExperimentalMaterial3Api::class)
     if (showCustomizeSheet) {
-        DashboardCustomizeBottomSheet(
-            onDismiss = { showCustomizeSheet = false }
-        )
+        DashboardCustomizeBottomSheet(onDismiss = { showCustomizeSheet = false })
     }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(top = 32.dp, bottom = 32.dp)
     ) {
+        // Header block: greeting, subtitle, and controls all tightly grouped
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "$greeting, $userName ",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "$greeting, $userName",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Here's your financial overview",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DashboardCustomizeButton(
+                        isCustomizing = isCustomizing,
+                        onClick = { isCustomizing = !isCustomizing }
                     )
-                    Text(
-                        text = "Here's your financial overview",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Box {
-                    OutlinedButton(onClick = { accountDropdownExpanded = true }) {
-                        Text(selectorLabel, style = MaterialTheme.typography.labelMedium)
-                        Icon(
-                            painter = painterResource(Res.drawable.arrow_drop_down),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = accountDropdownExpanded,
-                        onDismissRequest = { accountDropdownExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
-                                        checked = selectedAccounts.isEmpty(),
-                                        onCheckedChange = { onAccountsChanged(setOf()) }
-                                    )
-                                    Text("All Accounts", style = MaterialTheme.typography.bodySmall)
-                                }
-                            },
-                            onClick = {
-                                onAccountsChanged(setOf())
-                                accountDropdownExpanded = false
-                            }
-                        )
-                        HorizontalDivider()
-                        accountOptions.forEach { account ->
+                    Box {
+                        OutlinedButton(onClick = { accountDropdownExpanded = true }) {
+                            Text(selectorLabel, style = MaterialTheme.typography.labelMedium)
+                            Icon(
+                                painter = painterResource(Res.drawable.arrow_drop_down),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = accountDropdownExpanded,
+                            onDismissRequest = { accountDropdownExpanded = false }
+                        ) {
                             DropdownMenuItem(
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Checkbox(
-                                            checked = account in selectedAccounts,
-                                            onCheckedChange = { checked ->
-                                                val next = if (checked) selectedAccounts + account else selectedAccounts - account
-                                                onAccountsChanged(next)
-                                            }
+                                            checked = selectedAccounts.isEmpty(),
+                                            onCheckedChange = { onAccountsChanged(setOf()) }
                                         )
-                                        Text(account, style = MaterialTheme.typography.bodySmall)
+                                        Text("All Accounts", style = MaterialTheme.typography.bodySmall)
                                     }
                                 },
                                 onClick = {
-                                    val next = if (account in selectedAccounts) selectedAccounts - account else selectedAccounts + account
-                                    onAccountsChanged(next)
+                                    onAccountsChanged(setOf())
+                                    accountDropdownExpanded = false
                                 }
                             )
+                            HorizontalDivider()
+                            accountOptions.forEach { account ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(
+                                                checked = account in selectedAccounts,
+                                                onCheckedChange = { checked ->
+                                                    val next = if (checked) selectedAccounts + account else selectedAccounts - account
+                                                    onAccountsChanged(next)
+                                                }
+                                            )
+                                            Text(account, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    },
+                                    onClick = {
+                                        val next = if (account in selectedAccounts) selectedAccounts - account else selectedAccounts + account
+                                        onAccountsChanged(next)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
         }
 
+        // ── Merged Balance + Income + Expenses card (fixed) ──
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                val sym = getCurrencySymbol(state.currency)
-
-                StatCard(
-                    label = "Current Balance",
-                    value = formatCurrency(displayBalance, sym), // Uses dynamic display balance!
-                    trendPercentage = state.balanceChangePercent,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-                StatCard(
-                    label = "Monthly Income",
-                    value = formatCurrency(state.monthlyIncome, sym),
-                    trendPercentage = state.incomeChangePercent,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-                StatCard(
-                    label = "Monthly Expenses",
-                    value = formatCurrency(state.monthlyExpenses, sym),
-                    trendPercentage = state.expenseChangePercent,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-
-                // Net Savings trend calculated dynamically
-                val netSavingsTrend = state.incomeChangePercent - state.expenseChangePercent
-                StatCard(
-                    label = "Net Savings",
-                    value = formatCurrency(state.monthlyIncome - state.monthlyExpenses, sym),
-                    trendPercentage = netSavingsTrend,
-                    modifier = Modifier.weight(1f).fillMaxHeight()
-                )
-            }
+            FinancialOverviewCard(
+                balance = formatCurrency(displayBalance, getCurrencySymbol(state.currency)),
+                balanceTrend = state.balanceChangePercent,
+                income = formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)),
+                incomeTrend = state.incomeChangePercent,
+                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)),
+                expensesTrend = state.expenseChangePercent
+            )
         }
 
+        // Spending + Trend row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-
-                        // Uses filteredRawTransactions for dynamic Donut Chart filtering
-                        val filteredCategories = computeSpendingCategories(
-                            transactions = filteredRawTransactions,
-                            period = spendingPeriod,
-                            currency = state.currency
-                        )
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(24.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            DonutChart(categories = filteredCategories, modifier = Modifier.size(140.dp))
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (filteredCategories.isEmpty()) {
-                                    Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                } else {
-                                    filteredCategories.forEach { cat ->
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(Modifier.size(10.dp).background(cat.color, CircleShape))
-                                            Text("${cat.name}  ${(cat.percent * 100).toInt()}%",
-                                                style = MaterialTheme.typography.bodySmall)
-                                            Text(cat.amount, style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if ("spending" !in deletedCards) {
+                    CustomizableCard(
+                        cardKey = "spending",
+                        isCustomizing = isCustomizing,
+                        onDelete = { deletedCards = deletedCards + it },
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
+                            val filteredCategories = computeSpendingCategories(
+                                transactions = filteredRawTransactions,
+                                period = spendingPeriod,
+                                currency = state.currency
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                DonutChart(categories = filteredCategories, modifier = Modifier.size(140.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (filteredCategories.isEmpty()) {
+                                        Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    } else {
+                                        filteredCategories.forEach { cat ->
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(Modifier.size(10.dp).background(cat.color, CircleShape))
+                                                Text("${cat.name}  ${(cat.percent * 100).toInt()}%",
+                                                    style = MaterialTheme.typography.bodySmall)
+                                                Text(cat.amount, style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
                                         }
                                     }
                                 }
@@ -717,133 +673,165 @@ private fun DesktopDashboard(
                         }
                     }
                 }
-                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SectionTitle("Monthly Trend")
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            LegendDot(color = Color(0xFF16A34A), label = "In")
-                            LegendDot(color = Color(0xFFEF4444), label = "Out")
+                if ("trend" !in deletedCards) {
+                    CustomizableCard(
+                        cardKey = "trend",
+                        isCustomizing = isCustomizing,
+                        onDelete = { deletedCards = deletedCards + it },
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SectionTitle("Monthly Trend")
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                LegendDot(color = Color(0xFF16A34A), label = "In")
+                                LegendDot(color = Color(0xFFEF4444), label = "Out")
+                            }
+                            LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(160.dp))
                         }
-                        LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(160.dp))
                     }
                 }
             }
         }
 
+        // Top Categories + Budget row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SectionTitle("Monthly Spending Comparison")
-                        BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
+                if ("top_categories" !in deletedCards) {
+                    CustomizableCard(
+                        cardKey = "top_categories",
+                        isCustomizing = isCustomizing,
+                        onDelete = { deletedCards = deletedCards + it },
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    ) {
+                        Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SectionTitle("Monthly Spending Comparison")
+                            BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
+                        }
                     }
                 }
-//                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
-//                    Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-//                        BudgetProgressCard(authToken = authToken, transactions = state.rawTransactions, currency = state.currency, api = budgetApi)
-//                    }
-//                }
-                Column(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-
-                ) {
-                    BudgetProgressCard(
-                        api = budgetApi,
-                        authToken = authToken,
-                        transactions = state.rawTransactions,
-                        currency = state.currency
-                    )
-
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
+                if ("budget" !in deletedCards) {
+                    CustomizableCard(
+                        cardKey = "budget",
+                        isCustomizing = isCustomizing,
+                        onDelete = { deletedCards = deletedCards + it },
+                        modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
-                        DashboardCustomizeButton(
-                            onClick = { showCustomizeSheet = true }
+                        BudgetProgressCardContent(
+                            api = budgetApi,
+                            authToken = authToken,
+                            transactions = state.rawTransactions,
+                            currency = state.currency
                         )
                     }
                 }
             }
         }
 
+        // + Charts button
+        item {
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                DashboardChartsButton(onClick = { showCustomizeSheet = true })
+            }
+        }
+
+        // Transactions + Accounts + Quick Actions row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                DashboardCard(modifier = Modifier.weight(1.4f).fillMaxHeight()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            SectionTitle("Recent Transactions")
-                            Text("View all", style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.clickable { onViewAllTransactionsClicked() })
-                        }
-                        if (state.recentTransactions.isEmpty()) {
-                            Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            state.recentTransactions.forEach { tx -> TransactionRow(tx) }
-                        }
-                    }
-                }
-                DashboardCard(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionTitle("Accounts Overview")
-                        if (state.accounts.isEmpty()) {
-                            Text("No accounts connected yet", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            state.accounts.forEach { account ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(account.bankName, style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium)
-                                        Text("**** ${account.maskedNumber}", style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(account.balance, style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold)
-                                        Text("Connected", style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFF16A34A))
-                                    }
-                                }
-                                if (account != state.accounts.last()) HorizontalDivider()
+                if ("transactions" !in deletedCards) {
+                    CustomizableCard(
+                        cardKey = "transactions",
+                        isCustomizing = isCustomizing,
+                        onDelete = { deletedCards = deletedCards + it },
+                        modifier = Modifier.weight(1.4f).fillMaxHeight()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                SectionTitle("Recent Transactions")
+                                Text("View all", style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.clickable { onViewAllTransactionsClicked() })
+                            }
+                            if (state.recentTransactions.isEmpty()) {
+                                Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                state.recentTransactions.forEach { tx -> TransactionRow(tx) }
                             }
                         }
-                        Spacer(Modifier.height(4.dp))
-                        OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
-                            Text("+ Add Account", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                if ("accounts_overview" !in deletedCards) {
+                    CustomizableCard(
+                        cardKey = "accounts_overview",
+                        isCustomizing = isCustomizing,
+                        onDelete = { deletedCards = deletedCards + it },
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SectionTitle("Accounts Overview")
+                            if (state.accounts.isEmpty()) {
+                                Text("No accounts connected yet", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                state.accounts.forEach { account ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(account.bankName, style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium)
+                                            Text("**** ${account.maskedNumber}", style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(account.balance, style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold)
+                                            Text("Connected", style = MaterialTheme.typography.labelSmall,
+                                                color = Color(0xFF16A34A))
+                                        }
+                                    }
+                                    if (account != state.accounts.last()) HorizontalDivider()
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
+                                Text("+ Add Account", style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
                 }
-                DashboardCard(modifier = Modifier.weight(0.8f).fillMaxHeight()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionTitle("Quick Actions")
-                        Button(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                            Text("+ Connect Account", style = MaterialTheme.typography.labelMedium)
+                if ("quick_actions" !in deletedCards) {
+                    CustomizableCard(
+                        cardKey = "quick_actions",
+                        isCustomizing = isCustomizing,
+                        onDelete = { deletedCards = deletedCards + it },
+                        modifier = Modifier.weight(0.8f).fillMaxHeight()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SectionTitle("Quick Actions")
+                            Button(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                                Text("+ Connect Account", style = MaterialTheme.typography.labelMedium)
+                            }
+                            OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                                Text("Create Budget", style = MaterialTheme.typography.labelMedium)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            SectionTitle("Upcoming Bills")
+                            Text("Coming soon", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                            Text("Create Budget", style = MaterialTheme.typography.labelMedium)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        SectionTitle("Upcoming Bills")
-                        Text("Coming soon", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -1062,7 +1050,7 @@ private fun BarChart(data: List<MonthlyTopCategory>, modifier: Modifier = Modifi
 
 
 @Composable
-private fun BudgetProgressCard(
+private fun BudgetProgressCardContent(
     authToken: String,
     transactions: List<TransactionData>,
     currency: String,
@@ -1091,88 +1079,86 @@ private fun BudgetProgressCard(
         loadBudgets()
     }
 
-    DashboardCard {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Budget Progress")
-            if (errorMsg != null) {
-                Text(
-                    text = errorMsg ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFDC2626)
-                )
-            }
-            if (budgets.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(120.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SectionTitle("Budget Progress")
+        if (errorMsg != null) {
+            Text(
+                text = errorMsg ?: "",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFDC2626)
+            )
+        }
+        if (budgets.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        IconButton(
-                            onClick = {
-                                editBudget = null
-                                errorMsg = null
-                                showDialog = true
-                            },
-                            modifier = Modifier.size(48.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape)
-                        ) {
-                            Text(
-                                "+", fontSize = 24.sp,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                fontWeight = FontWeight.Light
-                            )
-                        }
-                        Text(
-                            "Add a budget",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
-            } else {
-                // Show budgets with Edit and Delete icons
-                budgetsWithSpending.take(3).forEach { item ->
-                    CompactBudgetProgressRow(
-                        item = item,
-                        symbol = symbol,
-                        onEdit = {
-                            editBudget = item.budget
+                    IconButton(
+                        onClick = {
+                            editBudget = null
                             errorMsg = null
                             showDialog = true
                         },
-                        onDelete = {
-                            scope.launch {
-                                when (val res = api.deleteBudget(authToken, item.budget.id)) {
-                                    is BudgetResult.Success -> {
-                                        errorMsg = null
-                                        loadBudgets()
-                                    }
-
-                                    is BudgetResult.Failure -> {
-                                        errorMsg = res.message
-                                    }
-                                }
-                            }
-                        }
+                        modifier = Modifier.size(48.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    ) {
+                        Text(
+                            "+", fontSize = 24.sp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Light
+                        )
+                    }
+                    Text(
+                        "Add a budget",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-
-                Spacer(Modifier.height(4.dp))
-                OutlinedButton(
-                    onClick = {
-                        editBudget = null
+            }
+        } else {
+            // Show budgets with Edit and Delete icons
+            budgetsWithSpending.take(3).forEach { item ->
+                CompactBudgetProgressRow(
+                    item = item,
+                    symbol = symbol,
+                    onEdit = {
+                        editBudget = item.budget
                         errorMsg = null
                         showDialog = true
                     },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("+ Add Budget", style = MaterialTheme.typography.labelMedium)
-                }
+                    onDelete = {
+                        scope.launch {
+                            when (val res = api.deleteBudget(authToken, item.budget.id)) {
+                                is BudgetResult.Success -> {
+                                    errorMsg = null
+                                    loadBudgets()
+                                }
+
+                                is BudgetResult.Failure -> {
+                                    errorMsg = res.message
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
+            OutlinedButton(
+                onClick = {
+                    editBudget = null
+                    errorMsg = null
+                    showDialog = true
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("+ Add Budget", style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -1276,6 +1262,260 @@ private fun SpendingOverviewHeader(
                 }
             }
         }
+    }
+}
+
+// ── Futuristic merged balance/income/expense card ─────────────────────────────
+
+@Composable
+private fun FinancialOverviewCard(
+    balance: String,
+    balanceTrend: Float,
+    income: String,
+    incomeTrend: Float,
+    expenses: String,
+    expensesTrend: Float
+) {
+    val accentColor = MaterialTheme.colorScheme.primary
+    val glowColor   = accentColor.copy(alpha = 0.18f)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+    ) {
+        // Outer glow border using Canvas
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val cornerR = 16.dp.toPx()
+            val strokeW = 2.5.dp.toPx()
+            // Outer glow layer
+            drawRoundRect(
+                color        = glowColor,
+                size         = size,
+                cornerRadius = CornerRadius(cornerR + 4.dp.toPx()),
+                style        = Stroke(width = 8.dp.toPx())
+            )
+            // Crisp accent border
+            drawRoundRect(
+                color        = accentColor.copy(alpha = 0.7f),
+                size         = size,
+                cornerRadius = CornerRadius(cornerR),
+                style        = Stroke(width = strokeW)
+            )
+        }
+
+        Card(
+            modifier  = Modifier.fillMaxWidth(),
+            shape     = RoundedCornerShape(16.dp),
+            colors    = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left: Current Balance (larger)
+                Column(
+                    modifier = Modifier.weight(1.5f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text  = "Current Balance",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = accentColor.copy(alpha = 0.8f),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text  = balance,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    TrendIndicator(percentageChange = balanceTrend)
+                }
+
+                // Vertical divider
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(72.dp)
+                        .background(accentColor.copy(alpha = 0.25f))
+                )
+
+                // Right: Income + Expenses stacked
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Income
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(Color(0xFF16A34A), CircleShape)
+                            )
+                            Text(
+                                text  = "Monthly Income",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text  = income,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TrendIndicator(percentageChange = incomeTrend)
+                    }
+
+                    HorizontalDivider(color = accentColor.copy(alpha = 0.12f))
+
+                    // Expenses
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(Color(0xFFEF4444), CircleShape)
+                            )
+                            Text(
+                                text  = "Monthly Expenses",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text  = expenses,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TrendIndicator(percentageChange = expensesTrend)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Customizable card wrapper (delete + move overlays) ────────────────────────
+
+@Composable
+private fun CustomizableCard(
+    cardKey: String,
+    isCustomizing: Boolean,
+    onDelete: (String) -> Unit,
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    // Tracks cumulative vertical drag so we swap once per card-height crossed
+    var dragAccumY by remember { mutableFloatStateOf(0f) }
+    // Rough card height estimate for swap threshold (in px, ~200dp)
+    val swapThresholdPx = with(LocalDensity.current) { 200.dp.toPx() }
+
+    Box(modifier = modifier) {
+        DashboardCard(modifier = Modifier.fillMaxWidth(), content = content)
+
+        if (isCustomizing) {
+            // ── Delete button: top-right red minus-in-circle ──
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 10.dp, y = (-10).dp)
+                    .size(24.dp)
+                    .background(Color(0xFFEF4444), CircleShape)
+                    .clickable { onDelete(cardKey) },
+                contentAlignment = Alignment.Center
+            ) {
+                MinusIcon(
+                    modifier = Modifier.size(12.dp),
+                    color    = Color.White
+                )
+            }
+
+            // ── Move handle: bottom-left circle, long-press + drag to reorder ──
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .offset(x = (-10).dp, y = 10.dp)
+                    .size(24.dp)
+                    .background(MaterialTheme.colorScheme.outline, CircleShape)
+                    .pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { dragAccumY = 0f },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragAccumY += dragAmount.y
+                                when {
+                                    dragAccumY > swapThresholdPx -> {
+                                        onMoveDown()
+                                        dragAccumY = 0f
+                                    }
+                                    dragAccumY < -swapThresholdPx -> {
+                                        onMoveUp()
+                                        dragAccumY = 0f
+                                    }
+                                }
+                            },
+                            onDragEnd   = { dragAccumY = 0f },
+                            onDragCancel = { dragAccumY = 0f }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                MoveIcon(
+                    modifier = Modifier.size(12.dp),
+                    color    = MaterialTheme.colorScheme.surface
+                )
+            }
+        }
+    }
+}
+
+// ── Four-arrow move icon drawn with Canvas ────────────────────────────────────
+
+@Composable
+private fun MoveIcon(
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurface
+) {
+    Canvas(modifier = modifier) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val arm = size.minDimension * 0.28f
+        val head = size.minDimension * 0.14f
+        val sw = 1.8.dp.toPx()
+
+        // Horizontal line
+        drawLine(color, Offset(cx - arm, cy), Offset(cx + arm, cy), strokeWidth = sw, cap = StrokeCap.Round)
+        // Vertical line
+        drawLine(color, Offset(cx, cy - arm), Offset(cx, cy + arm), strokeWidth = sw, cap = StrokeCap.Round)
+
+        // Arrow heads (left, right, up, down)
+        // Left
+        drawLine(color, Offset(cx - arm, cy), Offset(cx - arm + head, cy - head), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(color, Offset(cx - arm, cy), Offset(cx - arm + head, cy + head), strokeWidth = sw, cap = StrokeCap.Round)
+        // Right
+        drawLine(color, Offset(cx + arm, cy), Offset(cx + arm - head, cy - head), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(color, Offset(cx + arm, cy), Offset(cx + arm - head, cy + head), strokeWidth = sw, cap = StrokeCap.Round)
+        // Up
+        drawLine(color, Offset(cx, cy - arm), Offset(cx - head, cy - arm + head), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(color, Offset(cx, cy - arm), Offset(cx + head, cy - arm + head), strokeWidth = sw, cap = StrokeCap.Round)
+        // Down
+        drawLine(color, Offset(cx, cy + arm), Offset(cx - head, cy + arm - head), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(color, Offset(cx, cy + arm), Offset(cx + head, cy + arm - head), strokeWidth = sw, cap = StrokeCap.Round)
     }
 }
 
@@ -1425,7 +1665,7 @@ private fun UpcomingBillRow(name: String, date: String, amount: String) {
 }
 
 @Composable
-private fun DashboardCustomizeButton(
+private fun DashboardChartsButton(
     onClick: () -> Unit
 ) {
     OutlinedButton(
@@ -1439,14 +1679,52 @@ private fun DashboardCustomizeButton(
             contentDescription = null,
             modifier = Modifier.size(16.dp)
         )
-
         Spacer(modifier = Modifier.width(6.dp))
-
         Text(
-            text = "Customise",
+            text = "Charts",
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+@Composable
+private fun DashboardCustomizeButton(
+    isCustomizing: Boolean,
+    onClick: () -> Unit
+) {
+    if (isCustomizing) {
+        Button(
+            onClick = onClick,
+            modifier = Modifier.height(36.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Icon(
+                painter = painterResource(Res.drawable.check),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Done",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier.height(36.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(18.dp)
+        ) {
+            Text(
+                text = "Customise",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
