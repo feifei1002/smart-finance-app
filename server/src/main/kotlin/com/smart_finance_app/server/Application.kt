@@ -138,5 +138,7 @@ fun Application.module() {
             }
             call.respondText("OK")
         }
+
+        subscriptionRoutes()
     }
 }
