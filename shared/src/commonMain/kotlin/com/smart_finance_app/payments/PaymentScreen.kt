@@ -47,11 +47,24 @@ fun PaymentScreen(
     paymentDetails: PaymentDetailsResponse?,
     isLoading: Boolean,
     errorMessage: String?,
+    invoices: List<BillingInvoiceResponse>,
+    invoicesLoading: Boolean,
+    invoicesError: String?,
+    billingAddress: BillingAddressResponse?,
+    billingAddressLoading: Boolean,
+    billingAddressError: String?,
+    fullName: String,
+    email: String,
     isOpeningPortal: Boolean,
     onChangePaymentCard: () -> Unit,
     onViewPlans: () -> Unit,
     onBack: () -> Unit
 ) {
+    val status = paymentDetails?.subscriptionStatus ?: "free"
+
+    val isPaidPlan = status.equals("basic", ignoreCase = true) ||
+            status.equals("pro", ignoreCase = true)
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
@@ -99,9 +112,31 @@ fun PaymentScreen(
                 } else {
                     PaymentDetailsCard(
                         paymentDetails = paymentDetails,
+                        isPaidPlan = isPaidPlan,
                         isOpeningPortal = isOpeningPortal,
                         onChangePaymentCard = onChangePaymentCard,
                         onViewPlans = onViewPlans
+                    )
+
+                    BillingHistorySection(
+                        invoices = invoices,
+                        isLoading = invoicesLoading,
+                        errorMessage = invoicesError
+                    )
+
+                    BillingInformationSection(
+                        billingInformation = billingAddress,
+                        fallbackFullName = fullName,
+                        fallbackEmail = email,
+                        isLoading = billingAddressLoading,
+                        errorMessage = billingAddressError,
+                        onUpdateBillingInformation = onChangePaymentCard
+                    )
+
+                    CancelPlanSection(
+                        isPaidPlan = isPaidPlan,
+                        isOpeningPortal = isOpeningPortal,
+                        onCancelPlan = onChangePaymentCard
                     )
                 }
 
@@ -137,14 +172,13 @@ private fun LoadingPaymentCard() {
 @Composable
 private fun PaymentDetailsCard(
     paymentDetails: PaymentDetailsResponse?,
+    isPaidPlan: Boolean,
     isOpeningPortal: Boolean,
     onChangePaymentCard: () -> Unit,
     onViewPlans: () -> Unit
 ) {
     val status = paymentDetails?.subscriptionStatus ?: "free"
     val card = paymentDetails?.card
-    val isPaidPlan = status.equals("pro", ignoreCase = true) ||
-            status.equals("basic", ignoreCase = true)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -164,8 +198,8 @@ private fun PaymentDetailsCard(
 
                 Text(
                     text = "Current plan",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
 
                 PlanStars(starCount)
@@ -331,5 +365,232 @@ private fun cardBrandLabel(brand: String): String {
             .joinToString(" ") { word ->
                 word.replaceFirstChar { char -> char.uppercase() }
             }
+    }
+}
+
+@Composable
+private fun BillingHistorySection(
+    invoices: List<BillingInvoiceResponse>,
+    isLoading: Boolean,
+    errorMessage: String?
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Transaction history",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            when {
+                isLoading -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+
+                errorMessage != null -> {
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                invoices.isEmpty() -> {
+                    Text(
+                        text = "No billing transactions available yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                else -> {
+                    invoices.forEach { invoice ->
+                        InvoiceRow(invoice)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BillingInformationSection(
+    billingInformation: BillingAddressResponse?,
+    fallbackFullName: String,
+    fallbackEmail: String,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onUpdateBillingInformation: () -> Unit
+) {
+    val address = listOfNotNull(
+        billingInformation?.line1,
+        billingInformation?.line2,
+        billingInformation?.city,
+        billingInformation?.state,
+        billingInformation?.postalCode,
+        billingInformation?.country
+    ).joinToString(", ")
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Billing information",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            when {
+                isLoading -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
+
+                errorMessage != null -> Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error
+                )
+
+                else -> {
+                    BillingInfoRow(
+                        label = "Name",
+                        value = billingInformation?.name ?: fallbackFullName.ifBlank { "Not provided" }
+                    )
+
+                    BillingInfoRow(
+                        label = "Email",
+                        value = billingInformation?.email ?: fallbackEmail.ifBlank { "Not provided" }
+                    )
+
+                    BillingInfoRow(
+                        label = "Address",
+                        value = address.ifBlank { "Not provided" }
+                    )
+                }
+            }
+
+            OutlinedButton(
+                onClick = onUpdateBillingInformation,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Update billing information")
+            }
+        }
+    }
+}
+
+@Composable
+private fun BillingInfoRow(label: String, value: String) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun InvoiceRow(invoice: BillingInvoiceResponse) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = invoice.number ?: "Invoice",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                text = invoice.createdAt.take(10),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Column(
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                text = "${invoice.currency} ${invoice.amountPaid}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Text(
+                text = invoice.status ?: "Unknown",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun CancelPlanSection(
+    isPaidPlan: Boolean,
+    isOpeningPortal: Boolean,
+    onCancelPlan: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = if (isPaidPlan) {
+                    "You can cancel your paid plan through the secure billing portal."
+                } else {
+                    "You are currently on the free plan."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            OutlinedButton(
+                enabled = isPaidPlan && !isOpeningPortal,
+                onClick = onCancelPlan,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    if (isOpeningPortal) {
+                        "Opening billing portal..."
+                    } else {
+                        "Cancel plan"
+                    }
+                )
+            }
+        }
     }
 }

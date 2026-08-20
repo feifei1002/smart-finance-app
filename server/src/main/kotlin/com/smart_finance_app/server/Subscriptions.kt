@@ -2,6 +2,7 @@ package com.smart_finance_app.server
 
 import com.stripe.Stripe
 import com.stripe.model.Customer
+import com.stripe.model.Invoice
 import com.stripe.model.PaymentMethod
 import com.stripe.model.Subscription
 import com.stripe.model.billingportal.Session as BillingPortalSession
@@ -9,6 +10,7 @@ import com.stripe.param.billingportal.SessionCreateParams as BillingPortalSessio
 import com.stripe.model.checkout.Session
 import com.stripe.net.Webhook
 import com.stripe.param.CustomerCreateParams
+import com.stripe.param.InvoiceListParams
 import com.stripe.param.PaymentMethodListParams
 import com.stripe.param.checkout.SessionCreateParams
 import io.ktor.http.ContentType
@@ -23,6 +25,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
+import java.time.Instant
 import java.util.UUID
 
 
@@ -47,6 +50,28 @@ data class PaymentCardResponse(
 @Serializable
 data class CustomerPortalResponse(val portalUrl: String)
 
+@Serializable
+data class BillingInvoiceResponse(
+    val id: String,
+    val number: String?,
+    val status: String?,
+    val amountPaid: Double,
+    val currency: String,
+    val createdAt: String,
+    val hostedInvoiceUrl: String?
+)
+
+@Serializable
+data class BillingAddressResponse(
+    val name: String?,
+    val email: String?,
+    val line1: String?,
+    val line2: String?,
+    val city: String?,
+    val state: String?,
+    val postalCode: String?,
+    val country: String?
+)
 private object StripeConfig {
     val secretKey: String get() = System.getenv("STRIPE_SECRET_KEY")
         ?: error("Missing environment variable: STRIPE_SECRET_KEY")
@@ -95,6 +120,7 @@ fun Route.subscriptionRoutes() {
                     .setCustomer(customerId)
                     .setSuccessUrl(StripeConfig.successUrl)
                     .setCancelUrl(StripeConfig.cancelUrl)
+                    .setBillingAddressCollection(SessionCreateParams.BillingAddressCollection.REQUIRED)
                     .setClientReferenceId(userId.toString())
                     .putMetadata("userId", userId.toString())
                     .addLineItem(
@@ -156,6 +182,84 @@ fun Route.subscriptionRoutes() {
             )
 
             call.respond(CustomerPortalResponse(portalUrl = portalSession.url))
+        }
+
+        get("/api/subscriptions/invoices") {
+            val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
+                ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val stripeCustomerId = getStripeCustomerId(userId)
+
+            if (stripeCustomerId == null) {
+                call.respond(emptyList<BillingInvoiceResponse>())
+                return@get
+            }
+
+            val invoices = runCatching {
+                val params = InvoiceListParams.builder()
+                    .setCustomer(stripeCustomerId)
+                    .setLimit(10L)
+                    .build()
+
+                Invoice.list(params).data.map { invoice ->
+                    BillingInvoiceResponse(
+                        id = invoice.id,
+                        number = invoice.number,
+                        status = invoice.status,
+                        amountPaid = invoice.amountPaid / 100.0,
+                        currency = invoice.currency.uppercase(),
+                        createdAt = Instant.ofEpochSecond(invoice.created).toString(),
+                        hostedInvoiceUrl = invoice.hostedInvoiceUrl
+                    )
+                }
+            }.getOrElse {
+                call.respond(
+                    HttpStatusCode.BadGateway,
+                    ErrorResponse("Could not load invoices")
+                )
+                return@get
+            }
+
+            call.respond(invoices)
+        }
+
+        get("/api/subscriptions/billing-information") {
+            val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
+                ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val stripeCustomerId = getStripeCustomerId(userId)
+
+            if (stripeCustomerId == null) {
+                call.respond(
+                    BillingAddressResponse(
+                        name = null,
+                        email = null,
+                        line1 = null,
+                        line2 = null,
+                        city = null,
+                        state = null,
+                        postalCode = null,
+                        country = null
+                    )
+                )
+                return@get
+            }
+
+            val customer = Customer.retrieve(stripeCustomerId)
+            val address = customer.address
+
+            call.respond(
+                BillingAddressResponse(
+                    name = customer.name,
+                    email = customer.email,
+                    line1 = address?.line1,
+                    line2 = address?.line2,
+                    city = address?.city,
+                    state = address?.state,
+                    postalCode = address?.postalCode,
+                    country = address?.country
+                )
+            )
         }
     }
 
@@ -363,6 +467,28 @@ private fun getDefaultCardForCustomer(customerId: String): PaymentCardResponse? 
         expMonth = card.expMonth,
         expYear = card.expYear
     )
+}
+
+private fun getStripeCustomerId(userId: UUID): String? {
+    return Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+                SELECT stripe_customer_id
+                FROM users
+                WHERE id = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+
+            statement.executeQuery().use { result ->
+                if (result.next()) {
+                    result.getString("stripe_customer_id")
+                } else {
+                    null
+                }
+            }
+        }
+    }
 }
 
 /**

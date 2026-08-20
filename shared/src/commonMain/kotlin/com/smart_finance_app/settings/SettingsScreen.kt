@@ -43,6 +43,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.payments.BillingAddressResponse
+import com.smart_finance_app.payments.BillingAddressResult
+import com.smart_finance_app.payments.BillingInvoiceResponse
+import com.smart_finance_app.payments.BillingInvoicesResult
 import com.smart_finance_app.payments.CheckoutResult
 import com.smart_finance_app.payments.CustomerPortalResult
 import com.smart_finance_app.payments.PaymentDetailsResponse
@@ -87,9 +91,19 @@ fun SettingsScreen(
     var subscriptionStatus by remember { mutableStateOf("free") }
     var subscriptionLoading by remember { mutableStateOf(false) }
     var subscriptionError by remember { mutableStateOf<String?>(null) }
+
     var paymentDetails by remember { mutableStateOf<PaymentDetailsResponse?>(null) }
     var paymentsLoading by remember { mutableStateOf(false) }
     var paymentsError by remember { mutableStateOf<String?>(null) }
+
+    var invoices by remember { mutableStateOf(emptyList<BillingInvoiceResponse>()) }
+    var invoicesLoading by remember { mutableStateOf(false) }
+    var invoicesError by remember { mutableStateOf<String?>(null) }
+
+    var billingAddress by remember { mutableStateOf<BillingAddressResponse?>(null) }
+    var billingAddressLoading by remember { mutableStateOf(false) }
+    var billingAddressError by remember { mutableStateOf<String?>(null) }
+
     var openingPaymentPortal by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(SettingsPanel.Main) }
     var selectedLanguage by remember { mutableStateOf("English") }
@@ -181,6 +195,30 @@ fun SettingsScreen(
         }
     }
 
+    LaunchedEffect(authToken, panel) {
+        if (authToken.isNotBlank() && panel == SettingsPanel.Payments) {
+            invoicesLoading = true
+            invoicesError = null
+
+            when (val result = subscriptionApi.getInvoices(authToken)) {
+                is BillingInvoicesResult.Success -> invoices = result.invoices
+                is BillingInvoicesResult.Failure -> invoicesError = result.message
+            }
+
+            invoicesLoading = false
+
+            billingAddressLoading = true
+            billingAddressError = null
+
+            when (val result = subscriptionApi.getBillingAddress(authToken)) {
+                is BillingAddressResult.Success -> billingAddress = result.address
+                is BillingAddressResult.Failure -> billingAddressError = result.message
+            }
+
+            billingAddressLoading = false
+        }
+    }
+
     when (panel) {
         SettingsPanel.Main -> {
             SettingsMainContent(
@@ -212,6 +250,14 @@ fun SettingsScreen(
                 paymentDetails = paymentDetails,
                 isLoading = paymentsLoading,
                 errorMessage = paymentsError,
+                invoices = invoices,
+                invoicesLoading = invoicesLoading,
+                invoicesError = invoicesError,
+                billingAddress = billingAddress,
+                billingAddressLoading = billingAddressLoading,
+                billingAddressError = billingAddressError,
+                fullName = userName,
+                email = userEmail,
                 isOpeningPortal = openingPaymentPortal,
                 onChangePaymentCard = {
                     scope.launch {

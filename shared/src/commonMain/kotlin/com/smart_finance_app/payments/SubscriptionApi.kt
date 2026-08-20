@@ -28,6 +28,29 @@ data class PaymentCardResponse(
 @Serializable
 data class CustomerPortalResponse(val portalUrl: String)
 
+@Serializable
+data class BillingInvoiceResponse(
+    val id: String,
+    val number: String? = null,
+    val status: String? = null,
+    val amountPaid: Double,
+    val currency: String,
+    val createdAt: String,
+    val hostedInvoiceUrl: String? = null
+)
+
+@Serializable
+data class BillingAddressResponse(
+    val name: String? = null,
+    val email: String? = null,
+    val line1: String? = null,
+    val line2: String? = null,
+    val city: String? = null,
+    val state: String? = null,
+    val postalCode: String? = null,
+    val country: String? = null
+)
+
 sealed interface CheckoutResult {
     data class Success(val checkoutUrl: String): CheckoutResult
     data class Failure(val message: String): CheckoutResult
@@ -48,6 +71,16 @@ sealed interface CustomerPortalResult {
     data class Failure(val message: String): CustomerPortalResult
 }
 
+sealed interface BillingInvoicesResult {
+    data class Success(val invoices: List<BillingInvoiceResponse>): BillingInvoicesResult
+    data class Failure(val message: String): BillingInvoicesResult
+}
+
+sealed interface BillingAddressResult {
+    data class Success(val address: BillingAddressResponse) : BillingAddressResult
+    data class Failure(val message: String): BillingAddressResult
+}
+
 class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
 
@@ -63,7 +96,7 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
                 else -> SubscriptionStatusResult.Failure("Could not load subscription status. Status: ${response.status.value}")
 
             }
-        } catch (exception: Exception) {
+        } catch (_: Exception) {
             SubscriptionStatusResult.Failure("Cannot connect to the server.")
         }
     }
@@ -79,7 +112,7 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
                 HttpStatusCode.Unauthorized -> CheckoutResult.Failure("Your session expired. Please sign in again.")
                 else -> CheckoutResult.Failure("Could not start checkout. Status: ${response.status.value}")
             }
-        } catch (exception: Exception) {
+        } catch (_: Exception) {
             CheckoutResult.Failure("Cannot connect to the server.")
         }
     }
@@ -113,6 +146,38 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
             }
         } catch (_: Exception) {
             CustomerPortalResult.Failure("Cannot connect to the server")
+        }
+    }
+
+    suspend fun getInvoices(token: String): BillingInvoicesResult {
+        return try {
+            val response = client.get("$normalizedBaseUrl/api/subscriptions/invoices") {
+                bearerAuth(token)
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> BillingInvoicesResult.Success(response.body())
+                HttpStatusCode.Unauthorized -> BillingInvoicesResult.Failure("Your session expired. Please try again.")
+                else -> BillingInvoicesResult.Failure("Could not load billing history. Status: ${response.status.value}")
+            }
+        } catch (_: Exception) {
+            BillingInvoicesResult.Failure("Cannot connect to the server")
+        }
+    }
+
+    suspend fun getBillingAddress(token: String): BillingAddressResult {
+        return try {
+            val response = client.get("$normalizedBaseUrl/api/subscriptions/billing-information") {
+                bearerAuth(token)
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> BillingAddressResult.Success(response.body())
+                HttpStatusCode.Unauthorized -> BillingAddressResult.Failure("Your session expired. Please sign in again.")
+                else -> BillingAddressResult.Failure("Could not load billing information. Status: ${response.status.value}")
+            }
+        } catch (_: Exception) {
+            BillingAddressResult.Failure("Cannot connect to the server")
         }
     }
 }
