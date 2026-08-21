@@ -28,4 +28,5 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.gson)
     implementation(libs.jakarta.mail)
+    implementation(libs.stripe.java)
 }
