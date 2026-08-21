@@ -290,12 +290,17 @@ fun Route.subscriptionRoutes() {
             "customer.subscription.deleted" -> {
                 val subscription = event.dataObjectDeserializer.getObject().orElse(null) as? Subscription
                 if (subscription != null) {
-                    markSubscriptionFreeByBySubscriptionId(subscription.id)
+                    markSubscriptionFreeBySubscriptionId(subscription.id)
                 }
             }
 
             "invoice.payment_failed" -> {
-                val subscription = event.dataObjectDeserializer.getObject().orElse(null)
+                val invoice = event.dataObjectDeserializer.getObject().orElse(null) as? Invoice
+                val customerId  = invoice?.customer
+
+                if (!customerId.isNullOrBlank()) {
+                    markSubscriptionFreeByCustomerId(customerId)
+                }
             }
         }
 
@@ -428,7 +433,7 @@ private fun markSubscriptionBasic(userId: UUID, customerId: String?, subscriptio
     }
 }
 
-private fun markSubscriptionFreeByBySubscriptionId(subscriptionId: String) {
+private fun markSubscriptionFreeBySubscriptionId(subscriptionId: String) {
     Database.dataSource.connection.use { connection ->
         try {
             connection.prepareStatement(
@@ -444,6 +449,29 @@ private fun markSubscriptionFreeByBySubscriptionId(subscriptionId: String) {
         } catch (e: Exception) {
             connection.rollback()
             throw e
+        }
+    }
+}
+
+private fun markSubscriptionFreeByCustomerId(customerId: String) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                    UPDATE users
+                    SET subscription_status = 'free',
+                        subscription_updated_at = now()
+                    WHERE stripe_customer_id = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, customerId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
         }
     }
 }
