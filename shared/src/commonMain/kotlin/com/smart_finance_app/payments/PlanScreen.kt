@@ -18,7 +18,18 @@ import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.star
 
 @Composable
-fun PlanScreen(onBack: () -> Unit) {
+fun PlanScreen(
+    subscriptionStatus: String,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onSubscribeToBasic: () -> Unit,
+    onBack: () -> Unit
+) {
+    val isPaidPlan = subscriptionStatus.equals("pro", ignoreCase = true) ||
+            subscriptionStatus.equals("basic", ignoreCase = true)
+
+    val isFreePlan = !isPaidPlan
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
@@ -58,7 +69,8 @@ fun PlanScreen(onBack: () -> Unit) {
                     price = "£0",
                     priceDetailTop = "GBP / forever",
                     priceDetailBottom = "no hidden fees",
-                    buttonText = "Select Free Plan",
+                    buttonText = if (isFreePlan) "Current Plan" else "Free Plan",
+                    enabled = false,
                     starCount = 1,
                     features = listOf(
                         "Up to two linked accounts",
@@ -73,7 +85,9 @@ fun PlanScreen(onBack: () -> Unit) {
                     price = "£5",
                     priceDetailTop = "GBP / month",
                     priceDetailBottom = "billed monthly",
-                    buttonText = "Select Basic Plan",
+                    buttonText = if (isPaidPlan) "Current Plan" else "Subscribe to Basic",
+                    enabled = !isPaidPlan && !isLoading,
+                    onClick = onSubscribeToBasic,
                     starCount = 2,
                     features = listOf(
                         "Unlimited linked accounts",
@@ -97,6 +111,8 @@ fun PlanCard(
     priceDetailTop: String? = null,
     priceDetailBottom: String? = null,
     buttonText: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit = {},
     starCount: Int = 1,
     features: List<String>
 ) {
@@ -184,7 +200,8 @@ fun PlanCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 OutlinedButton(
-                    onClick = { /* Handle Plan Selection */ },
+                    enabled = enabled,
+                    onClick = onClick,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
