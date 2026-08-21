@@ -93,6 +93,8 @@ private object StripeConfig {
 }
 
 fun Route.subscriptionRoutes() {
+    Stripe.apiKey = StripeConfig.secretKey
+
     authenticate("auth-jwt") {
         get("/api/subscriptions/me") {
             val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
@@ -105,7 +107,6 @@ fun Route.subscriptionRoutes() {
             val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
                 ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-            Stripe.apiKey = StripeConfig.secretKey
 
             val user = getSubscriptionUser(userId)
                 ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
@@ -138,7 +139,6 @@ fun Route.subscriptionRoutes() {
             val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
                 ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-            Stripe.apiKey = StripeConfig.secretKey
 
             val user = getSubscriptionUser(userId)
                 ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
@@ -163,7 +163,6 @@ fun Route.subscriptionRoutes() {
             val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
                 ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-            Stripe.apiKey = StripeConfig.secretKey
 
             val user = getSubscriptionUser(userId)
                 ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
