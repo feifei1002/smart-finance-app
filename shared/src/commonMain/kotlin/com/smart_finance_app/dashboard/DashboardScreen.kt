@@ -39,7 +39,10 @@ import com.smart_finance_app.budget.BudgetResult
 import com.smart_finance_app.budget.AddBudgetDialog
 import com.smart_finance_app.budget.CompactBudgetProgressRow
 import com.smart_finance_app.budget.computeBudgetsWithSpending
+import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import org.jetbrains.compose.resources.painterResource
@@ -59,7 +62,31 @@ data class MonthlyPoint(val month: String, val income: Float, val expenses: Floa
 data class Transaction(val name: String, val date: String, val amount: String, val isIncome: Boolean)
 data class AccountOverview(val bankName: String, val maskedNumber: String, val balance: String)
 
-/** Swaps two items in a MutableList by index. */
+// ── Chart card catalogue ──────────────────────────────────────────────────────
+
+enum class CardSize { FULL, HALF }
+
+data class ChartCardDef(
+    val key: String,
+    val title: String,
+    val description: String,
+    val size: CardSize
+)
+
+/** All chart cards available to add via the + Charts sheet. */
+val ALL_CHART_CARDS = listOf(
+    ChartCardDef("weekly_spending",     "Weekly Spending",            "Day-by-day bar chart of your spending this week.",             CardSize.FULL),
+    ChartCardDef("bank_comparison",     "Bank Account Comparison",    "Monthly spending per bank account, side by side.",             CardSize.HALF),
+    ChartCardDef("time_of_day",         "Spending by Time of Day",    "Morning, afternoon and night breakdown as a donut chart.",     CardSize.HALF),
+    ChartCardDef("largest_tx",          "Largest Transactions",       "Top 5 biggest outgoing transactions this month.",              CardSize.HALF),
+    ChartCardDef("smallest_tx",         "Smallest Transactions",      "Top 5 smallest outgoing transactions this month.",             CardSize.HALF),
+    ChartCardDef("merchant_frequency",  "Merchant Frequency",         "Your 5 most-visited merchants this month as a bubble chart.", CardSize.FULL)
+)
+
+/** Built-in cards always start on the dashboard (never in the + Charts sheet). */
+private val BUILTIN_CARD_KEYS = setOf("spending", "trend", "top_categories", "budget")
+
+/** Swaps two elements in a MutableList by index. */
 private fun <T> MutableList<T>.move(from: Int, to: Int) {
     if (from == to) return
     val item = removeAt(from)
@@ -231,13 +258,15 @@ private fun MobileDashboard(
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var isCustomizing by remember { mutableStateOf(false) }
-    var showCustomizeSheet by remember { mutableStateOf(false) }
-    // Track which card keys have been deleted by the user
+    var showChartsSheet by remember { mutableStateOf(false) }
+    // deletedCards: built-in card keys removed from dashboard
     var deletedCards by remember { mutableStateOf(setOf<String>()) }
-    // Ordered list of movable card keys (Recent Transactions is fixed below, not here)
+    // cardOrder: ordered slot keys on dashboard; "trend|top_categories" = half-size pair
     val cardOrder = remember {
-        mutableStateListOf("spending", "trend", "top_categories", "budget")
+        mutableStateListOf("spending", "trend|top_categories", "budget")
     }
+    // chart cards from the + Charts sheet currently on the dashboard
+    var chartCardsOnDashboard by remember { mutableStateOf(setOf<String>()) }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
     val activeAccounts = remember(selectedAccounts, state.accounts) {
@@ -269,8 +298,16 @@ private fun MobileDashboard(
     else "${selectedAccounts.size} accounts"
 
     @OptIn(ExperimentalMaterial3Api::class)
-    if (showCustomizeSheet) {
-        DashboardCustomizeBottomSheet(onDismiss = { showCustomizeSheet = false })
+    if (showChartsSheet) {
+        ChartsBottomSheet(
+            chartCardsOnDashboard = chartCardsOnDashboard,
+            onAddChart = { key ->
+                chartCardsOnDashboard = chartCardsOnDashboard + key
+                cardOrder.add(cardOrder.size, key)
+                showChartsSheet = false
+            },
+            onDismiss = { showChartsSheet = false }
+        )
     }
 
     LazyColumn(
@@ -371,82 +408,113 @@ private fun MobileDashboard(
             )
         }
 
-        // Movable + deletable cards rendered in user-defined order
-        itemsIndexed(cardOrder, key = { _, key -> key }) { index, cardKey ->
-            if (cardKey !in deletedCards) {
-                CustomizableCard(
-                    cardKey      = cardKey,
-                    isCustomizing = isCustomizing,
-                    onDelete     = { deletedCards = deletedCards + it },
-                    onMoveUp     = { if (index > 0) cardOrder.move(index, index - 1) },
-                    onMoveDown   = { if (index < cardOrder.lastIndex) cardOrder.move(index, index + 1) }
-                ) {
-                    when (cardKey) {
-                        "spending" -> {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-                                val filteredCategories = computeSpendingCategories(
-                                    transactions = filteredRawTransactions,
-                                    period = spendingPeriod,
-                                    currency = state.currency
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    DonutChart(categories = filteredCategories, modifier = Modifier.size(120.dp))
-                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        if (filteredCategories.isEmpty()) {
-                                            Text(
-                                                text = "No spending data yet",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        } else {
-                                            filteredCategories.forEach { cat -> CategoryLegendRow(cat) }
+        // ── Dynamic card list ─────────────────────────────────────────────────
+        itemsIndexed(cardOrder, key = { _, key -> key }) { index, slotKey ->
+            if (slotKey.contains('|')) {
+                // Half-size pair slot (e.g. "trend|top_categories")
+                val keys = slotKey.split('|')
+                val visible = keys.filter { it !in deletedCards }
+                if (visible.isNotEmpty()) {
+                    if (visible.size == 1) {
+                        val k = visible[0]
+                        CustomizableCard(
+                            cardKey       = k,
+                            isCustomizing = isCustomizing,
+                            onDelete      = { deletedCards = deletedCards + it },
+                            onMoveUp      = { if (index > 0) cardOrder.move(index, index - 1) },
+                            onMoveDown    = { if (index < cardOrder.lastIndex) cardOrder.move(index, index + 1) }
+                        ) { HalfCardContent(k, state) }
+                    } else {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            visible.forEach { k ->
+                                CustomizableCard(
+                                    cardKey       = k,
+                                    isCustomizing = isCustomizing,
+                                    onDelete      = { deletedCards = deletedCards + it },
+                                    onMoveUp      = { if (index > 0) cardOrder.move(index, index - 1) },
+                                    onMoveDown    = { if (index < cardOrder.lastIndex) cardOrder.move(index, index + 1) },
+                                    modifier      = Modifier.weight(1f)
+                                ) { HalfCardContent(k, state) }
+                            }
+                        }
+                    }
+                }
+            } else {
+                val def = ALL_CHART_CARDS.find { it.key == slotKey }
+                val isChartCard = def != null
+                val visible = slotKey !in deletedCards && (!isChartCard || slotKey in chartCardsOnDashboard)
+                if (visible) {
+                    val isHalf = def?.size == CardSize.HALF
+                    if (isHalf) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            CustomizableCard(
+                                cardKey       = slotKey,
+                                isCustomizing = isCustomizing,
+                                onDelete      = {
+                                    chartCardsOnDashboard = chartCardsOnDashboard - it
+                                    cardOrder.remove(it)
+                                },
+                                onMoveUp      = { if (index > 0) cardOrder.move(index, index - 1) },
+                                onMoveDown    = { if (index < cardOrder.lastIndex) cardOrder.move(index, index + 1) },
+                                modifier      = Modifier.weight(1f)
+                            ) { ChartCardContent(slotKey, state, filteredRawTransactions) }
+                            Spacer(Modifier.weight(1f))
+                        }
+                    } else {
+                        CustomizableCard(
+                            cardKey       = slotKey,
+                            isCustomizing = isCustomizing,
+                            onDelete      = {
+                                if (isChartCard) {
+                                    chartCardsOnDashboard = chartCardsOnDashboard - it
+                                    cardOrder.remove(it)
+                                } else {
+                                    deletedCards = deletedCards + it
+                                }
+                            },
+                            onMoveUp      = { if (index > 0) cardOrder.move(index, index - 1) },
+                            onMoveDown    = { if (index < cardOrder.lastIndex) cardOrder.move(index, index + 1) }
+                        ) {
+                            when (slotKey) {
+                                "spending" -> {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
+                                        val cats = computeSpendingCategories(filteredRawTransactions, spendingPeriod, state.currency)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            DonutChart(categories = cats, modifier = Modifier.size(120.dp))
+                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                if (cats.isEmpty()) {
+                                                    Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                } else cats.forEach { CategoryLegendRow(it) }
+                                            }
                                         }
                                     }
                                 }
+                                "budget" -> BudgetProgressCardContent(
+                                    api = budgetApi, authToken = authToken,
+                                    transactions = state.rawTransactions, currency = state.currency
+                                )
+                                else -> ChartCardContent(slotKey, state, filteredRawTransactions)
                             }
-                        }
-                        "trend" -> {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SectionTitle("Monthly Trend")
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    LegendDot(color = Color(0xFF16A34A), label = "In")
-                                    LegendDot(color = Color(0xFFEF4444), label = "Out")
-                                }
-                                LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(120.dp))
-                            }
-                        }
-                        "top_categories" -> {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SectionTitle("Highest Spending")
-                                BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(120.dp))
-                            }
-                        }
-                        "budget" -> {
-                            BudgetProgressCardContent(
-                                api = budgetApi,
-                                authToken = authToken,
-                                transactions = state.rawTransactions,
-                                currency = state.currency
-                            )
                         }
                     }
                 }
             }
         }
 
-        // + Charts button (opens bottom sheet for chart visibility toggles)
+        // + Charts button — always sits above Recent Transactions
         item {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                DashboardChartsButton(onClick = { showCustomizeSheet = true })
+                DashboardChartsButton(onClick = { showChartsSheet = true })
             }
         }
 
-        // Recent Transactions Card — fixed, cannot be deleted or moved
+        // Recent Transactions — fixed, no customize icons
         item {
             DashboardCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -464,11 +532,8 @@ private fun MobileDashboard(
                         )
                     }
                     if (state.recentTransactions.isEmpty()) {
-                        Text(
-                            text = "No transactions yet",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         state.recentTransactions.forEach { tx -> TransactionRow(tx) }
                     }
@@ -494,8 +559,9 @@ private fun DesktopDashboard(
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var isCustomizing by remember { mutableStateOf(false) }
-    var showCustomizeSheet by remember { mutableStateOf(false) }
+    var showChartsSheet by remember { mutableStateOf(false) }
     var deletedCards by remember { mutableStateOf(setOf<String>()) }
+    var chartCardsOnDashboard by remember { mutableStateOf(setOf<String>()) }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
     val activeAccounts = remember(selectedAccounts, state.accounts) {
@@ -526,8 +592,15 @@ private fun DesktopDashboard(
     else "${selectedAccounts.size} accounts"
 
     @OptIn(ExperimentalMaterial3Api::class)
-    if (showCustomizeSheet) {
-        DashboardCustomizeBottomSheet(onDismiss = { showCustomizeSheet = false })
+    if (showChartsSheet) {
+        ChartsBottomSheet(
+            chartCardsOnDashboard = chartCardsOnDashboard,
+            onAddChart = { key ->
+                chartCardsOnDashboard = chartCardsOnDashboard + key
+                showChartsSheet = false
+            },
+            onDismiss = { showChartsSheet = false }
+        )
     }
 
     LazyColumn(
@@ -733,7 +806,7 @@ private fun DesktopDashboard(
         // + Charts button
         item {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                DashboardChartsButton(onClick = { showCustomizeSheet = true })
+                DashboardChartsButton(onClick = { showChartsSheet = true })
             }
         }
 
@@ -1420,9 +1493,7 @@ private fun CustomizableCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    // Tracks cumulative vertical drag so we swap once per card-height crossed
     var dragAccumY by remember { mutableFloatStateOf(0f) }
-    // Rough card height estimate for swap threshold (in px, ~200dp)
     val swapThresholdPx = with(LocalDensity.current) { 200.dp.toPx() }
 
     Box(modifier = modifier) {
@@ -1439,10 +1510,7 @@ private fun CustomizableCard(
                     .clickable { onDelete(cardKey) },
                 contentAlignment = Alignment.Center
             ) {
-                MinusIcon(
-                    modifier = Modifier.size(12.dp),
-                    color    = Color.White
-                )
+                MinusIcon(modifier = Modifier.size(12.dp), color = Color.White)
             }
 
             // ── Move handle: bottom-left circle, long-press + drag to reorder ──
@@ -1454,31 +1522,22 @@ private fun CustomizableCard(
                     .background(MaterialTheme.colorScheme.outline, CircleShape)
                     .pointerInput(Unit) {
                         detectDragGesturesAfterLongPress(
-                            onDragStart = { dragAccumY = 0f },
-                            onDrag = { change, dragAmount ->
+                            onDragStart  = { dragAccumY = 0f },
+                            onDrag       = { change, dragAmount ->
                                 change.consume()
                                 dragAccumY += dragAmount.y
                                 when {
-                                    dragAccumY > swapThresholdPx -> {
-                                        onMoveDown()
-                                        dragAccumY = 0f
-                                    }
-                                    dragAccumY < -swapThresholdPx -> {
-                                        onMoveUp()
-                                        dragAccumY = 0f
-                                    }
+                                    dragAccumY >  swapThresholdPx -> { onMoveDown(); dragAccumY = 0f }
+                                    dragAccumY < -swapThresholdPx -> { onMoveUp();   dragAccumY = 0f }
                                 }
                             },
-                            onDragEnd   = { dragAccumY = 0f },
+                            onDragEnd    = { dragAccumY = 0f },
                             onDragCancel = { dragAccumY = 0f }
                         )
                     },
                 contentAlignment = Alignment.Center
             ) {
-                MoveIcon(
-                    modifier = Modifier.size(12.dp),
-                    color    = MaterialTheme.colorScheme.surface
-                )
+                MoveIcon(modifier = Modifier.size(12.dp), color = MaterialTheme.colorScheme.surface)
             }
         }
     }
@@ -1728,12 +1787,317 @@ private fun DashboardCustomizeButton(
     }
 }
 
+// ── Half-size built-in card content ──────────────────────────────────────────
+
+@Composable
+private fun ColumnScope.HalfCardContent(
+    cardKey: String,
+    state: DashboardState
+) {
+    when (cardKey) {
+        "trend" -> {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle("Monthly Trend")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LegendDot(color = Color(0xFF16A34A), label = "In")
+                    LegendDot(color = Color(0xFFEF4444), label = "Out")
+                }
+                LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(100.dp))
+            }
+        }
+        "top_categories" -> {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle("Highest Spending")
+                BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(100.dp))
+            }
+        }
+    }
+}
+
+// ── + Charts card content dispatcher ─────────────────────────────────────────
+
+@Composable
+private fun ColumnScope.ChartCardContent(
+    cardKey: String,
+    state: DashboardState,
+    rawTransactions: List<TransactionData>
+) {
+    val sym = getCurrencySymbol(state.currency)
+    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+
+    when (cardKey) {
+
+        // ── Weekly Spending (full) ──
+        "weekly_spending" -> {
+            val days = listOf("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
+            val dayOfWeek = now.dayOfWeek.ordinal // Mon=0
+            val weeklyData = (6 downTo 0).map { daysAgo ->
+                val dayIdx = ((dayOfWeek - daysAgo + 70) % 7)
+                val dayLabel = days[dayIdx]
+                val targetDate = now.date.minus(DatePeriod(days = daysAgo))
+                val total = rawTransactions
+                    .filter { tx ->
+                        val p = tx.timestamp.take(10).split("-")
+                        p.size == 3 &&
+                                p[0].toIntOrNull() == targetDate.year &&
+                                p[1].toIntOrNull() == targetDate.month.number &&
+                                p[2].toIntOrNull() == targetDate.dayOfMonth &&
+                                tx.amount < 0
+                    }
+                    .sumOf { kotlin.math.abs(it.amount) }.toFloat()
+                MonthlyTopCategory(month = dayLabel, category = "Spending", amount = total, color = Color(0xFF6366F1))
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle("Weekly Spending")
+                BarChart(data = weeklyData, modifier = Modifier.fillMaxWidth().height(140.dp))
+            }
+        }
+
+        // ── Bank Account Comparison (half) ──
+        "bank_comparison" -> {
+            val accountSpend = state.accounts.map { acc ->
+                val total = rawTransactions
+                    .filter { tx ->
+                        val p = tx.timestamp.take(10).split("-")
+                        p.size == 3 &&
+                                p[0].toIntOrNull() == now.year &&
+                                p[1].toIntOrNull() == now.month.number &&
+                                tx.amount < 0
+                    }
+                    .sumOf { kotlin.math.abs(it.amount) }.toFloat()
+                acc.bankName to total
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle("Bank Comparison")
+                accountSpend.forEachIndexed { i, (name, amount) ->
+                    val maxAmt = accountSpend.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1f
+                    val fraction = (amount / maxAmt).coerceIn(0f, 1f)
+                    val barColors = listOf(Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B), Color(0xFFEC4899))
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(name, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(modifier = Modifier.weight(1f).height(10.dp).background(
+                                MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(5.dp)
+                            )) {
+                                Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(fraction)
+                                    .background(barColors[i % barColors.size], RoundedCornerShape(5.dp)))
+                            }
+                            Text(formatCurrency(amount.toDouble(), sym),
+                                style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Spending by Time of Day (half) ──
+        "time_of_day" -> {
+            val buckets = mapOf("Morning" to Color(0xFFF59E0B), "Afternoon" to Color(0xFF6366F1), "Night" to Color(0xFF1E40AF))
+            val grouped = rawTransactions
+                .filter { tx ->
+                    val p = tx.timestamp.take(10).split("-")
+                    p.size == 3 &&
+                            p[0].toIntOrNull() == now.year &&
+                            p[1].toIntOrNull() == now.month.number &&
+                            tx.amount < 0
+                }
+                .groupBy { tx ->
+                    val hour = tx.timestamp.drop(11).take(2).toIntOrNull() ?: 12
+                    when { hour < 12 -> "Morning"; hour < 18 -> "Afternoon"; else -> "Night" }
+                }
+            val total = grouped.values.flatten().sumOf { kotlin.math.abs(it.amount) }.takeIf { it > 0 } ?: 1.0
+            val cats = buckets.map { (label, color) ->
+                val amt = grouped[label]?.sumOf { kotlin.math.abs(it.amount) } ?: 0.0
+                SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym), color = color)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle("Time of Day")
+                DonutChart(categories = cats, modifier = Modifier.size(90.dp).align(Alignment.CenterHorizontally))
+                cats.forEach { cat ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).background(cat.color, CircleShape))
+                        Text("${cat.name} ${(cat.percent * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+
+        // ── Largest Transactions (half) ──
+        "largest_tx" -> {
+            val top5 = rawTransactions
+                .filter { tx ->
+                    val p = tx.timestamp.take(10).split("-")
+                    p.size == 3 &&
+                            p[0].toIntOrNull() == now.year &&
+                            p[1].toIntOrNull() == now.month.number &&
+                            tx.amount < 0
+                }
+                .sortedBy { it.amount }
+                .take(5)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SectionTitle("Largest Transactions")
+                if (top5.isEmpty()) {
+                    Text("No data", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    top5.forEachIndexed { i, tx ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("${i + 1}", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(16.dp))
+                                Text(
+                                    text = tx.merchantName?.ifBlank { null } ?: tx.description,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Text(formatCurrency(kotlin.math.abs(tx.amount), sym),
+                                style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFEF4444))
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Smallest Transactions (half) ──
+        "smallest_tx" -> {
+            val bottom5 = rawTransactions
+                .filter { tx ->
+                    val p = tx.timestamp.take(10).split("-")
+                    p.size == 3 &&
+                            p[0].toIntOrNull() == now.year &&
+                            p[1].toIntOrNull() == now.month.number &&
+                            tx.amount < 0
+                }
+                .sortedByDescending { it.amount }
+                .take(5)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SectionTitle("Smallest Transactions")
+                if (bottom5.isEmpty()) {
+                    Text("No data", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    bottom5.forEachIndexed { i, tx ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("${i + 1}", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(16.dp))
+                                Text(
+                                    text = tx.merchantName?.ifBlank { null } ?: tx.description,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Text(formatCurrency(kotlin.math.abs(tx.amount), sym),
+                                style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Merchant Frequency (full) ──
+        "merchant_frequency" -> {
+            val top5merchants = rawTransactions
+                .filter { tx ->
+                    val p = tx.timestamp.take(10).split("-")
+                    p.size == 3 &&
+                            p[0].toIntOrNull() == now.year &&
+                            p[1].toIntOrNull() == now.month.number &&
+                            tx.amount < 0
+                }
+                .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
+                .map { (name, txList) -> name to txList.size }
+                .sortedByDescending { it.second }
+                .take(5)
+            val maxCount = top5merchants.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1
+            val bubbleColors = listOf(
+                Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B),
+                Color(0xFFEC4899), Color(0xFF3B82F6)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionTitle("Merchant Frequency")
+                if (top5merchants.isEmpty()) {
+                    Text("No data this month", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    // Bubble chart: horizontal row of circles sized by frequency
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(100.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        top5merchants.forEachIndexed { i, (name, count) ->
+                            val fraction = count.toFloat() / maxCount
+                            val bubbleSize = (32 + 52 * fraction).dp
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Bottom,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(bubbleSize)
+                                        .background(bubbleColors[i].copy(alpha = 0.85f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${count}x",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    // Labels beneath bubbles
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        top5merchants.forEach { (name, _) ->
+                            Text(
+                                text = name.take(8),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── + Charts bottom sheet ─────────────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DashboardCustomizeBottomSheet(
+private fun ChartsBottomSheet(
+    chartCardsOnDashboard: Set<String>,
+    onAddChart: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val available = ALL_CHART_CARDS.filter { it.key !in chartCardsOnDashboard }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1742,9 +2106,9 @@ private fun DashboardCustomizeBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 520.dp)
+                .heightIn(max = 560.dp)
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
+                .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
@@ -1753,87 +2117,90 @@ private fun DashboardCustomizeBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Customise Dashboard",
+                    text = "Add Charts",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    MinusIcon(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    MinusIcon(modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                DashboardCustomizeOption(
-                    title = "Balance overview",
-                    description = "Show total balance, income, expenses, and savings."
-                )
-
-                DashboardCustomizeOption(
-                    title = "Spending chart",
-                    description = "Show spending breakdown by category."
-                )
-
-                DashboardCustomizeOption(
-                    title = "Income and expenses chart",
-                    description = "Show monthly income and expense trends."
-                )
-
-                DashboardCustomizeOption(
-                    title = "Budget progress",
-                    description = "Show budget usage and remaining amounts."
-                )
-
-                DashboardCustomizeOption(
-                    title = "Recent transactions",
-                    description = "Show the latest imported transactions."
-                )
-
-                DashboardCustomizeOption(
-                    title = "Monthly top categories",
-                    description = "Show the highest spending category for each month."
-                )
+            if (available.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "All charts are already on your dashboard.\nRemove one with the − button to free up a slot.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    available.forEach { def ->
+                        ChartOptionRow(def = def, onAdd = { onAddChart(def.key) })
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun DashboardCustomizeOption(
-    title: String,
-    description: String
+private fun ChartOptionRow(
+    def: ChartCardDef,
+    onAdd: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = def.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = if (def.size == CardSize.FULL) Color(0xFF6366F1).copy(alpha = 0.15f)
+                        else Color(0xFF22C55E).copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = if (def.size == CardSize.FULL) "Full" else "Half",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (def.size == CardSize.FULL) Color(0xFF6366F1) else Color(0xFF16A34A),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = def.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            FilledTonalButton(
+                onClick = onAdd,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Text("+ Add", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
