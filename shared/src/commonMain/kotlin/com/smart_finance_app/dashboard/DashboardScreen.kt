@@ -66,7 +66,7 @@ import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.add
-import smart_finance_app.shared.generated.resources.moving
+import smart_finance_app.shared.generated.resources.drag_pan
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -352,6 +352,15 @@ private fun MobileDashboard(
     var isCustomizing by remember { mutableStateOf(false) }
     var showChartsSheet by remember { mutableStateOf(false) }
 
+    // Snapshot taken when entering customise mode — used to restore on Cancel
+    data class LayoutSnapshot(
+        val cardOrder: List<String>,
+        val deletedCards: Set<String>,
+        val chartCardsOnDashboard: Set<String>,
+        val halfPositions: Map<String, Float>
+    )
+    var layoutSnapshot by remember { mutableStateOf<LayoutSnapshot?>(null) }
+
     // ── Persisted layout state (multiplatform-settings — synchronous) ─────────
     val settings = remember { Settings() }
 
@@ -426,7 +435,7 @@ private fun MobileDashboard(
         // No saved lane means this card can pair with the next re-added half
         // card. Explicitly positioned lone cards retain their own lane instead.
         halfPositions.remove(key)
-        persistLayout()
+        // Layout is persisted only when the user clicks Done (fix #7)
     }
 
     // Delete a card — chart cards return to sheet; built-in cards go to deletedCards
@@ -450,7 +459,7 @@ private fun MobileDashboard(
         } else {
             deletedCards = deletedCards + key
         }
-        persistLayout()
+        // Layout is persisted only when the user clicks Done (fix #7)
     }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
@@ -520,7 +529,37 @@ private fun MobileDashboard(
                 ) {
                     DashboardCustomizeButton(
                         isCustomizing = isCustomizing,
-                        onClick = { isCustomizing = !isCustomizing }
+                        onClick = {
+                            if (isCustomizing) {
+                                // Done — persist the current layout
+                                persistLayout()
+                                layoutSnapshot = null
+                                isCustomizing = false
+                            } else {
+                                // Entering customize — take a snapshot for Cancel
+                                layoutSnapshot = LayoutSnapshot(
+                                    cardOrder = cardOrder.toList(),
+                                    deletedCards = deletedCards,
+                                    chartCardsOnDashboard = chartCardsOnDashboard,
+                                    halfPositions = halfPositions.toMap()
+                                )
+                                isCustomizing = true
+                            }
+                        },
+                        onCancel = {
+                            // Restore layout from snapshot and discard changes
+                            val snap = layoutSnapshot
+                            if (snap != null) {
+                                cardOrder.clear()
+                                cardOrder.addAll(snap.cardOrder)
+                                deletedCards = snap.deletedCards
+                                chartCardsOnDashboard = snap.chartCardsOnDashboard
+                                halfPositions.clear()
+                                halfPositions.putAll(snap.halfPositions)
+                            }
+                            layoutSnapshot = null
+                            isCustomizing = false
+                        }
                     )
                     Box {
                         OutlinedButton(
@@ -639,12 +678,9 @@ private fun MobileDashboard(
 
             // Case: full card moves up into a paired-half row → both halves shift down
             if (thisRow.size == 1 && !isHalfKey(thisRow[0]) && prevRow.size == 2) {
-                // Move the full card above the first half of the pair in cardOrder.
-                // Both halves stay consecutive, so they keep sharing a row below.
                 val fullIdx   = cardOrder.indexOf(thisRow[0])
                 val firstHalfIdx = cardOrder.indexOf(prevRow[0])
                 cardOrder.move(fullIdx, firstHalfIdx)
-                persistLayout()
                 return
             }
 
@@ -654,7 +690,6 @@ private fun MobileDashboard(
                 val a = cardOrder.indexOf(thisRow[0])
                 val b = cardOrder.indexOf(prevRow[0])
                 cardOrder.move(a, b)
-                persistLayout()
                 return
             }
 
@@ -663,21 +698,19 @@ private fun MobileDashboard(
                 prevRow.size == 1 && isHalfKey(prevRow[0])) {
                 val movingKey = thisRow[0]
                 val targetKey = prevRow[0]
-                // Clear both positions so halfCardsShareRow() will pair them
                 halfPositions.remove(movingKey)
                 halfPositions.remove(targetKey)
-                // Ensure movingKey immediately follows targetKey in cardOrder
                 val fromIdx = cardOrder.indexOf(movingKey)
                 val toIdx   = cardOrder.indexOf(targetKey) + 1
                 if (fromIdx != toIdx) cardOrder.move(fromIdx, toIdx.coerceAtMost(cardOrder.lastIndex))
-                persistLayout()
                 return
             }
 
             // Default: move the first card of this row up by one slot in cardOrder
             val firstKey = thisRow.first()
             val idx = cardOrder.indexOf(firstKey)
-            if (idx > 0) { cardOrder.move(idx, idx - 1); persistLayout() }
+            if (idx > 0) cardOrder.move(idx, idx - 1)
+            // Layout is persisted only when the user clicks Done (fix #7)
         }
 
         fun moveRowDown(rowIndex: Int) {
@@ -690,7 +723,6 @@ private fun MobileDashboard(
                 val fullIdx      = cardOrder.indexOf(thisRow[0])
                 val lastHalfIdx  = cardOrder.indexOf(nextRow.last())
                 cardOrder.move(fullIdx, lastHalfIdx)
-                persistLayout()
                 return
             }
 
@@ -700,7 +732,6 @@ private fun MobileDashboard(
                 val a = cardOrder.indexOf(thisRow[0])
                 val b = cardOrder.indexOf(nextRow[0])
                 cardOrder.move(a, b)
-                persistLayout()
                 return
             }
 
@@ -711,18 +742,17 @@ private fun MobileDashboard(
                 val targetKey = nextRow[0]
                 halfPositions.remove(movingKey)
                 halfPositions.remove(targetKey)
-                // Ensure movingKey immediately follows targetKey in cardOrder
                 val fromIdx = cardOrder.indexOf(movingKey)
                 val toIdx   = cardOrder.indexOf(targetKey) + 1
                 if (fromIdx != toIdx) cardOrder.move(fromIdx, toIdx.coerceAtMost(cardOrder.lastIndex))
-                persistLayout()
                 return
             }
 
             // Default: move the last card of this row down by one slot in cardOrder
             val lastKey = thisRow.last()
             val idx = cardOrder.indexOf(lastKey)
-            if (idx < cardOrder.lastIndex) { cardOrder.move(idx, idx + 1); persistLayout() }
+            if (idx < cardOrder.lastIndex) cardOrder.move(idx, idx + 1)
+            // Layout is persisted only when the user clicks Done (fix #7)
         }
 
         items(visualRows, key = { row -> row.joinToString("|") }) { row ->
@@ -755,7 +785,7 @@ private fun MobileDashboard(
                                         val to = cardOrder.indexOf(other)
                                         cardOrder.move(from, to)
                                     }
-                                    persistLayout()
+                                    // Layout is persisted only when the user clicks Done (fix #7)
                                 }
                             },
                             modifier      = Modifier.weight(1f).fillMaxHeight()
@@ -784,7 +814,7 @@ private fun MobileDashboard(
                             onMoveDown    = { moveRowDown(rowIndex) },
                             onMoveHorizontally = { delta ->
                                 halfPositions[key] = ((halfPositions[key] ?: 0f) + delta).coerceIn(0f, 1f)
-                                persistLayout()
+                                // Layout is persisted only when the user clicks Done (fix #7)
                             },
                             horizontalPosition = halfPositions[key] ?: 0f,
                             modifier      = Modifier.weight(1f).fillMaxHeight()
@@ -890,6 +920,8 @@ private fun DesktopDashboard(
     var showChartsSheet by remember { mutableStateOf(false) }
     var deletedCards by remember { mutableStateOf(setOf<String>()) }
     var chartCardsOnDashboard by remember { mutableStateOf(setOf<String>()) }
+    // Desktop card order for newly added chart cards (not persisted — desktop is session-only)
+    val desktopChartOrder = remember { mutableStateListOf<String>() }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
     val activeAccounts = remember(selectedAccounts, state.accounts) {
@@ -919,11 +951,35 @@ private fun DesktopDashboard(
     else if (selectedAccounts.size == 1) selectedAccounts.first()
     else "${selectedAccounts.size} accounts"
 
+    // Row grouping for desktop chart cards — must live here in Composable scope, not inside LazyListScope
+    val desktopChartRows by remember(desktopChartOrder, chartCardsOnDashboard) {
+        derivedStateOf {
+            val visible = desktopChartOrder.filter { it in chartCardsOnDashboard }
+            val rows = mutableListOf<List<String>>()
+            var di = 0
+            while (di < visible.size) {
+                val key     = visible[di]
+                val def     = ALL_CHART_CARDS.find { it.key == key }
+                val nextKey = visible.getOrNull(di + 1)
+                val nextDef = nextKey?.let { k -> ALL_CHART_CARDS.find { it.key == k } }
+                if (def?.size == CardSize.HALF && nextDef?.size == CardSize.HALF) {
+                    rows.add(listOf(key, nextKey!!))
+                    di += 2
+                } else {
+                    rows.add(listOf(key))
+                    di += 1
+                }
+            }
+            rows.toList()
+        }
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     if (showChartsSheet) {
         ChartsBottomSheet(
             chartCardsOnDashboard = chartCardsOnDashboard,
             onAddChart = { key ->
+                if (key !in chartCardsOnDashboard) desktopChartOrder.add(key)
                 chartCardsOnDashboard = chartCardsOnDashboard + key
                 showChartsSheet = false
             },
@@ -955,9 +1011,38 @@ private fun DesktopDashboard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Desktop customize snapshot for Cancel support
+                    var desktopDeletedSnapshot by remember { mutableStateOf<Set<String>?>(null) }
+                    var desktopChartSnapshot   by remember { mutableStateOf<Set<String>?>(null) }
+                    var desktopOrderSnapshot   by remember { mutableStateOf<List<String>?>(null) }
                     DashboardCustomizeButton(
                         isCustomizing = isCustomizing,
-                        onClick = { isCustomizing = !isCustomizing }
+                        onClick = {
+                            if (isCustomizing) {
+                                // Done — desktop layout is session-only, nothing to persist
+                                desktopDeletedSnapshot = null
+                                desktopChartSnapshot   = null
+                                desktopOrderSnapshot   = null
+                                isCustomizing = false
+                            } else {
+                                desktopDeletedSnapshot = deletedCards
+                                desktopChartSnapshot   = chartCardsOnDashboard
+                                desktopOrderSnapshot   = desktopChartOrder.toList()
+                                isCustomizing = true
+                            }
+                        },
+                        onCancel = {
+                            desktopDeletedSnapshot?.let { deletedCards = it }
+                            desktopChartSnapshot?.let { chartCardsOnDashboard = it }
+                            desktopOrderSnapshot?.let {
+                                desktopChartOrder.clear()
+                                desktopChartOrder.addAll(it)
+                            }
+                            desktopDeletedSnapshot = null
+                            desktopChartSnapshot   = null
+                            desktopOrderSnapshot   = null
+                            isCustomizing = false
+                        }
                     )
                     Box {
                         OutlinedButton(onClick = { accountDropdownExpanded = true }) {
@@ -1131,6 +1216,68 @@ private fun DesktopDashboard(
             }
         }
 
+        // ── Dynamically added chart cards (desktop) — rendered above the + Charts button ──
+        // desktopChartRows is computed above in Composable scope via derivedStateOf.
+        items(desktopChartRows, key = { row -> "drow_${row.joinToString("|")}" }) { row ->
+            if (row.size == 2) {
+                // Two half-size cards side by side
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(HALF_CARD_HEIGHT),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    row.forEach { key ->
+                        CustomizableCard(
+                            cardKey = key,
+                            isCustomizing = isCustomizing,
+                            onDelete = {
+                                chartCardsOnDashboard = chartCardsOnDashboard - key
+                                desktopChartOrder.remove(key)
+                            },
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        ) {
+                            ChartCardContent(key, state, filteredRawTransactions)
+                        }
+                    }
+                }
+            } else {
+                val key = row[0]
+                val def = ALL_CHART_CARDS.find { it.key == key }
+                if (def?.size == CardSize.HALF) {
+                    // Lone half-size card — renders at half width with a spacer on the right
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(HALF_CARD_HEIGHT),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        CustomizableCard(
+                            cardKey = key,
+                            isCustomizing = isCustomizing,
+                            onDelete = {
+                                chartCardsOnDashboard = chartCardsOnDashboard - key
+                                desktopChartOrder.remove(key)
+                            },
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        ) {
+                            ChartCardContent(key, state, filteredRawTransactions)
+                        }
+                        Spacer(Modifier.weight(1f))
+                    }
+                } else {
+                    // Full-size card — spans the full width
+                    CustomizableCard(
+                        cardKey = key,
+                        isCustomizing = isCustomizing,
+                        onDelete = {
+                            chartCardsOnDashboard = chartCardsOnDashboard - key
+                            desktopChartOrder.remove(key)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(FULL_CARD_HEIGHT)
+                    ) {
+                        ChartCardContent(key, state, filteredRawTransactions)
+                    }
+                }
+            }
+        }
+
         // + Charts button
         item {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -1147,8 +1294,8 @@ private fun DesktopDashboard(
                 if ("transactions" !in deletedCards) {
                     CustomizableCard(
                         cardKey = "transactions",
-                        isCustomizing = isCustomizing,
-                        onDelete = { deletedCards = deletedCards + it },
+                        isCustomizing = false, // Recent Transactions is not deletable on desktop
+                        onDelete = {},
                         modifier = Modifier.weight(1.4f).fillMaxHeight()
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1835,7 +1982,7 @@ private fun CustomizableCard(
         Box(modifier = Modifier.fillMaxSize().offset(x = trackOffset)) {
             DashboardCard(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight()
-                    .then(if (isCustomizing) Modifier.blur(7.dp) else Modifier),
+                    .then(if (isCustomizing) Modifier.blur(3.dp) else Modifier),
                 content = content
             )
 
@@ -1857,7 +2004,7 @@ private fun CustomizableCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(120.dp)
+                        .size(72.dp)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f), CircleShape)
                         .pointerInput(Unit) {
                             detectDragGesturesAfterLongPress(
@@ -1881,7 +2028,7 @@ private fun CustomizableCard(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    MoveIcon(modifier = Modifier.size(82.dp), color = MaterialTheme.colorScheme.onSurface)
+                    MoveIcon(modifier = Modifier.size(50.dp), color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -1895,9 +2042,9 @@ private fun MoveIcon(
     color: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Icon(
-        painter = painterResource(Res.drawable.moving),
+        painter = painterResource(Res.drawable.drag_pan),
         contentDescription = "Move",
-        tint = Color.Unspecified,
+        tint = color,
         modifier = modifier
     )
 }
@@ -2074,26 +2221,45 @@ private fun DashboardChartsButton(
 @Composable
 private fun DashboardCustomizeButton(
     isCustomizing: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onCancel: (() -> Unit)? = null
 ) {
     if (isCustomizing) {
-        Button(
-            onClick = onClick,
-            modifier = Modifier.height(36.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Icon(
-                painter = painterResource(Res.drawable.check),
-                contentDescription = null,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "Done",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Done button — sits where Customise was
+            Button(
+                onClick = onClick,
+                modifier = Modifier.height(36.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(18.dp)
+            ) {
+                Icon(
+                    painter = painterResource(Res.drawable.check),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Done",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            // Cancel button — appears to the right of Done
+            if (onCancel != null) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Text(
+                        text = "Cancel",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
     } else {
         OutlinedButton(
@@ -2495,7 +2661,7 @@ private fun ColumnScope.ChartCardContent(
                     val maxTotal = bubbles.maxOf { it.totalSpend }.toFloat().coerceAtLeast(1f)
 
                     // Axis hint row
-                    Row(modifier = Modifier.fillMaxWidth().height(0.dp),
+                    Row(modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("↑ visits", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2505,7 +2671,7 @@ private fun ColumnScope.ChartCardContent(
 
                     // Everything drawn on a single Canvas — nothing clips
                     val textMeasurer = rememberTextMeasurer()
-                    Canvas(modifier = Modifier.height(0.dp)) {
+                    Canvas(modifier = Modifier.fillMaxWidth().weight(1f)) {
                         val w = size.width
                         val h = size.height
 
@@ -2580,7 +2746,7 @@ private fun ColumnScope.ChartCardContent(
                     }
                     val totalSpend = bubbles.sumOf { it.totalSpend }.coerceAtLeast(1.0)
                     Row(
-                        modifier = Modifier.fillMaxWidth().weight(1f)
+                        modifier = Modifier.fillMaxWidth().height(148.dp)
                             .horizontalScroll(rememberScrollState()),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
