@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -65,6 +66,7 @@ import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.add
+import smart_finance_app.shared.generated.resources.moving
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -132,7 +134,7 @@ val ALL_CHART_CARDS = listOf(
     ChartCardDef("largest_tx",          "Largest Transactions",       "Top 5 biggest outgoing transactions this month.",              CardSize.HALF),
     ChartCardDef("smallest_tx",         "Smallest Transactions",      "Top 5 smallest outgoing transactions this month.",             CardSize.HALF),
     ChartCardDef("merchant_frequency",  "Merchant Spending Treemap",  "Your top merchants this month shown as a spending treemap.",   CardSize.FULL),
-    ChartCardDef("upcoming_bills",       "Upcoming Bills",             "Recurring payments from your transaction history.",  CardSize.FULL)
+    ChartCardDef("upcoming_bills",       "Upcoming Bills",             "Predicted recurring payments from your transaction history.",  CardSize.FULL)
 )
 
 /** Fixed height for every half-size card (side-by-side pair). */
@@ -606,9 +608,7 @@ private fun MobileDashboard(
         }
 
         // Group into visual rows: pairs of consecutive half-size cards share a Row
-        fun isHalfKey(key: String): Boolean {
-            return isHalfCardKey(key)
-        }
+        fun isHalfKey(key: String): Boolean = isHalfCardKey(key)
 
         val visualRows = mutableListOf<List<String>>()
         var i = 0
@@ -625,7 +625,108 @@ private fun MobileDashboard(
             }
         }
 
+        // ── Row-aware move helpers ────────────────────────────────────────────
+        // These replace the old per-card cardOrder.move(idx, idx±1) calls.
+        // They operate on visual rows so that:
+        //   • A full card swapping with a paired half-row moves BOTH halves together.
+        //   • A full card swapping with another full card only touches those two.
+        //   • A lone half card moving into a lone-half row merges them into a pair.
+
+        fun moveRowUp(rowIndex: Int) {
+            if (rowIndex <= 0) return
+            val thisRow = visualRows[rowIndex]
+            val prevRow = visualRows[rowIndex - 1]
+
+            // Case: full card moves up into a paired-half row → both halves shift down
+            if (thisRow.size == 1 && !isHalfKey(thisRow[0]) && prevRow.size == 2) {
+                // Move the full card above the first half of the pair in cardOrder.
+                // Both halves stay consecutive, so they keep sharing a row below.
+                val fullIdx   = cardOrder.indexOf(thisRow[0])
+                val firstHalfIdx = cardOrder.indexOf(prevRow[0])
+                cardOrder.move(fullIdx, firstHalfIdx)
+                persistLayout()
+                return
+            }
+
+            // Case: full card moves up into another full-card row → simple swap
+            if (thisRow.size == 1 && !isHalfKey(thisRow[0]) &&
+                prevRow.size == 1 && !isHalfKey(prevRow[0])) {
+                val a = cardOrder.indexOf(thisRow[0])
+                val b = cardOrder.indexOf(prevRow[0])
+                cardOrder.move(a, b)
+                persistLayout()
+                return
+            }
+
+            // Case: lone half moving up into a lone-half row → merge into a pair
+            if (thisRow.size == 1 && isHalfKey(thisRow[0]) &&
+                prevRow.size == 1 && isHalfKey(prevRow[0])) {
+                val movingKey = thisRow[0]
+                val targetKey = prevRow[0]
+                // Clear both positions so halfCardsShareRow() will pair them
+                halfPositions.remove(movingKey)
+                halfPositions.remove(targetKey)
+                // Ensure movingKey immediately follows targetKey in cardOrder
+                val fromIdx = cardOrder.indexOf(movingKey)
+                val toIdx   = cardOrder.indexOf(targetKey) + 1
+                if (fromIdx != toIdx) cardOrder.move(fromIdx, toIdx.coerceAtMost(cardOrder.lastIndex))
+                persistLayout()
+                return
+            }
+
+            // Default: move the first card of this row up by one slot in cardOrder
+            val firstKey = thisRow.first()
+            val idx = cardOrder.indexOf(firstKey)
+            if (idx > 0) { cardOrder.move(idx, idx - 1); persistLayout() }
+        }
+
+        fun moveRowDown(rowIndex: Int) {
+            if (rowIndex >= visualRows.lastIndex) return
+            val thisRow = visualRows[rowIndex]
+            val nextRow = visualRows[rowIndex + 1]
+
+            // Case: full card moves down into a paired-half row → both halves shift up
+            if (thisRow.size == 1 && !isHalfKey(thisRow[0]) && nextRow.size == 2) {
+                val fullIdx      = cardOrder.indexOf(thisRow[0])
+                val lastHalfIdx  = cardOrder.indexOf(nextRow.last())
+                cardOrder.move(fullIdx, lastHalfIdx)
+                persistLayout()
+                return
+            }
+
+            // Case: full card moves down into another full-card row → simple swap
+            if (thisRow.size == 1 && !isHalfKey(thisRow[0]) &&
+                nextRow.size == 1 && !isHalfKey(nextRow[0])) {
+                val a = cardOrder.indexOf(thisRow[0])
+                val b = cardOrder.indexOf(nextRow[0])
+                cardOrder.move(a, b)
+                persistLayout()
+                return
+            }
+
+            // Case: lone half moving down into a lone-half row → merge into a pair
+            if (thisRow.size == 1 && isHalfKey(thisRow[0]) &&
+                nextRow.size == 1 && isHalfKey(nextRow[0])) {
+                val movingKey = thisRow[0]
+                val targetKey = nextRow[0]
+                halfPositions.remove(movingKey)
+                halfPositions.remove(targetKey)
+                // Ensure movingKey immediately follows targetKey in cardOrder
+                val fromIdx = cardOrder.indexOf(movingKey)
+                val toIdx   = cardOrder.indexOf(targetKey) + 1
+                if (fromIdx != toIdx) cardOrder.move(fromIdx, toIdx.coerceAtMost(cardOrder.lastIndex))
+                persistLayout()
+                return
+            }
+
+            // Default: move the last card of this row down by one slot in cardOrder
+            val lastKey = thisRow.last()
+            val idx = cardOrder.indexOf(lastKey)
+            if (idx < cardOrder.lastIndex) { cardOrder.move(idx, idx + 1); persistLayout() }
+        }
+
         items(visualRows, key = { row -> row.joinToString("|") }) { row ->
+            val rowIndex = visualRows.indexOf(row)
             if (row.size == 2) {
                 // Side-by-side half-size pair
                 Row(
@@ -638,8 +739,8 @@ private fun MobileDashboard(
                             cardKey       = key,
                             isCustomizing = isCustomizing,
                             onDelete      = { deleteCard(key) },
-                            onMoveUp      = { val idx = cardOrder.indexOf(key); if (idx > 0) { cardOrder.move(idx, idx - 1); persistLayout() } },
-                            onMoveDown    = { val idx = cardOrder.indexOf(key); if (idx < cardOrder.lastIndex) { cardOrder.move(idx, idx + 1); persistLayout() } },
+                            onMoveUp      = { moveRowUp(rowIndex) },
+                            onMoveDown    = { moveRowDown(rowIndex) },
                             onMoveHorizontally = { delta ->
                                 val isLeft = row.first() == key
                                 // Dragging either member toward the centre breaks the
@@ -679,8 +780,8 @@ private fun MobileDashboard(
                             cardKey       = key,
                             isCustomizing = isCustomizing,
                             onDelete      = { deleteCard(key) },
-                            onMoveUp      = { val idx = cardOrder.indexOf(key); if (idx > 0) { cardOrder.move(idx, idx - 1); persistLayout() } },
-                            onMoveDown    = { val idx = cardOrder.indexOf(key); if (idx < cardOrder.lastIndex) { cardOrder.move(idx, idx + 1); persistLayout() } },
+                            onMoveUp      = { moveRowUp(rowIndex) },
+                            onMoveDown    = { moveRowDown(rowIndex) },
                             onMoveHorizontally = { delta ->
                                 halfPositions[key] = ((halfPositions[key] ?: 0f) + delta).coerceIn(0f, 1f)
                                 persistLayout()
@@ -699,8 +800,8 @@ private fun MobileDashboard(
                         cardKey       = key,
                         isCustomizing = isCustomizing,
                         onDelete      = { deleteCard(key) },
-                        onMoveUp      = { val idx = cardOrder.indexOf(key); if (idx > 0) { cardOrder.move(idx, idx - 1); persistLayout() } },
-                        onMoveDown    = { val idx = cardOrder.indexOf(key); if (idx < cardOrder.lastIndex) { cardOrder.move(idx, idx + 1); persistLayout() } },
+                        onMoveUp      = { moveRowUp(rowIndex) },
+                        onMoveDown    = { moveRowDown(rowIndex) },
                         modifier      = Modifier.height(FULL_CARD_HEIGHT)
                     ) {
                         when (key) {
@@ -1724,13 +1825,19 @@ private fun CustomizableCard(
 ) {
     var dragAccumY by remember { mutableFloatStateOf(0f) }
     var dragAccumX by remember { mutableFloatStateOf(0f) }
-    val swapThresholdPx = with(LocalDensity.current) { 200.dp.toPx() }
+    // A smaller threshold makes a complete, full-width card practical to move
+    // within a single long-press drag.
+    val swapThresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
 
     BoxWithConstraints(modifier = modifier.fillMaxHeight()) {
         val trackOffset = if (horizontalPosition == null) 0.dp
         else (maxWidth + 12.dp) * horizontalPosition.coerceIn(0f, 1f)
         Box(modifier = Modifier.fillMaxSize().offset(x = trackOffset)) {
-            DashboardCard(modifier = Modifier.fillMaxWidth().fillMaxHeight(), content = content)
+            DashboardCard(
+                modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                    .then(if (isCustomizing) Modifier.blur(7.dp) else Modifier),
+                content = content
+            )
 
             if (isCustomizing) {
                 // ── Delete button: top-right red minus-in-circle ──
@@ -1746,13 +1853,12 @@ private fun CustomizableCard(
                     MinusIcon(modifier = Modifier.size(12.dp), color = Color.White)
                 }
 
-                // ── Move handle: bottom-left circle, long-press + drag to reorder ──
+                // ── Move handle: centred icon, long-press + drag to reorder ──
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .offset(x = (-10).dp, y = 10.dp)
-                        .size(24.dp)
-                        .background(MaterialTheme.colorScheme.outline, CircleShape)
+                        .align(Alignment.Center)
+                        .size(120.dp)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f), CircleShape)
                         .pointerInput(Unit) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart  = { dragAccumY = 0f; dragAccumX = 0f },
@@ -1775,7 +1881,7 @@ private fun CustomizableCard(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    MoveIcon(modifier = Modifier.size(12.dp), color = MaterialTheme.colorScheme.surface)
+                    MoveIcon(modifier = Modifier.size(82.dp), color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -1783,38 +1889,17 @@ private fun CustomizableCard(
 }
 
 // ── Four-arrow move icon drawn with Canvas ────────────────────────────────────
-
 @Composable
 private fun MoveIcon(
     modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.onSurface
 ) {
-    Canvas(modifier = modifier) {
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val arm = size.minDimension * 0.28f
-        val head = size.minDimension * 0.14f
-        val sw = 1.8.dp.toPx()
-
-        // Horizontal line
-        drawLine(color, Offset(cx - arm, cy), Offset(cx + arm, cy), strokeWidth = sw, cap = StrokeCap.Round)
-        // Vertical line
-        drawLine(color, Offset(cx, cy - arm), Offset(cx, cy + arm), strokeWidth = sw, cap = StrokeCap.Round)
-
-        // Arrow heads (left, right, up, down)
-        // Left
-        drawLine(color, Offset(cx - arm, cy), Offset(cx - arm + head, cy - head), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(color, Offset(cx - arm, cy), Offset(cx - arm + head, cy + head), strokeWidth = sw, cap = StrokeCap.Round)
-        // Right
-        drawLine(color, Offset(cx + arm, cy), Offset(cx + arm - head, cy - head), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(color, Offset(cx + arm, cy), Offset(cx + arm - head, cy + head), strokeWidth = sw, cap = StrokeCap.Round)
-        // Up
-        drawLine(color, Offset(cx, cy - arm), Offset(cx - head, cy - arm + head), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(color, Offset(cx, cy - arm), Offset(cx + head, cy - arm + head), strokeWidth = sw, cap = StrokeCap.Round)
-        // Down
-        drawLine(color, Offset(cx, cy + arm), Offset(cx - head, cy + arm - head), strokeWidth = sw, cap = StrokeCap.Round)
-        drawLine(color, Offset(cx, cy + arm), Offset(cx + head, cy + arm - head), strokeWidth = sw, cap = StrokeCap.Round)
-    }
+    Icon(
+        painter = painterResource(Res.drawable.moving),
+        contentDescription = "Move",
+        tint = Color.Unspecified,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -2329,6 +2414,7 @@ private fun ColumnScope.ChartCardContent(
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Upcoming Bills", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text("Predicted from history", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (bills.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
