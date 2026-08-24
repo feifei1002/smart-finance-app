@@ -1029,7 +1029,7 @@ private fun DesktopDashboard(
         // Spending + Trend row
         item {
             Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                modifier = Modifier.fillMaxWidth().height(300.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if ("spending" !in deletedCards) {
@@ -1097,7 +1097,7 @@ private fun DesktopDashboard(
         // Top Categories + Budget row
         item {
             Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                modifier = Modifier.fillMaxWidth().height(300.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if ("top_categories" !in deletedCards) {
@@ -1141,7 +1141,7 @@ private fun DesktopDashboard(
         // Transactions + Accounts + Quick Actions row
         item {
             Row(
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                modifier = Modifier.fillMaxWidth().height(300.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if ("transactions" !in deletedCards) {
