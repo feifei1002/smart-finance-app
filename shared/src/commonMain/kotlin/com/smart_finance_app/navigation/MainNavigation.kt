@@ -308,6 +308,7 @@ private fun NavigationContent(
         AppNavigation.Dashboard -> DashboardScreen(
             authToken                   = authToken,
             userName                    = userName,
+            userId                       = userEmail,
             transactions                = mappedTransactions,
             onConnectAccountClicked     = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,

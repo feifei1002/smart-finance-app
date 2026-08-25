@@ -66,14 +66,14 @@ import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.add
-import smart_finance_app.shared.generated.resources.drag_pan
+import smart_finance_app.shared.generated.resources.moving
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
 data class BudgetItem(val category: String, val spent: Float, val total: Float, val color: Color)
 data class MonthlyPoint(val month: String, val income: Float, val expenses: Float)
 data class Transaction(val name: String, val date: String, val amount: String, val isIncome: Boolean)
-data class AccountOverview(val bankName: String, val maskedNumber: String, val balance: String)
+data class AccountOverview(val accountId: String, val bankName: String, val maskedNumber: String, val balance: String)
 data class InferredBill(val merchant: String, val amount: Double, val expectedDate: LocalDate, val cadence: String)
 
 /**
@@ -199,6 +199,7 @@ private fun rememberGreeting(): String {
 @Composable
 fun DashboardScreen(
     authToken: String,
+    userId: String,
     userName: String,
     transactions: List<TransactionData>,
     onConnectAccountClicked: () -> Unit,
@@ -308,6 +309,7 @@ fun DashboardScreen(
                     MobileDashboard(
                         state = state!!,
                         userName = userName,
+                        userId = userId,
                         authToken = authToken,
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
@@ -320,6 +322,7 @@ fun DashboardScreen(
                     DesktopDashboard(
                         state = state!!,
                         userName = userName,
+                        userId = userId,
                         authToken = authToken,
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
@@ -338,6 +341,7 @@ fun DashboardScreen(
 private fun MobileDashboard(
     state: DashboardState,
     userName: String,
+    userId: String,
     budgetApi: BudgetApi,
     authToken: String,
     spendingPeriod: SpendingPeriod,
@@ -362,50 +366,56 @@ private fun MobileDashboard(
     var layoutSnapshot by remember { mutableStateOf<LayoutSnapshot?>(null) }
 
     // ── Persisted layout state (multiplatform-settings — synchronous) ─────────
+    // Keys are prefixed with userId so each user gets their own layout on shared devices.
     val settings = remember { Settings() }
+    val keyCardOrder     = remember(userId) { "${userId}_${KEY_CARD_ORDER}" }
+    val keyDeletedCards  = remember(userId) { "${userId}_${KEY_DELETED_CARDS}" }
+    val keyChartCards    = remember(userId) { "${userId}_${KEY_CHART_CARDS}" }
+    val keyHalfPositions = remember(userId) { "${userId}_${KEY_HALF_POSITIONS}" }
+    val keyMigrated      = remember(userId) { "${userId}_${KEY_MIGRATED}" }
 
     // One-time migration: wipe any v1 paired-slot data so we start clean
-    remember {
-        if (!settings.getBoolean(KEY_MIGRATED, false)) {
+    remember(userId) {
+        if (!settings.getBoolean(keyMigrated, false)) {
             settings.remove("card_order")
             settings.remove("deleted_cards")
             settings.remove("chart_cards_on_dashboard")
             // Also wipe v2 keys so state is fully fresh — all 6 charts go back to sheet
-            settings.remove(KEY_CARD_ORDER)
-            settings.remove(KEY_DELETED_CARDS)
-            settings.remove(KEY_CHART_CARDS)
-            settings.putBoolean(KEY_MIGRATED, true)
+            settings.remove(keyCardOrder)
+            settings.remove(keyDeletedCards)
+            settings.remove(keyChartCards)
+            settings.putBoolean(keyMigrated, true)
         }
     }
 
-    var chartCardsOnDashboard by remember {
-        val raw = settings.getStringOrNull(KEY_CHART_CARDS)?.decodeSet() ?: emptySet()
+    var chartCardsOnDashboard by remember(userId) {
+        val raw = settings.getStringOrNull(keyChartCards)?.decodeSet() ?: emptySet()
         // Only keep keys that are real chart card keys — discard any pipe-merged garbage
         val valid = raw.filter { k -> ALL_CHART_CARDS.any { it.key == k } }.toSet()
         mutableStateOf(valid)
     }
 
-    var deletedCards by remember {
+    var deletedCards by remember(userId) {
         mutableStateOf(
-            settings.getStringOrNull(KEY_DELETED_CARDS)?.decodeSet() ?: emptySet()
+            settings.getStringOrNull(keyDeletedCards)?.decodeSet() ?: emptySet()
         )
     }
 
-    val halfPositions = remember {
+    val halfPositions = remember(userId) {
         mutableStateMapOf<String, Float>().also { positions ->
-            positions.putAll(settings.getStringOrNull(KEY_HALF_POSITIONS)?.decodeHalfPositions() ?: emptyMap())
+            positions.putAll(settings.getStringOrNull(keyHalfPositions)?.decodeHalfPositions() ?: emptyMap())
         }
     }
 
-    val cardOrder = remember {
+    val cardOrder = remember(userId) {
         mutableStateListOf<String>().also { list ->
-            val saved = settings.getStringOrNull(KEY_CARD_ORDER)?.decodeOrder()
+            val saved = settings.getStringOrNull(keyCardOrder)?.decodeOrder()
                 ?.filter { k ->
                     // Only keep clean single-key slots (no pipe), and only chart keys
                     // that are actually on the dashboard
                     !k.contains('|') &&
                             (ALL_CHART_CARDS.none { it.key == k } || k in
-                                    (settings.getStringOrNull(KEY_CHART_CARDS)?.decodeSet()
+                                    (settings.getStringOrNull(keyChartCards)?.decodeSet()
                                         ?.filter { ck -> ALL_CHART_CARDS.any { it.key == ck } }?.toSet()
                                         ?: emptySet<String>()))
                 }
@@ -418,12 +428,12 @@ private fun MobileDashboard(
                 ((halfPositions[left] == null && halfPositions[right] == null) ||
                         (halfPositions[left] == 0f && halfPositions[right] == 1f))
 
-    // Write current layout to settings
+    // Write current layout to settings — keyed per user
     fun persistLayout() {
-        settings[KEY_CARD_ORDER]    = cardOrder.encodeOrder()
-        settings[KEY_DELETED_CARDS] = deletedCards.encodeSet()
-        settings[KEY_CHART_CARDS]   = chartCardsOnDashboard.encodeSet()
-        settings[KEY_HALF_POSITIONS] = halfPositions.encodeHalfPositions()
+        settings[keyCardOrder]     = cardOrder.encodeOrder()
+        settings[keyDeletedCards]  = deletedCards.encodeSet()
+        settings[keyChartCards]    = chartCardsOnDashboard.encodeSet()
+        settings[keyHalfPositions] = halfPositions.encodeHalfPositions()
     }
 
     // Add a chart card — each card always gets its own independent slot
@@ -905,6 +915,7 @@ private fun MobileDashboard(
 private fun DesktopDashboard(
     state: DashboardState,
     userName: String,
+    userId: String,
     budgetApi: BudgetApi,
     authToken: String,
     spendingPeriod: SpendingPeriod,
@@ -2042,9 +2053,9 @@ private fun MoveIcon(
     color: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Icon(
-        painter = painterResource(Res.drawable.drag_pan),
+        painter = painterResource(Res.drawable.moving),
         contentDescription = "Move",
-        tint = color,
+        tint = Color.Unspecified,
         modifier = modifier
     )
 }
@@ -2245,13 +2256,17 @@ private fun DashboardCustomizeButton(
                     fontWeight = FontWeight.SemiBold
                 )
             }
-            // Cancel button — appears to the right of Done
+            // Cancel button — appears to the right of Done, red background
             if (onCancel != null) {
-                OutlinedButton(
+                Button(
                     onClick = onCancel,
                     modifier = Modifier.height(36.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(18.dp)
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFEF4444),
+                        contentColor = Color.White
+                    )
                 ) {
                     Text(
                         text = "Cancel",
@@ -2357,14 +2372,17 @@ private fun ColumnScope.ChartCardContent(
         "bank_comparison" -> {
             val accountSpend = state.accounts.map { acc ->
                 val total = rawTransactions
-                    .filter { tx ->
+                    .filter { tx: TransactionData ->
                         val p = tx.timestamp.take(10).split("-")
                         p.size == 3 &&
                                 p[0].toIntOrNull() == now.year &&
                                 p[1].toIntOrNull() == now.month.number &&
-                                tx.amount < 0
+                                tx.amount < 0 &&
+                                (tx.accountId == null || tx.accountId == acc.accountId)
                     }
-                    .sumOf { kotlin.math.abs(it.amount) }.toFloat()
+                    .sumOf { kotlin.math.abs(it.amount) }
+                    .toFloat()
+
                 acc.bankName to total
             }
             val maxAmt = accountSpend.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1f

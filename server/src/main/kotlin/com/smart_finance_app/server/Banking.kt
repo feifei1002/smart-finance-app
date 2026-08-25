@@ -55,7 +55,8 @@ data class TransactionResponse(
     val amount: Double,
     val currency: String,
     val type: String,       // CREDIT or DEBIT
-    val merchantName: String?
+    val merchantName: String?,
+    val accountId: String? = null   // which connected account this transaction belongs to
 )
 
 @Serializable
@@ -222,7 +223,7 @@ fun Route.bankingRoutes() {
         post("/api/banking/connect") {
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.userIdOrNull()?:
-                return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+            return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
 
             val request = call.receive<CreateBankConnectionRequest>()
@@ -325,6 +326,7 @@ fun Route.bankingRoutes() {
             storedAccounts.forEach { stored ->
                 val token = ensureFreshToken(stored)
                 val tlTransactions = fetchTransactions(token, stored.accountId)
+                    .map { it.copy(accountId = stored.accountId) }   // tag with owning account
                 transactions.addAll(tlTransactions)
             }
 
@@ -488,7 +490,7 @@ fun Route.bankingRoutes() {
 
         // ── Step 3: Save each account to the database ─────────────────────
         runCatching {
-                saveConnectedAccounts(
+            saveConnectedAccounts(
                 userId       = session.userId,
                 accounts     = accounts,
                 accessToken  = tokenResponse.accessToken,
@@ -900,7 +902,7 @@ private fun buildTrueLayerAuthUrl(state: String, providerId: String): String = b
 private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
 
     /** Use the production providers endpoint only for displaying the bank list,
-    * only the Mock Bank works for sandbox TrueLayer auth connection testing */
+     * only the Mock Bank works for sandbox TrueLayer auth connection testing */
     val url = buildString {
         append("${TrueLayerConfig.PROVIDERS_BASE_URL}/api/providers")
         append("?clientId=${URLEncoder.encode(TrueLayerConfig.clientId, "UTF-8")}")
@@ -1098,10 +1100,10 @@ private fun providerVariantLabel(provider: TrueLayerProvider): String {
 private data class BankConnectionSession(val userId: UUID, val providerId: String, val providerName: String)
 
 /**
-* Finds a pending bank connection session by its state value.
-*
-* Returns null if the state is unknown, already completed, failed, or expired.
-*/
+ * Finds a pending bank connection session by its state value.
+ *
+ * Returns null if the state is unknown, already completed, failed, or expired.
+ */
 private fun getPendingBankConnectionSession(state: String): BankConnectionSession? =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
@@ -1259,64 +1261,64 @@ private fun getImportedTransactionsForUser(
         else -> ""
     }
 
-        return Database.dataSource.connection.use { connection ->
-            val totalCount = connection.prepareStatement(
-                """
+    return Database.dataSource.connection.use { connection ->
+        val totalCount = connection.prepareStatement(
+            """
                     SELECT COUNT(*) FROM transactions WHERE user_id = ?
                     $typeCondition
                 """.trimIndent()
-            ).use { statement ->
-                statement.setObject(1, userId)
-                statement.executeQuery().use { result ->
-                    result.next()
-                    result.getInt(1)
-                }
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.executeQuery().use { result ->
+                result.next()
+                result.getInt(1)
             }
+        }
 
-            val transactions = connection.prepareStatement(
-                """
+        val transactions = connection.prepareStatement(
+            """
                     SELECT id, transaction_timestamp, merchant_name, category, account_name,
                     amount, currency, merchant_logo_url FROM transactions WHERE user_id = ?
                     $typeCondition
                     ORDER BY transaction_timestamp DESC, id DESC LIMIT ? OFFSET ?
                     """.trimIndent()
-                ).use { statement ->
-                    statement.setObject(1, userId)
-                    statement.setInt(2, pageSize)
-                    statement.setInt(3, offset)
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.setInt(2, pageSize)
+            statement.setInt(3, offset)
 
-                    statement.executeQuery().use { result ->
-                        val items = mutableListOf<ImportedTransactionResponse>()
+            statement.executeQuery().use { result ->
+                val items = mutableListOf<ImportedTransactionResponse>()
 
-                        while (result.next()) {
-                            items.add(
-                                ImportedTransactionResponse(
-                                    id = result.getObject("id").toString(),
-                                    date = result.getTimestamp("transaction_timestamp").toInstant()
-                                        .toString(),
-                                    merchantName = result.getString("merchant_name"),
-                                    category = result.getString("category"),
-                                    accountName = result.getString("account_name"),
-                                    amount = result.getDouble("amount"),
-                                    currency = result.getString("currency"),
-                                    merchantLogoUrl = result.getString("merchant_logo_url")
-                                )
-                            )
-                        }
-
-                        items
-                    }
+                while (result.next()) {
+                    items.add(
+                        ImportedTransactionResponse(
+                            id = result.getObject("id").toString(),
+                            date = result.getTimestamp("transaction_timestamp").toInstant()
+                                .toString(),
+                            merchantName = result.getString("merchant_name"),
+                            category = result.getString("category"),
+                            accountName = result.getString("account_name"),
+                            amount = result.getDouble("amount"),
+                            currency = result.getString("currency"),
+                            merchantLogoUrl = result.getString("merchant_logo_url")
+                        )
+                    )
                 }
 
-            PaginatedTransactionsResponse(
-                transactions = transactions,
-                page = page,
-                pageSize = pageSize,
-                totalCount = totalCount,
-                hasMore = offset + transactions.size < totalCount
-            )
+                items
+            }
         }
+
+        PaginatedTransactionsResponse(
+            transactions = transactions,
+            page = page,
+            pageSize = pageSize,
+            totalCount = totalCount,
+            hasMore = offset + transactions.size < totalCount
+        )
     }
+}
 
 private fun recordTransactionSyncSuccess(userId: UUID, syncedAt: Instant) {
     Database.dataSource.connection.use { connection ->
