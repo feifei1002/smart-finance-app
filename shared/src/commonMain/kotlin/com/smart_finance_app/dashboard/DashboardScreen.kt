@@ -3,11 +3,11 @@ package com.smart_finance_app.dashboard
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.gestures.forEachGesture
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -128,13 +130,14 @@ data class ChartCardDef(
 
 /** All chart cards available to add via the + Charts sheet. */
 val ALL_CHART_CARDS = listOf(
-    ChartCardDef("weekly_spending",     "Weekly Spending",            "Day-by-day bar chart of your spending this week.",             CardSize.FULL),
-    ChartCardDef("bank_comparison",     "Bank Account Comparison",    "Monthly spending per bank account, side by side.",             CardSize.HALF),
-    ChartCardDef("time_of_day",         "Spending by Time of Day",    "Morning, afternoon and night breakdown as a donut chart.",     CardSize.HALF),
-    ChartCardDef("largest_tx",          "Largest Transactions",       "Top 5 biggest outgoing transactions this month.",              CardSize.HALF),
-    ChartCardDef("smallest_tx",         "Smallest Transactions",      "Top 5 smallest outgoing transactions this month.",             CardSize.HALF),
-    ChartCardDef("merchant_frequency",  "Merchant Spending Treemap",  "Your top merchants this month shown as a spending treemap.",   CardSize.FULL),
-    ChartCardDef("upcoming_bills",       "Upcoming Bills",             "Predicted recurring payments from your transaction history.",  CardSize.FULL)
+    ChartCardDef("weekly_spending",    "Weekly Spending",             "Day-by-day bar chart of your spending this week.",             CardSize.FULL),
+    ChartCardDef("spending_per_day",   "Spending per Day of Week",    "Donut chart showing which days you spend the most.",           CardSize.HALF),
+    ChartCardDef("bank_comparison",    "Bank Account Comparison",     "Monthly spending per bank account, side by side.",             CardSize.HALF),
+    ChartCardDef("time_of_day",        "Spending by Time of Day",     "Morning, afternoon and night breakdown as a donut chart.",     CardSize.HALF),
+    ChartCardDef("largest_tx",         "Largest Transactions",        "Top 5 biggest outgoing transactions this month.",             CardSize.HALF),
+    ChartCardDef("smallest_tx",        "Smallest Transactions",       "Top 5 smallest outgoing transactions this month.",            CardSize.HALF),
+    ChartCardDef("merchant_frequency", "Merchant Spending Treemap",   "Your top merchants this month shown as a spending treemap.",  CardSize.FULL),
+    ChartCardDef("upcoming_bills",     "Upcoming Bills",              "Predicted recurring payments from your transaction history.", CardSize.FULL)
 )
 
 /** Fixed height for every half-size card (side-by-side pair). */
@@ -142,6 +145,9 @@ private val HALF_CARD_HEIGHT = 200.dp
 
 /** Fixed height for every full-size card. */
 private val FULL_CARD_HEIGHT = 240.dp
+
+/** Treemap gets a shorter fixed height — the scroll handles detail visibility. */
+private val TREEMAP_CARD_HEIGHT = 180.dp
 
 /** Built-in cards always start on the dashboard (never in the + Charts sheet). */
 private val BUILTIN_CARD_KEYS = setOf("spending", "trend", "top_categories", "budget")
@@ -161,6 +167,16 @@ private val KEY_CHART_CARDS   = "chart_cards_v2"
 private val KEY_HALF_POSITIONS = "half_card_positions_v1"
 private val KEY_MIGRATED      = "migrated_v2"          // set once after v1 cleanup
 private val DEFAULT_CARD_ORDER = "spending,trend,top_categories,budget"
+
+/**
+ * Portable snapshot of a user's dashboard layout, sent to / received from the backend.
+ * Matches [DashboardLayoutDto] in DashboardApi.kt — keep fields in sync.
+ * The backend stores this keyed by userId so every platform reads the same layout.
+ *
+ * Backend endpoints (implemented in Banking.kt):
+ *   GET  /api/dashboard/layout  → DashboardLayoutDto (or 404 if never saved)
+ *   PUT  /api/dashboard/layout  → body: DashboardLayoutDto
+ */
 
 /** Encodes the card order list to a comma-separated string for storage. */
 private fun List<String>.encodeOrder(): String = joinToString(",")
@@ -310,6 +326,7 @@ fun DashboardScreen(
                         state = state!!,
                         userName = userName,
                         userId = userId,
+                        api = api,
                         authToken = authToken,
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
@@ -323,6 +340,7 @@ fun DashboardScreen(
                         state = state!!,
                         userName = userName,
                         userId = userId,
+                        api = api,
                         authToken = authToken,
                         spendingPeriod = spendingPeriod,
                         selectedAccounts = selectedAccounts,
@@ -342,6 +360,7 @@ private fun MobileDashboard(
     state: DashboardState,
     userName: String,
     userId: String,
+    api: DashboardApi,
     budgetApi: BudgetApi,
     authToken: String,
     spendingPeriod: SpendingPeriod,
@@ -351,6 +370,7 @@ private fun MobileDashboard(
     onViewAllTransactionsClicked: () -> Unit
 ) {
     val greeting = rememberGreeting()
+    val scope    = rememberCoroutineScope()
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var isCustomizing by remember { mutableStateOf(false) }
@@ -428,36 +448,78 @@ private fun MobileDashboard(
                 ((halfPositions[left] == null && halfPositions[right] == null) ||
                         (halfPositions[left] == 0f && halfPositions[right] == 1f))
 
-    // Write current layout to settings — keyed per user
+    // Write current layout to local settings AND push to the backend so other
+    // platforms pick it up. The API call is fire-and-forget with local as fallback.
     fun persistLayout() {
         settings[keyCardOrder]     = cardOrder.encodeOrder()
         settings[keyDeletedCards]  = deletedCards.encodeSet()
         settings[keyChartCards]    = chartCardsOnDashboard.encodeSet()
         settings[keyHalfPositions] = halfPositions.encodeHalfPositions()
+        // Push to backend — other platforms will read this on next load
+        scope.launch {
+            runCatching {
+                api.saveLayout(
+                    authToken,
+                    DashboardLayoutDto(
+                        cardOrder     = cardOrder.encodeOrder(),
+                        deletedCards  = deletedCards.encodeSet(),
+                        chartCards    = chartCardsOnDashboard.encodeSet(),
+                        halfPositions = halfPositions.encodeHalfPositions()
+                    )
+                )
+            }
+        }
     }
 
-    // Add a chart card — each card always gets its own independent slot
+    // Pull layout from backend on entry — keyed on authToken so it fires once the
+    // token is actually available (userId alone may fire before token is ready).
+    LaunchedEffect(authToken) {
+        if (authToken.isBlank()) return@LaunchedEffect
+        runCatching { api.loadLayout(authToken) }.getOrNull()?.let { remote ->
+            if (remote.chartCards.isNotBlank() || remote.deletedCards.isNotBlank()
+                || remote.cardOrder.isNotBlank() && remote.cardOrder != DEFAULT_CARD_ORDER) {
+                val remoteDeleted = remote.deletedCards.decodeSet()
+                val remotePos     = remote.halfPositions.decodeHalfPositions()
+
+                // cardOrder is source of truth — only keep chart keys that appear in it
+                val remoteOrder = remote.cardOrder.decodeOrder()
+                    .filter { k -> !k.contains('|') }
+                    .ifEmpty { DEFAULT_CARD_ORDER.decodeOrder() }
+                val chartsInOrder = remote.chartCards.decodeSet()
+                    .filter { k -> ALL_CHART_CARDS.any { it.key == k } && k in remoteOrder }
+                    .toSet()
+
+                cardOrder.clear(); cardOrder.addAll(remoteOrder)
+                deletedCards          = remoteDeleted
+                chartCardsOnDashboard = chartsInOrder   // only charts actually in order
+                halfPositions.clear(); halfPositions.putAll(remotePos)
+
+                settings[keyCardOrder]     = cardOrder.encodeOrder()
+                settings[keyDeletedCards]  = deletedCards.encodeSet()
+                settings[keyChartCards]    = chartCardsOnDashboard.encodeSet()
+                settings[keyHalfPositions] = halfPositions.encodeHalfPositions()
+            }
+        }
+    }
+
+    // Add a chart card — persists immediately so re-login doesn't lose the change,
+    // and pushes to backend so other platforms sync right away.
     fun addChartCard(key: String) {
         if (ALL_CHART_CARDS.none { it.key == key }) return
-        if (key in chartCardsOnDashboard) return        // already on dashboard
+        if (key in chartCardsOnDashboard) return
         chartCardsOnDashboard = chartCardsOnDashboard + key
         cardOrder.add(key)
-        // No saved lane means this card can pair with the next re-added half
-        // card. Explicitly positioned lone cards retain their own lane instead.
         halfPositions.remove(key)
-        // Layout is persisted only when the user clicks Done (fix #7)
+        persistLayout()   // save locally + push to backend immediately
     }
 
-    // Delete a card — chart cards return to sheet; built-in cards go to deletedCards
+    // Delete a card — persists immediately for the same reason.
     fun deleteCard(key: String) {
         val isChart = ALL_CHART_CARDS.any { it.key == key }
         if (isChart) {
             val index = cardOrder.indexOf(key)
             val leftNeighbour = cardOrder.getOrNull(index - 1)
             val rightNeighbour = cardOrder.getOrNull(index + 1)
-
-            // Only the surviving card in this row is changed.  In particular,
-            // do not let the next half-card pair move up into this row.
             if (halfCardsShareRow(leftNeighbour, key)) {
                 halfPositions[leftNeighbour!!] = 0f
             } else if (halfCardsShareRow(key, rightNeighbour)) {
@@ -465,11 +527,11 @@ private fun MobileDashboard(
             }
             halfPositions.remove(key)
             chartCardsOnDashboard = chartCardsOnDashboard - key
-            cardOrder.remove(key)           // remove by value — always unique
+            cardOrder.remove(key)
         } else {
             deletedCards = deletedCards + key
         }
-        // Layout is persisted only when the user clicks Done (fix #7)
+        persistLayout()   // save locally + push to backend immediately
     }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
@@ -513,10 +575,15 @@ private fun MobileDashboard(
         )
     }
 
+    // Locked to true only while the user is actively dragging a move handle —
+    // prevents the LazyColumn from scrolling under the finger during a card drag.
+    var isDraggingHandle by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp)
+        contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp),
+        userScrollEnabled = !isDraggingHandle
     ) {
         // Header block: greeting, subtitle, and controls all tightly grouped
         item {
@@ -781,11 +848,10 @@ private fun MobileDashboard(
                             onDelete      = { deleteCard(key) },
                             onMoveUp      = { moveRowUp(rowIndex) },
                             onMoveDown    = { moveRowDown(rowIndex) },
+                            onDragStarted = { isDraggingHandle = true },
+                            onDragEnded   = { isDraggingHandle = false },
                             onMoveHorizontally = { delta ->
                                 val isLeft = row.first() == key
-                                // Dragging either member toward the centre breaks the
-                                // pair: the dragged card owns this row and its former
-                                // neighbour is squeezed into the following row.
                                 if ((isLeft && delta > 0f) || (!isLeft && delta < 0f)) {
                                     val other = row.first { it != key }
                                     halfPositions[key] = 0.5f
@@ -795,7 +861,6 @@ private fun MobileDashboard(
                                         val to = cardOrder.indexOf(other)
                                         cardOrder.move(from, to)
                                     }
-                                    // Layout is persisted only when the user clicks Done (fix #7)
                                 }
                             },
                             modifier      = Modifier.weight(1f).fillMaxHeight()
@@ -822,9 +887,10 @@ private fun MobileDashboard(
                             onDelete      = { deleteCard(key) },
                             onMoveUp      = { moveRowUp(rowIndex) },
                             onMoveDown    = { moveRowDown(rowIndex) },
+                            onDragStarted = { isDraggingHandle = true },
+                            onDragEnded   = { isDraggingHandle = false },
                             onMoveHorizontally = { delta ->
                                 halfPositions[key] = ((halfPositions[key] ?: 0f) + delta).coerceIn(0f, 1f)
-                                // Layout is persisted only when the user clicks Done (fix #7)
                             },
                             horizontalPosition = halfPositions[key] ?: 0f,
                             modifier      = Modifier.weight(1f).fillMaxHeight()
@@ -836,13 +902,16 @@ private fun MobileDashboard(
                     }
                 } else {
                     // Full-size card
+                    val cardHeight = if (key == "merchant_frequency") TREEMAP_CARD_HEIGHT else FULL_CARD_HEIGHT
                     CustomizableCard(
                         cardKey       = key,
                         isCustomizing = isCustomizing,
                         onDelete      = { deleteCard(key) },
                         onMoveUp      = { moveRowUp(rowIndex) },
                         onMoveDown    = { moveRowDown(rowIndex) },
-                        modifier      = Modifier.height(FULL_CARD_HEIGHT)
+                        onDragStarted = { isDraggingHandle = true },
+                        onDragEnded   = { isDraggingHandle = false },
+                        modifier      = Modifier.height(cardHeight)
                     ) {
                         when (key) {
                             "spending" -> {
@@ -916,6 +985,7 @@ private fun DesktopDashboard(
     state: DashboardState,
     userName: String,
     userId: String,
+    api: DashboardApi,
     budgetApi: BudgetApi,
     authToken: String,
     spendingPeriod: SpendingPeriod,
@@ -925,14 +995,81 @@ private fun DesktopDashboard(
     onViewAllTransactionsClicked: () -> Unit
 ) {
     val greeting = rememberGreeting()
+    val scope    = rememberCoroutineScope()
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var isCustomizing by remember { mutableStateOf(false) }
     var showChartsSheet by remember { mutableStateOf(false) }
-    var deletedCards by remember { mutableStateOf(setOf<String>()) }
-    var chartCardsOnDashboard by remember { mutableStateOf(setOf<String>()) }
-    // Desktop card order for newly added chart cards (not persisted — desktop is session-only)
-    val desktopChartOrder = remember { mutableStateListOf<String>() }
+
+    // Snapshot for Cancel — hoisted here so they survive LazyColumn recomposition
+    var desktopDeletedSnapshot by remember { mutableStateOf<Set<String>?>(null) }
+    var desktopChartSnapshot   by remember { mutableStateOf<Set<String>?>(null) }
+    var desktopOrderSnapshot   by remember { mutableStateOf<List<String>?>(null) }
+
+    // ── Persisted layout state — same Settings keys as MobileDashboard ──────────
+    // This means customisations sync between mobile and desktop via shared storage.
+    val settings       = remember { Settings() }
+    val keyCardOrder     = remember(userId) { "${userId}_${KEY_CARD_ORDER}" }
+    val keyDeletedCards  = remember(userId) { "${userId}_${KEY_DELETED_CARDS}" }
+    val keyChartCards    = remember(userId) { "${userId}_${KEY_CHART_CARDS}" }
+    val keyMigrated      = remember(userId) { "${userId}_${KEY_MIGRATED}" }
+
+    var deletedCards by remember(userId) {
+        mutableStateOf(
+            settings.getStringOrNull(keyDeletedCards)?.decodeSet() ?: emptySet()
+        )
+    }
+    var chartCardsOnDashboard by remember(userId) {
+        val raw = settings.getStringOrNull(keyChartCards)?.decodeSet() ?: emptySet()
+        val valid = raw.filter { k -> ALL_CHART_CARDS.any { it.key == k } }.toSet()
+        mutableStateOf(valid)
+    }
+
+    // Desktop chart order — initialised from persisted chart set, saved on Done
+    val desktopChartOrder = remember(userId) {
+        val saved = settings.getStringOrNull(keyChartCards)?.decodeSet()
+            ?.filter { k -> ALL_CHART_CARDS.any { it.key == k } } ?: emptyList()
+        mutableStateListOf<String>().also { it.addAll(saved) }
+    }
+
+    fun persistDesktopLayout() {
+        settings[keyDeletedCards] = deletedCards.encodeSet()
+        settings[keyChartCards]   = chartCardsOnDashboard.encodeSet()
+        // Push to backend — mobile and other desktop sessions pick this up on next load
+        scope.launch {
+            runCatching {
+                api.saveLayout(
+                    authToken,
+                    DashboardLayoutDto(
+                        cardOrder    = DEFAULT_CARD_ORDER,
+                        deletedCards = deletedCards.encodeSet(),
+                        chartCards   = chartCardsOnDashboard.encodeSet()
+                    )
+                )
+            }
+        }
+    }
+
+    // Pull layout from backend on entry — keyed on authToken so it fires once the
+    // token is actually available (userId alone may fire before token is ready).
+    LaunchedEffect(authToken) {
+        if (authToken.isBlank()) return@LaunchedEffect
+        runCatching { api.loadLayout(authToken) }.getOrNull()?.let { remote ->
+            if (remote.chartCards.isNotBlank() || remote.deletedCards.isNotBlank()) {
+                val remoteDeleted = remote.deletedCards.decodeSet()
+                val remoteOrder   = remote.cardOrder.decodeOrder()
+                    .filter { k -> k in remote.chartCards.decodeSet() && ALL_CHART_CARDS.any { it.key == k } }
+                // Only keep charts that are actually in the saved order
+                val chartsInOrder = remoteOrder.toSet()
+                deletedCards          = remoteDeleted
+                chartCardsOnDashboard = chartsInOrder
+                desktopChartOrder.clear()
+                desktopChartOrder.addAll(remoteOrder)
+                settings[keyDeletedCards] = remoteDeleted.encodeSet()
+                settings[keyChartCards]   = chartsInOrder.encodeSet()
+            }
+        }
+    }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
     val activeAccounts = remember(selectedAccounts, state.accounts) {
@@ -1022,15 +1159,11 @@ private fun DesktopDashboard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Desktop customize snapshot for Cancel support
-                    var desktopDeletedSnapshot by remember { mutableStateOf<Set<String>?>(null) }
-                    var desktopChartSnapshot   by remember { mutableStateOf<Set<String>?>(null) }
-                    var desktopOrderSnapshot   by remember { mutableStateOf<List<String>?>(null) }
                     DashboardCustomizeButton(
                         isCustomizing = isCustomizing,
                         onClick = {
                             if (isCustomizing) {
-                                // Done — desktop layout is session-only, nothing to persist
+                                persistDesktopLayout()
                                 desktopDeletedSnapshot = null
                                 desktopChartSnapshot   = null
                                 desktopOrderSnapshot   = null
@@ -1229,9 +1362,20 @@ private fun DesktopDashboard(
 
         // ── Dynamically added chart cards (desktop) — rendered above the + Charts button ──
         // desktopChartRows is computed above in Composable scope via derivedStateOf.
-        items(desktopChartRows, key = { row -> "drow_${row.joinToString("|")}" }) { row ->
+        itemsIndexed(desktopChartRows, key = { _, row -> "drow_${row.joinToString("|")}" }) { rowIndex, row ->
+
+            fun desktopMoveRowUp() {
+                val firstKey = row.first()
+                val idx = desktopChartOrder.indexOf(firstKey)
+                if (idx > 0) desktopChartOrder.move(idx, idx - 1)
+            }
+            fun desktopMoveRowDown() {
+                val lastKey = row.last()
+                val idx = desktopChartOrder.indexOf(lastKey)
+                if (idx < desktopChartOrder.lastIndex) desktopChartOrder.move(idx, idx + 1)
+            }
+
             if (row.size == 2) {
-                // Two half-size cards side by side
                 Row(
                     modifier = Modifier.fillMaxWidth().height(HALF_CARD_HEIGHT),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -1244,6 +1388,8 @@ private fun DesktopDashboard(
                                 chartCardsOnDashboard = chartCardsOnDashboard - key
                                 desktopChartOrder.remove(key)
                             },
+                            onMoveUp   = { desktopMoveRowUp() },
+                            onMoveDown = { desktopMoveRowDown() },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             ChartCardContent(key, state, filteredRawTransactions)
@@ -1254,7 +1400,6 @@ private fun DesktopDashboard(
                 val key = row[0]
                 val def = ALL_CHART_CARDS.find { it.key == key }
                 if (def?.size == CardSize.HALF) {
-                    // Lone half-size card — renders at half width with a spacer on the right
                     Row(
                         modifier = Modifier.fillMaxWidth().height(HALF_CARD_HEIGHT),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -1266,6 +1411,8 @@ private fun DesktopDashboard(
                                 chartCardsOnDashboard = chartCardsOnDashboard - key
                                 desktopChartOrder.remove(key)
                             },
+                            onMoveUp   = { desktopMoveRowUp() },
+                            onMoveDown = { desktopMoveRowDown() },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             ChartCardContent(key, state, filteredRawTransactions)
@@ -1273,7 +1420,7 @@ private fun DesktopDashboard(
                         Spacer(Modifier.weight(1f))
                     }
                 } else {
-                    // Full-size card — spans the full width
+                    val cardHeight = if (key == "merchant_frequency") TREEMAP_CARD_HEIGHT else FULL_CARD_HEIGHT
                     CustomizableCard(
                         cardKey = key,
                         isCustomizing = isCustomizing,
@@ -1281,7 +1428,9 @@ private fun DesktopDashboard(
                             chartCardsOnDashboard = chartCardsOnDashboard - key
                             desktopChartOrder.remove(key)
                         },
-                        modifier = Modifier.fillMaxWidth().height(FULL_CARD_HEIGHT)
+                        onMoveUp   = { desktopMoveRowUp() },
+                        onMoveDown = { desktopMoveRowDown() },
+                        modifier = Modifier.fillMaxWidth().height(cardHeight)
                     ) {
                         ChartCardContent(key, state, filteredRawTransactions)
                     }
@@ -1324,7 +1473,12 @@ private fun DesktopDashboard(
                                 Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
-                                state.recentTransactions.take(6).forEach { tx -> TransactionRow(tx) }
+                                Column(
+                                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                                ) {
+                                    state.recentTransactions.forEach { tx -> TransactionRow(tx) }
+                                }
                             }
                         }
                     }
@@ -1332,8 +1486,8 @@ private fun DesktopDashboard(
                 if ("accounts_overview" !in deletedCards) {
                     CustomizableCard(
                         cardKey = "accounts_overview",
-                        isCustomizing = isCustomizing,
-                        onDelete = { deletedCards = deletedCards + it },
+                        isCustomizing = false, // Accounts Overview is not deletable on desktop
+                        onDelete = {},
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1342,26 +1496,31 @@ private fun DesktopDashboard(
                                 Text("No accounts connected yet", style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
-                                state.accounts.forEach { account ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text(account.bankName, style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Medium)
-                                            Text("**** ${account.maskedNumber}", style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Column(
+                                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                                ) {
+                                    state.accounts.forEach { account ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(account.bankName, style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium)
+                                                Text("**** ${account.maskedNumber}", style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(account.balance, style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold)
+                                                Text("Connected", style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF16A34A))
+                                            }
                                         }
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(account.balance, style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.SemiBold)
-                                            Text("Connected", style = MaterialTheme.typography.labelSmall,
-                                                color = Color(0xFF16A34A))
-                                        }
+                                        if (account != state.accounts.last()) HorizontalDivider()
                                     }
-                                    if (account != state.accounts.last()) HorizontalDivider()
                                 }
                             }
                             Spacer(Modifier.height(4.dp))
@@ -1374,8 +1533,8 @@ private fun DesktopDashboard(
                 if ("quick_actions" !in deletedCards) {
                     CustomizableCard(
                         cardKey = "quick_actions",
-                        isCustomizing = isCustomizing,
-                        onDelete = { deletedCards = deletedCards + it },
+                        isCustomizing = false, // Quick Actions is not deletable on desktop
+                        onDelete = {},
                         modifier = Modifier.weight(0.8f).fillMaxHeight()
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1976,6 +2135,8 @@ private fun CustomizableCard(
     onDelete: (String) -> Unit,
     onMoveUp: () -> Unit = {},
     onMoveDown: () -> Unit = {},
+    onDragStarted: () -> Unit = {},
+    onDragEnded: () -> Unit = {},
     onMoveHorizontally: (Float) -> Unit = {},
     horizontalPosition: Float? = null,
     modifier: Modifier = Modifier,
@@ -2011,31 +2172,60 @@ private fun CustomizableCard(
                     MinusIcon(modifier = Modifier.size(12.dp), color = Color.White)
                 }
 
-                // ── Move handle: centred icon, long-press + drag to reorder ──
+                // ── Move handle: centred icon, drag to reorder ──
+                // Uses raw awaitPointerEventScope so the LazyColumn's nested-scroll
+                // handler never intercepts the drag — works for both mouse and touch.
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
                         .size(72.dp)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f), CircleShape)
-                        .pointerInput(Unit) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart  = { dragAccumY = 0f; dragAccumX = 0f },
-                                onDrag       = { change, dragAmount ->
-                                    change.consume()
-                                    dragAccumX += dragAmount.x
-                                    dragAccumY += dragAmount.y
-                                    if (kotlin.math.abs(dragAccumX) > kotlin.math.abs(dragAccumY)) {
-                                        // Continuous horizontal movement for lone half-card tracks.
-                                        onMoveHorizontally(dragAmount.x / 300f)
+                        .pointerInput("move_handle_$isCustomizing") {
+                            if (!isCustomizing) return@pointerInput
+                            forEachGesture {
+                                awaitPointerEventScope {
+                                    var pressed = false
+                                    while (!pressed) {
+                                        val event = awaitPointerEvent(PointerEventPass.Final)
+                                        val change = event.changes.firstOrNull() ?: continue
+                                        if (change.pressed) {
+                                            change.consume()
+                                            pressed = true
+                                            dragAccumY = 0f
+                                            dragAccumX = 0f
+                                            onDragStarted()   // lock LazyColumn scroll
+                                        }
                                     }
-                                    when {
-                                        dragAccumY >  swapThresholdPx -> { onMoveDown(); dragAccumY = 0f }
-                                        dragAccumY < -swapThresholdPx -> { onMoveUp();   dragAccumY = 0f }
+                                    var dragging = true
+                                    while (dragging) {
+                                        val event = awaitPointerEvent(PointerEventPass.Final)
+                                        val change = event.changes.firstOrNull() ?: break
+                                        if (change.pressed) {
+                                            val delta = change.position - change.previousPosition
+                                            change.consume()
+                                            dragAccumX += delta.x
+                                            dragAccumY += delta.y
+                                            when {
+                                                dragAccumY > swapThresholdPx -> {
+                                                    onMoveDown()
+                                                    dragAccumY = 0f; dragAccumX = 0f
+                                                }
+                                                dragAccumY < -swapThresholdPx -> {
+                                                    onMoveUp()
+                                                    dragAccumY = 0f; dragAccumX = 0f
+                                                }
+                                                kotlin.math.abs(dragAccumX) > kotlin.math.abs(dragAccumY) ->
+                                                    onMoveHorizontally(delta.x / 300f)
+                                            }
+                                        } else {
+                                            change.consume()
+                                            dragAccumY = 0f; dragAccumX = 0f
+                                            dragging = false
+                                            onDragEnded()   // unlock LazyColumn scroll
+                                        }
                                     }
-                                },
-                                onDragEnd    = { dragAccumY = 0f; dragAccumX = 0f },
-                                onDragCancel = { dragAccumY = 0f; dragAccumX = 0f }
-                            )
+                                }
+                            }
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -2367,6 +2557,72 @@ private fun ColumnScope.ChartCardContent(
             }
         }
 
+        // ── Spending per Day of Week (half) ──
+        "spending_per_day" -> {
+            val days = listOf("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
+            val dayColors = listOf(
+                Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B),
+                Color(0xFFEC4899), Color(0xFF3B82F6), Color(0xFFF97316), Color(0xFF8B5CF6)
+            )
+            val totals = days.mapIndexed { idx, label ->
+                val total = rawTransactions.filter { tx ->
+                    val p = tx.timestamp.take(10).split("-")
+                    if (p.size != 3) return@filter false
+                    val date = try {
+                        LocalDate(p[0].toInt(), p[1].toInt(), p[2].toInt())
+                    } catch (_: Exception) { return@filter false }
+                    // DayOfWeek: MONDAY=1..SUNDAY=7, ordinal 0-based = 0..6
+                    date.dayOfWeek.ordinal == idx && tx.amount < 0
+                }.sumOf { kotlin.math.abs(it.amount) }.toFloat()
+                SpendingCategory(
+                    name   = label,
+                    amount = formatCurrency(total.toDouble(), sym),
+                    percent = total,   // raw total; DonutChart normalises internally
+                    color  = dayColors[idx]
+                )
+            }.filter { it.percent > 0f }
+
+            Column(
+                modifier = Modifier.fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Spending per Day",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (totals.isEmpty()) {
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        Text("No data yet", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    DonutChart(
+                        categories = totals,
+                        modifier   = Modifier.size(120.dp)
+                    )
+                    // Compact legend — wraps into two columns for the half-card width
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        totals.forEach { cat ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(Modifier.size(8.dp).background(cat.color, CircleShape))
+                                Text(
+                                    "${cat.name}  ${cat.amount}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Bank Account Comparison (half) ──
         // 2. Scrollable inside the card so no info is cut
         "bank_comparison" -> {
@@ -2674,116 +2930,70 @@ private fun ColumnScope.ChartCardContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    val maxVisit = bubbles.maxOf { it.visitCount }.toFloat().coerceAtLeast(1f)
-                    val maxAvg   = bubbles.maxOf { it.avgAmount  }.toFloat().coerceAtLeast(1f)
-                    val maxTotal = bubbles.maxOf { it.totalSpend }.toFloat().coerceAtLeast(1f)
-
-                    // Axis hint row
-                    Row(modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("↑ visits", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("avg spend →", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-
-                    // Everything drawn on a single Canvas — nothing clips
+                    // Horizontally scrollable treemap — each merchant gets a tile
+                    // whose width is proportional to total spend.  The user can
+                    // swipe/scroll to see smaller merchants on the right.
+                    val totalTreemapSpend = bubbles.sumOf { it.totalSpend }.toFloat().coerceAtLeast(1f)
                     val textMeasurer = rememberTextMeasurer()
-                    Canvas(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                        val w = size.width
-                        val h = size.height
+                    val tilePadding  = 2.dp
+                    // Minimum tile width so text is always legible
+                    val minTileWidthDp = 64.dp
 
-                        // Max bubble radius = 20% of the shorter axis, min = 8% — so even the
-                        // smallest bubble is readable and the largest never overflows.
-                        val maxR = minOf(w, h) * 0.20f
-                        val minR = minOf(w, h) * 0.08f
-
-                        // Grid lines
-                        val gridColor = Color(0x22888888)
-                        // Conventional bottom X-axis: the average-spend scale and
-                        // its ticks live below the plotted bubbles, not at the top.
-                        val xAxisY = h - 12.dp.toPx()
-                        drawLine(gridColor, Offset(0f, xAxisY), Offset(w, xAxisY), 1.dp.toPx())
-                        listOf(0f, 0.33f, 0.66f, 1f).forEach { fraction ->
-                            val x = w * fraction
-                            drawLine(gridColor, Offset(x, xAxisY), Offset(x, xAxisY + 4.dp.toPx()), 1.dp.toPx())
-                        }
-                        listOf(0.33f, 0.66f).forEach { frac ->
-                            drawLine(gridColor, Offset(0f, h * frac), Offset(w, h * frac), 1.dp.toPx())
-                            drawLine(gridColor, Offset(w * frac, 0f), Offset(w * frac, h), 1.dp.toPx())
-                        }
-
-                        val totalTreemapSpend = bubbles.sumOf { it.totalSpend }.toFloat().coerceAtLeast(1f)
-                        var treemapX = 0f
-                        bubbles.forEach { b ->
-                            // X: avg amount (low left → high right), margin = maxR so bubble never clips edge
-                            val xFrac = (b.avgAmount.toFloat() / maxAvg).coerceIn(0f, 1f)
-                            val yFrac = 1f - (b.visitCount.toFloat() / maxVisit).coerceIn(0f, 1f)
-
-                            // Each contiguous tile's width is its share of the
-                            // month's spending, forming a full-card treemap.
-                            val tileWidth = if (b == bubbles.last()) w - treemapX
-                            else w * (b.totalSpend.toFloat() / totalTreemapSpend)
-                            val tilePadding = 2.dp.toPx()
-                            val tileHeight = h * 0.72f
-                            val tileTop = (h - tileHeight) / 2f
-                            drawRoundRect(
-                                color = b.color.copy(alpha = 0.84f),
-                                topLeft = Offset(treemapX + tilePadding, tileTop + tilePadding),
-                                size = Size((tileWidth - 2 * tilePadding).coerceAtLeast(1f), (tileHeight - 2 * tilePadding).coerceAtLeast(1f)),
-                                cornerRadius = CornerRadius(8.dp.toPx())
-                            )
-                            val r = minOf(tileWidth, tileHeight) / 2f
-                            val cx = treemapX + tileWidth / 2f
-                            val cy = h / 2f
-                            treemapX += tileWidth
-
-                            // Merchant name — fits inside the circle
-                            val nameStyle = TextStyle(
-                                fontSize = (r * 0.28f / density).sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                textAlign = TextAlign.Center
-                            )
-                            val countStyle = TextStyle(
-                                fontSize = (r * 0.22f / density).sp,
-                                color = Color.White.copy(alpha = 0.9f),
-                                textAlign = TextAlign.Center
-                            )
-
-                            val nameLayout  = textMeasurer.measure(b.name.take(8), nameStyle,
-                                constraints = Constraints(maxWidth = (r * 1.6f).toInt()))
-                            val countLayout = textMeasurer.measure("${b.visitCount}×", countStyle)
-
-                            val totalTextH = nameLayout.size.height + countLayout.size.height + 2.dp.toPx()
-
-                            drawText(nameLayout,  topLeft = Offset(cx - nameLayout.size.width  / 2f, cy - totalTextH / 2f))
-                            drawText(countLayout, topLeft = Offset(cx - countLayout.size.width / 2f,
-                                cy - totalTextH / 2f + nameLayout.size.height + 2.dp.toPx()))
-                        }
-                    }
-                    val totalSpend = bubbles.sumOf { it.totalSpend }.coerceAtLeast(1.0)
                     Row(
-                        modifier = Modifier.fillMaxWidth().height(148.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
                             .horizontalScroll(rememberScrollState()),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        bubbles.forEach { merchant ->
-                            val tileWidth = (96f + 180f * (merchant.totalSpend / totalSpend).toFloat()).dp
-                            Box(
-                                modifier = Modifier.width(tileWidth).height(132.dp)
-                                    .background(merchant.color.copy(alpha = 0.84f), RoundedCornerShape(12.dp))
-                                    .padding(12.dp),
-                                contentAlignment = Alignment.Center
+                        bubbles.forEach { b ->
+                            // Natural proportional width — floor at minTileWidthDp
+                            val fraction  = (b.totalSpend.toFloat() / totalTreemapSpend)
+                            val naturalDp = (fraction * 320).dp   // 320dp ref — fits ~2 tiles before scroll
+                            val tileDp    = maxOf(naturalDp, minTileWidthDp)
+
+                            Canvas(
+                                modifier = Modifier
+                                    .width(tileDp)
+                                    .fillMaxHeight()
+                                    .padding(tilePadding)
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(merchant.name, color = Color.White, fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.labelMedium, maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                                    Text(formatCurrency(merchant.totalSpend, sym), color = Color.White.copy(alpha = 0.9f),
-                                        style = MaterialTheme.typography.labelSmall)
-                                }
+                                val w = size.width
+                                val h = size.height
+                                drawRoundRect(
+                                    color = b.color.copy(alpha = 0.84f),
+                                    topLeft = Offset(0f, 0f),
+                                    size = Size(w, h),
+                                    cornerRadius = CornerRadius(8.dp.toPx())
+                                )
+                                val r = minOf(w, h) / 2f
+                                val cx = w / 2f
+                                val cy = h / 2f
+
+                                val nameStyle = TextStyle(
+                                    fontSize = (r * 0.30f / density).coerceAtLeast(8f).sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    textAlign = TextAlign.Center
+                                )
+                                val amountStyle = TextStyle(
+                                    fontSize = (r * 0.23f / density).coerceAtLeast(7f).sp,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                val nameLayout = textMeasurer.measure(
+                                    b.name.take(14), nameStyle,
+                                    constraints = Constraints(maxWidth = w.toInt().coerceAtLeast(1))
+                                )
+                                val amountLayout = textMeasurer.measure(
+                                    formatCurrency(b.totalSpend, sym), amountStyle
+                                )
+
+                                val totalTextH = nameLayout.size.height + amountLayout.size.height + 2.dp.toPx()
+                                drawText(nameLayout,   topLeft = Offset(cx - nameLayout.size.width   / 2f, cy - totalTextH / 2f))
+                                drawText(amountLayout, topLeft = Offset(cx - amountLayout.size.width / 2f,
+                                    cy - totalTextH / 2f + nameLayout.size.height + 2.dp.toPx()))
                             }
                         }
                     }

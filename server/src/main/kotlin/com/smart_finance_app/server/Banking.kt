@@ -14,6 +14,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -370,6 +371,39 @@ fun Route.bankingRoutes() {
             }
 
             call.respond(groupBankProviders(providers))
+        }
+
+        /**
+         * GET /api/dashboard/layout
+         *
+         * Returns the saved dashboard layout for the authenticated user, or 404 if
+         * they have never saved one (client should use its local defaults).
+         */
+        get("/api/dashboard/layout") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val layout = getDashboardLayout(userId)
+                ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("No layout saved"))
+
+            call.respond(layout)
+        }
+
+        /**
+         * PUT /api/dashboard/layout
+         *
+         * Saves (upserts) the dashboard layout for the authenticated user.
+         * Called by the client when the user presses Done in customise mode.
+         */
+        put("/api/dashboard/layout") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@put call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val body = call.receive<DashboardLayoutRequest>()
+            saveDashboardLayout(userId, body)
+            call.respond(HttpStatusCode.OK, mapOf("status" to "saved"))
         }
 
         get("/api/banking/connection-session/{state}") {
@@ -1511,6 +1545,75 @@ private fun fetchMerchantLogoFromLogoDev(merchantName: String): Pair<String, Str
     }
 
     return domain to logoUrl
+}
+
+// ── Dashboard layout sync ─────────────────────────────────────────────────────
+
+@Serializable
+data class DashboardLayoutRequest(
+    val cardOrder: String    = "",   // comma-separated built-in card order
+    val deletedCards: String = "",   // pipe-separated deleted card keys
+    val chartCards: String   = "",   // pipe-separated chart card keys on dashboard
+    val halfPositions: String = ""   // "key:float|…" encoded half-card positions
+)
+
+/**
+ * Returns the saved layout for [userId], or null if none exists yet.
+ */
+private fun getDashboardLayout(userId: UUID): DashboardLayoutRequest? =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT card_order, deleted_cards, chart_cards, half_positions
+            FROM dashboard_layouts
+            WHERE user_id = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.executeQuery().use { result ->
+                if (result.next()) DashboardLayoutRequest(
+                    cardOrder     = result.getString("card_order")     ?: "",
+                    deletedCards  = result.getString("deleted_cards")  ?: "",
+                    chartCards    = result.getString("chart_cards")    ?: "",
+                    halfPositions = result.getString("half_positions") ?: ""
+                ) else null
+            }
+        }
+    }
+
+/**
+ * Upserts the layout for [userId].  Creates the row on first save, overwrites on
+ * subsequent saves — so the backend always holds the user's latest layout.
+ */
+private fun saveDashboardLayout(userId: UUID, layout: DashboardLayoutRequest) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                INSERT INTO dashboard_layouts
+                    (user_id, card_order, deleted_cards, chart_cards, half_positions, updated_at)
+                VALUES (?, ?, ?, ?, ?, now())
+                ON CONFLICT (user_id) DO UPDATE SET
+                    card_order     = EXCLUDED.card_order,
+                    deleted_cards  = EXCLUDED.deleted_cards,
+                    chart_cards    = EXCLUDED.chart_cards,
+                    half_positions = EXCLUDED.half_positions,
+                    updated_at     = now()
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, layout.cardOrder)
+                statement.setString(3, layout.deletedCards)
+                statement.setString(4, layout.chartCards)
+                statement.setString(5, layout.halfPositions)
+                statement.executeUpdate()
+            }
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
 }
 
 private fun normaliseMerchantKey(value: String): String =
