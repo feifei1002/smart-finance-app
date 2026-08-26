@@ -3,10 +3,12 @@ package com.smart_finance_app.dashboard
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 // ── Response models matching server Banking.kt ────────────────────────────────
 
@@ -115,26 +117,22 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
                 bearerAuth(token)
             }
             when (response.status) {
-                HttpStatusCode.OK       -> response.body()
-                HttpStatusCode.NotFound -> null   // no layout saved yet — use local defaults
+                HttpStatusCode.OK       -> Json.decodeFromString(response.bodyAsText())
+                HttpStatusCode.NotFound -> null
                 else                    -> null
             }
         } catch (_: Exception) {
-            null   // offline or error — caller falls back to local Settings
+            null
         }
     }
 
-    /**
-     * Pushes the current dashboard layout to the backend so other platforms
-     * (web, desktop, another phone) pick it up on their next load.
-     * Fire-and-forget — failures are swallowed; local Settings already has the state.
-     */
     suspend fun saveLayout(token: String, layout: DashboardLayoutDto) {
         try {
+            val jsonBody = Json.encodeToString(DashboardLayoutDto.serializer(), layout)
             client.put("${baseUrl.trimEnd('/')}/api/dashboard/layout") {
                 bearerAuth(token)
                 header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-                setBody(layout)
+                setBody(jsonBody)
             }
         } catch (_: Exception) {
             // Swallow — local Settings is the fallback; sync will succeed next time

@@ -1005,6 +1005,12 @@ private fun DesktopDashboard(
     var desktopDeletedSnapshot by remember { mutableStateOf<Set<String>?>(null) }
     var desktopChartSnapshot   by remember { mutableStateOf<Set<String>?>(null) }
     var desktopOrderSnapshot   by remember { mutableStateOf<List<String>?>(null) }
+    var desktopBuiltinSnapshot by remember { mutableStateOf<List<String>?>(null) }
+
+    // Order of the two built-in row groups — user can drag to reorder them
+    val desktopBuiltinOrder = remember {
+        mutableStateListOf("spending_trend_row", "categories_budget_row")
+    }
 
     // ── Persisted layout state — same Settings keys as MobileDashboard ──────────
     // This means customisations sync between mobile and desktop via shared storage.
@@ -1167,11 +1173,13 @@ private fun DesktopDashboard(
                                 desktopDeletedSnapshot = null
                                 desktopChartSnapshot   = null
                                 desktopOrderSnapshot   = null
+                                desktopBuiltinSnapshot = null
                                 isCustomizing = false
                             } else {
                                 desktopDeletedSnapshot = deletedCards
                                 desktopChartSnapshot   = chartCardsOnDashboard
                                 desktopOrderSnapshot   = desktopChartOrder.toList()
+                                desktopBuiltinSnapshot = desktopBuiltinOrder.toList()
                                 isCustomizing = true
                             }
                         },
@@ -1182,9 +1190,14 @@ private fun DesktopDashboard(
                                 desktopChartOrder.clear()
                                 desktopChartOrder.addAll(it)
                             }
+                            desktopBuiltinSnapshot?.let {
+                                desktopBuiltinOrder.clear()
+                                desktopBuiltinOrder.addAll(it)
+                            }
                             desktopDeletedSnapshot = null
                             desktopChartSnapshot   = null
                             desktopOrderSnapshot   = null
+                            desktopBuiltinSnapshot = null
                             isCustomizing = false
                         }
                     )
@@ -1255,46 +1268,64 @@ private fun DesktopDashboard(
             )
         }
 
-        // Spending + Trend row
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(300.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                if ("spending" !in deletedCards) {
-                    CustomizableCard(
-                        cardKey = "spending",
-                        isCustomizing = isCustomizing,
-                        onDelete = { deletedCards = deletedCards + it },
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-                            val filteredCategories = computeSpendingCategories(
-                                transactions = filteredRawTransactions,
-                                period = spendingPeriod,
-                                currency = state.currency
-                            )
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                DonutChart(categories = filteredCategories, modifier = Modifier.size(140.dp))
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (filteredCategories.isEmpty()) {
-                                        Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    } else {
-                                        filteredCategories.forEach { cat ->
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Box(Modifier.size(10.dp).background(cat.color, CircleShape))
-                                                Text("${cat.name}  ${(cat.percent * 100).toInt()}%",
-                                                    style = MaterialTheme.typography.bodySmall)
-                                                Text(cat.amount, style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // ── Built-in cards — order is persisted in desktopBuiltinOrder ──────────
+        // Each card is a full LazyColumn item so the move handle can reorder them.
+        itemsIndexed(
+            desktopBuiltinOrder.filter { it !in deletedCards },
+            key = { _, key -> "builtin_$key" }
+        ) { builtinIdx, key ->
+
+            fun builtinMoveUp() {
+                val idx = desktopBuiltinOrder.indexOf(key)
+                if (idx > 0) desktopBuiltinOrder.move(idx, idx - 1)
+            }
+            fun builtinMoveDown() {
+                val idx = desktopBuiltinOrder.indexOf(key)
+                if (idx < desktopBuiltinOrder.lastIndex) desktopBuiltinOrder.move(idx, idx + 1)
+            }
+
+            when (key) {
+                "spending_trend_row" -> Row(
+                    modifier = Modifier.fillMaxWidth().height(300.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if ("spending" !in deletedCards) {
+                        CustomizableCard(
+                            cardKey = "spending",
+                            isCustomizing = isCustomizing,
+                            onDelete = { deletedCards = deletedCards + it },
+                            onMoveUp   = { builtinMoveUp() },
+                            onMoveDown = { builtinMoveDown() },
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
+                                val filteredCategories = computeSpendingCategories(
+                                    transactions = filteredRawTransactions,
+                                    period = spendingPeriod,
+                                    currency = state.currency
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    DonutChart(categories = filteredCategories, modifier = Modifier.size(140.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        if (filteredCategories.isEmpty()) {
+                                            Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        } else {
+                                            filteredCategories.forEach { cat ->
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Box(Modifier.size(10.dp).background(cat.color, CircleShape))
+                                                    Text("${cat.name}  ${(cat.percent * 100).toInt()}%",
+                                                        style = MaterialTheme.typography.bodySmall)
+                                                    Text(cat.amount, style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
                                             }
                                         }
                                     }
@@ -1302,59 +1333,62 @@ private fun DesktopDashboard(
                             }
                         }
                     }
-                }
-                if ("trend" !in deletedCards) {
-                    CustomizableCard(
-                        cardKey = "trend",
-                        isCustomizing = isCustomizing,
-                        onDelete = { deletedCards = deletedCards + it },
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SectionTitle("Monthly Trend")
-                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                LegendDot(color = Color(0xFF16A34A), label = "In")
-                                LegendDot(color = Color(0xFFEF4444), label = "Out")
+                    if ("trend" !in deletedCards) {
+                        CustomizableCard(
+                            cardKey = "trend",
+                            isCustomizing = isCustomizing,
+                            onDelete = { deletedCards = deletedCards + it },
+                            onMoveUp   = { builtinMoveUp() },
+                            onMoveDown = { builtinMoveDown() },
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                SectionTitle("Monthly Trend")
+                                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                    LegendDot(color = Color(0xFF16A34A), label = "In")
+                                    LegendDot(color = Color(0xFFEF4444), label = "Out")
+                                }
+                                LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(160.dp))
                             }
-                            LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(160.dp))
                         }
                     }
                 }
-            }
-        }
 
-        // Top Categories + Budget row
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().height(300.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                if ("top_categories" !in deletedCards) {
-                    CustomizableCard(
-                        cardKey = "top_categories",
-                        isCustomizing = isCustomizing,
-                        onDelete = { deletedCards = deletedCards + it },
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                    ) {
-                        Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SectionTitle("Monthly Spending Comparison")
-                            BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
+                "categories_budget_row" -> Row(
+                    modifier = Modifier.fillMaxWidth().height(300.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if ("top_categories" !in deletedCards) {
+                        CustomizableCard(
+                            cardKey = "top_categories",
+                            isCustomizing = isCustomizing,
+                            onDelete = { deletedCards = deletedCards + it },
+                            onMoveUp   = { builtinMoveUp() },
+                            onMoveDown = { builtinMoveDown() },
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        ) {
+                            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                SectionTitle("Monthly Spending Comparison")
+                                BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
+                            }
                         }
                     }
-                }
-                if ("budget" !in deletedCards) {
-                    CustomizableCard(
-                        cardKey = "budget",
-                        isCustomizing = isCustomizing,
-                        onDelete = { deletedCards = deletedCards + it },
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                    ) {
-                        BudgetProgressCardContent(
-                            api = budgetApi,
-                            authToken = authToken,
-                            transactions = state.rawTransactions,
-                            currency = state.currency
-                        )
+                    if ("budget" !in deletedCards) {
+                        CustomizableCard(
+                            cardKey = "budget",
+                            isCustomizing = isCustomizing,
+                            onDelete = { deletedCards = deletedCards + it },
+                            onMoveUp   = { builtinMoveUp() },
+                            onMoveDown = { builtinMoveDown() },
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        ) {
+                            BudgetProgressCardContent(
+                                api = budgetApi,
+                                authToken = authToken,
+                                transactions = state.rawTransactions,
+                                currency = state.currency
+                            )
+                        }
                     }
                 }
             }
