@@ -2,10 +2,13 @@ package com.smart_finance_app.dashboard
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.request.bearerAuth
-import io.ktor.client.request.get
+import io.ktor.client.request.*
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 // ── Response models matching server Banking.kt ────────────────────────────────
 
@@ -25,7 +28,8 @@ data class TransactionData(
     val amount: Double,
     val currency: String,
     val type: String,           // "CREDIT" or "DEBIT"
-    val merchantName: String? = null
+    val merchantName: String? = null,
+    val accountId: String? = null   // populated once backend includes it; used for per-account filtering
 )
 
 @Serializable
@@ -42,6 +46,16 @@ sealed interface DashboardResult<out T> {
     data class Success<T>(val data: T) : DashboardResult<T>
     data class Failure(val message: String) : DashboardResult<Nothing>
 }
+
+// ── Dashboard layout sync ─────────────────────────────────────────────────────
+
+@Serializable
+data class DashboardLayoutDto(
+    val cardOrder: String     = "",
+    val deletedCards: String  = "",
+    val chartCards: String    = "",
+    val halfPositions: String = ""
+)
 
 // ── API client ────────────────────────────────────────────────────────────────
 
@@ -89,6 +103,39 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
             }
         } catch (_: Exception) {
             DashboardResult.Failure("Cannot connect to the server")
+        }
+    }
+
+    /**
+     * Loads the user's saved dashboard layout from the backend.
+     * Returns null if none has been saved yet (404) or if the request fails —
+     * callers should fall back to local Settings in that case.
+     */
+    suspend fun loadLayout(token: String): DashboardLayoutDto? {
+        return try {
+            val response = client.get("${baseUrl.trimEnd('/')}/api/dashboard/layout") {
+                bearerAuth(token)
+            }
+            when (response.status) {
+                HttpStatusCode.OK       -> Json.decodeFromString(response.bodyAsText())
+                HttpStatusCode.NotFound -> null
+                else                    -> null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun saveLayout(token: String, layout: DashboardLayoutDto) {
+        try {
+            val jsonBody = Json.encodeToString(DashboardLayoutDto.serializer(), layout)
+            client.put("${baseUrl.trimEnd('/')}/api/dashboard/layout") {
+                bearerAuth(token)
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody(jsonBody)
+            }
+        } catch (_: Exception) {
+            // Swallow — local Settings is the fallback; sync will succeed next time
         }
     }
 }
