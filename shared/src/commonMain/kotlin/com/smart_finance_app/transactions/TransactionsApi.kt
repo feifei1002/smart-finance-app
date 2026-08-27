@@ -16,6 +16,7 @@ data class ImportedTransactionResponse(
     val merchantName: String,
     val category: String,
     val accountName: String,
+    val accountId: String? = null,
     val amount: Double,
     val currency: String,
     val merchantLogoUrl: String? = null

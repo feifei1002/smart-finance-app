@@ -551,10 +551,18 @@ private fun MobileDashboard(
     }
 
     // ── 2. FILTERED RAW TRANSACTIONS ──
-    val filteredRawTransactions = remember(selectedAccounts, state.rawTransactions) {
-        if (selectedAccounts.isEmpty()) state.rawTransactions
+    val selectedAccountIds = remember(selectedAccounts, state.accounts) {
+        state.accounts
+            .filter { it.bankName in selectedAccounts }
+            .map { it.accountId }
+            .toSet()
+    }
+
+    val filteredRawTransactions = remember(selectedAccountIds, state.rawTransactions) {
+        if (selectedAccountIds.isEmpty()) state.rawTransactions
         else state.rawTransactions.filter { tx ->
-            state.accounts.find { it.bankName in selectedAccounts } != null
+//            state.accounts.find { it.bankName in selectedAccounts } != null
+            tx.accountId in selectedAccountIds
         }
     }
 
@@ -1094,10 +1102,18 @@ private fun DesktopDashboard(
     }
 
     // ── 2. FILTERED RAW TRANSACTIONS ──
-    val filteredRawTransactions = remember(selectedAccounts, state.rawTransactions) {
-        if (selectedAccounts.isEmpty()) state.rawTransactions
+    val selectedAccountIds = remember(selectedAccounts, state.accounts) {
+        state.accounts
+            .filter { it.bankName in selectedAccounts }
+            .map { it.accountId }
+            .toSet()
+    }
+
+    val filteredRawTransactions = remember(selectedAccountIds, state.rawTransactions) {
+        if (selectedAccountIds.isEmpty()) state.rawTransactions
         else state.rawTransactions.filter { tx ->
-            state.accounts.find { it.bankName in selectedAccounts } != null
+//            state.accounts.find { it.bankName in selectedAccounts } != null
+            tx.accountId in selectedAccountIds
         }
     }
 
@@ -1831,7 +1847,10 @@ private fun BudgetProgressCardContent(
         loadBudgets()
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        modifier = Modifier.fillMaxHeight(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         SectionTitle("Budget Progress")
         if (errorMsg != null) {
             Text(
@@ -1874,31 +1893,38 @@ private fun BudgetProgressCardContent(
                 }
             }
         } else {
-            // Show budgets with Edit and Delete icons
-            budgetsWithSpending.take(3).forEach { item ->
-                CompactBudgetProgressRow(
-                    item = item,
-                    symbol = symbol,
-                    onEdit = {
-                        editBudget = item.budget
-                        errorMsg = null
-                        showDialog = true
-                    },
-                    onDelete = {
-                        scope.launch {
-                            when (val res = api.deleteBudget(authToken, item.budget.id)) {
-                                is BudgetResult.Success -> {
-                                    errorMsg = null
-                                    loadBudgets()
-                                }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                budgetsWithSpending.forEach { item ->
+                    CompactBudgetProgressRow(
+                        item = item,
+                        symbol = symbol,
+                        onEdit = {
+                            editBudget = item.budget
+                            errorMsg = null
+                            showDialog = true
+                        },
+                        onDelete = {
+                            scope.launch {
+                                when (val res = api.deleteBudget(authToken, item.budget.id)) {
+                                    is BudgetResult.Success -> {
+                                        errorMsg = null
+                                        loadBudgets()
+                                    }
 
-                                is BudgetResult.Failure -> {
-                                    errorMsg = res.message
+                                    is BudgetResult.Failure -> {
+                                        errorMsg = res.message
+                                    }
                                 }
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
 
             Spacer(Modifier.height(4.dp))
@@ -2668,7 +2694,8 @@ private fun ColumnScope.ChartCardContent(
                                 p[0].toIntOrNull() == now.year &&
                                 p[1].toIntOrNull() == now.month.number &&
                                 tx.amount < 0 &&
-                                (tx.accountId == null || tx.accountId == acc.accountId)
+//                                (tx.accountId == null || tx.accountId == acc.accountId)
+                                tx.accountId == acc.accountId
                     }
                     .sumOf { kotlin.math.abs(it.amount) }
                     .toFloat()
