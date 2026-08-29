@@ -2,15 +2,45 @@ package com.smart_finance_app
 
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeViewport
+import com.smart_finance_app.auth.WebTokenStorage
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.js.Js
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.fetchOptions
 import kotlinx.browser.window
+import kotlinx.serialization.json.Json
+import web.http.RequestCredentials
+import web.http.include
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(
+    ExperimentalComposeUiApi::class,
+    ExperimentalWasmJsInterop::class
+)
 fun main() {
     val location = window.location
     val apiBaseUrl = "${location.protocol}//${location.hostname}:8080"
+
+    val httpClient = HttpClient(Js) {
+        expectSuccess = false
+
+        engine {
+            configureRequest {
+                credentials = RequestCredentials.include
+            }
+        }
+
+        install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true })
+        }
+    }
+
     ComposeViewport {
         App(
             apiBaseUrl = apiBaseUrl,
+            tokenStorage = WebTokenStorage(),
+            httpClient = httpClient,
             isPasswordResetRoute = isPasswordResetRoute(),
             passwordResetToken = passwordResetTokenFromUrl()
         )

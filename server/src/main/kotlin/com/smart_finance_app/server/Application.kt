@@ -14,7 +14,10 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.plugins.cors.routing.*
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.Date
+import java.util.UUID
 
 fun main() {
     embeddedServer(
@@ -47,7 +50,12 @@ fun Application.module() {
     }
 
     install(CORS) {
-        anyHost()
+        allowCredentials = true
+
+        allowHost("localhost:8081", schemes = listOf("http"))
+        allowHost("127.0.0.1:8081", schemes = listOf("http"))
+        allowHost("192.168.1.246:8081", schemes = listOf("http"))
+
         allowMethod(HttpMethod.Options)
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Delete)
@@ -85,33 +93,48 @@ fun Application.module() {
     }
 
     routing {
-        registrationRoutes { userId ->
-            JWT.create()
-                .withIssuer(jwtIssuer)
-                .withAudience(jwtAudience)
-                .withClaim("userId", userId.toString())
-                .withExpiresAt(
-                    Date(
-                        System.currentTimeMillis() +
-                                15 * 60 * 1000L
-                    )
-                )
-                .sign(jwtAlgorithm)
-        }
+//        registrationRoutes { userId ->
+//            JWT.create()
+//                .withIssuer(jwtIssuer)
+//                .withAudience(jwtAudience)
+//                .withClaim("userId", userId.toString())
+//                .withExpiresAt(
+//                    Date(
+//                        System.currentTimeMillis() +
+//                                15 * 60 * 1000L
+//                    )
+//                )
+//                .sign(jwtAlgorithm)
+//        }
 
-        signInRoutes { userId ->
-            JWT.create()
-                .withIssuer(jwtIssuer)
-                .withAudience(jwtAudience)
-                .withClaim("userId", userId.toString())
-                .withExpiresAt(
-                    Date(
-                        System.currentTimeMillis() +
-                                15 * 60 * 1000L
-                    )
-                )
-                .sign(jwtAlgorithm)
-        }
+        registrationRoutes(
+            createAccessToken = { userId -> createJwtToken(userId, jwtIssuer, jwtAudience, jwtAlgorithm) },
+            createRefreshToken = { userId -> createRefreshToken(userId) }
+        )
+
+//        signInRoutes { userId ->
+//            JWT.create()
+//                .withIssuer(jwtIssuer)
+//                .withAudience(jwtAudience)
+//                .withClaim("userId", userId.toString())
+//                .withExpiresAt(
+//                    Date(
+//                        System.currentTimeMillis() +
+//                                15 * 60 * 1000L
+//                    )
+//                )
+//                .sign(jwtAlgorithm)
+//        }
+
+        signInRoutes(
+            createAccessToken = { userId -> createJwtToken(userId, jwtIssuer, jwtAudience, jwtAlgorithm) },
+            createRefreshToken = { userId -> createRefreshToken(userId) }
+        )
+
+        sessionRoutes(
+            createAccessToken = { userId -> createJwtToken(userId, jwtIssuer, jwtAudience, jwtAlgorithm) }
+        )
+
         passwordResetRoutes()
         consentRoutes()
         bankingRoutes()
@@ -141,4 +164,18 @@ fun Application.module() {
 
         subscriptionRoutes()
     }
+}
+
+private fun createJwtToken(
+    userId: UUID,
+    issuer: String,
+    audience: String,
+    algorithm: Algorithm
+): String {
+    return JWT.create()
+        .withIssuer(issuer)
+        .withAudience(audience)
+        .withClaim("userId", userId.toString())
+        .withExpiresAt(Date.from(Instant.now().plus(30, ChronoUnit.MINUTES)))
+        .sign(algorithm)
 }

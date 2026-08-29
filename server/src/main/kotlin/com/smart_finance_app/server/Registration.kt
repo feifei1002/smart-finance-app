@@ -19,6 +19,7 @@ data class RegisterRequest(
 @Serializable
 data class RegisterResponse (
     val token: String,
+    val refreshToken: String,
     val userId: String,
     val name: String,
     val email: String,
@@ -29,7 +30,8 @@ data class ErrorResponse (
     val message: String
 )
 
-fun Route.registrationRoutes(createToken: (UUID) -> String) {
+fun Route.registrationRoutes(createAccessToken: (UUID) -> String,
+                             createRefreshToken: (UUID) -> String) {
     post("/auth/register") {
         val request = runCatching { call.receive<RegisterRequest>() }
             .getOrElse {
@@ -62,10 +64,15 @@ fun Route.registrationRoutes(createToken: (UUID) -> String) {
             throw exception
         }
 
+        val refreshToken = createRefreshToken(userId)
+
+        call.setRefreshTokenCookie(refreshToken)
+
         call.respond(
             HttpStatusCode.Created,
             RegisterResponse(
-                token = createToken(userId),
+                token = createAccessToken(userId),
+                refreshToken = refreshToken,
                 userId = userId.toString(),
                 name = name,
                 email = email,

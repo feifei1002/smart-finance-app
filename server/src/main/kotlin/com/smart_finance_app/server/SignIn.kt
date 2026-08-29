@@ -13,10 +13,16 @@ import java.util.UUID
 data class SignInRequest(val email: String, val password: String)
 
 @Serializable
-data class SignInResponse(val token: String, val userId: String, val name: String,
-                          val email: String, val consentAccepted: Boolean)
+data class SignInResponse(
+    val token: String,
+    val refreshToken: String,
+    val userId: String,
+    val name: String,
+    val email: String,
+    val consentAccepted: Boolean)
 
-fun Route.signInRoutes(createToken: (UUID) -> String) {
+fun Route.signInRoutes(createAccessToken: (UUID) -> String,
+                       createRefreshToken: (UUID) -> String) {
     post("/auth/signin") {
         val request = runCatching { call.receive<SignInRequest>() }
             .getOrElse {
@@ -58,9 +64,15 @@ fun Route.signInRoutes(createToken: (UUID) -> String) {
             return@post
         }
 
+        val refreshToken = createRefreshToken(user.id)
+
+        call.setRefreshTokenCookie(refreshToken)
+
+
         call.respond(
             SignInResponse(
-                token = createToken(user.id),
+                token = createAccessToken(user.id),
+                refreshToken = refreshToken,
                 userId = user.id.toString(),
                 name = user.name,
                 email = user.email,
