@@ -31,7 +31,14 @@ import com.smart_finance_app.signin.SignInApi
 import com.smart_finance_app.signin.SignInResult
 import com.smart_finance_app.signin.SignInScreen
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpSend
+import io.ktor.client.plugins.plugin
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.encodedPath
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 // Tracks which screen is currently shown
 private enum class Screen {
@@ -102,36 +109,83 @@ fun App(
             mutableStateOf(passwordResetToken.isNullOrBlank())
         }
 
+        val refreshMutex = remember { Mutex() }
+
+        /* Refreshes the access token when it expires, using the persisted refresh token
+        on Android or the HttpOnly refresh cookie on web.
+         */
+        suspend fun refreshCurrentSession(): AuthSession? {
+            return refreshMutex.withLock {
+                val refreshToken = session?.refreshToken
+                    ?.takeIf { it.isNotBlank() }
+                    ?: tokenStorage.getRefreshToken()
+
+                val result = if (refreshToken.isNullOrBlank()) {
+                    authApi.refresh()
+                } else {
+                    authApi.refresh(refreshToken)
+                }
+
+                when (result) {
+                    is RefreshSessionResult.Success -> {
+                        session = result.session
+                        if (result.session.refreshToken.isNotBlank()) {
+                            tokenStorage.saveRefreshToken(result.session.refreshToken)
+                        }
+                        result.session
+                    }
+
+                    RefreshSessionResult.Expired,
+                    is RefreshSessionResult.Failure -> {
+                        tokenStorage.clearRefreshToken()
+                        session = null
+                        screen = Screen.SignIn
+                        null
+                    }
+                }
+            }
+        }
+
+        /*
+        If an authenticated API request returns 401, try refreshing the session once
+        and retry the original request with the new access token.
+        */
+        DisposableEffect(httpClient, authApi, tokenStorage) {
+            httpClient.plugin(HttpSend).intercept { request ->
+                val originalAuth = request.headers[HttpHeaders.Authorization]
+                val originalCall = execute(request)
+
+                if (
+                    originalCall.response.status != HttpStatusCode.Unauthorized ||
+                    request.url.encodedPath.startsWith("/auth/")
+                ) {
+                    return@intercept originalCall
+                }
+
+                val refreshedSession = refreshCurrentSession() ?: return@intercept originalCall
+
+                request.headers.remove(HttpHeaders.Authorization)
+                request.headers.append(HttpHeaders.Authorization, "Bearer ${refreshedSession.token}")
+
+                execute(request)
+            }
+
+            onDispose {}
+        }
+
         LaunchedEffect(Unit) {
             if (isPasswordResetRoute) {
                 checkingSavedSession = false
                 return@LaunchedEffect
             }
 
-            val savedRefreshToken = tokenStorage.getRefreshToken()
+            val refreshedSession = refreshCurrentSession()
 
-            val refreshResult = if (savedRefreshToken.isNullOrBlank()) {
-                authApi.refresh() // Web: use HttpOnly cookie
-            } else {
-                authApi.refresh(savedRefreshToken) // Android: use encrypted storage token
-            }
-
-            when (refreshResult) {
-                is RefreshSessionResult.Success -> {
-                    session = refreshResult.session
-                    tokenStorage.saveRefreshToken(refreshResult.session.refreshToken)
-                    screen = if (refreshResult.session.consentAccepted) {
-                        Screen.Main
-                    } else {
-                        Screen.Consent
-                    }
-                }
-
-                RefreshSessionResult.Expired,
-                is RefreshSessionResult.Failure -> {
-                    tokenStorage.clearRefreshToken()
-                    session = null
-                    screen = Screen.SignIn
+            if (refreshedSession != null) {
+                screen = if (refreshedSession.consentAccepted) {
+                    Screen.Main
+                } else {
+                    Screen.Consent
                 }
             }
 

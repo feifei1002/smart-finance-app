@@ -10,6 +10,11 @@ import java.util.UUID
 
 private val secureRandom = SecureRandom()
 
+data class RotatedRefreshToken(
+    val userId: UUID,
+    val refreshToken: String
+)
+
 fun createRefreshToken(userId: UUID): String {
     val token = generateRefreshToken()
     val tokenHash = hashRefreshToken(token)
@@ -76,6 +81,62 @@ fun revokeRefreshToken(refreshToken: String) {
                 it.executeUpdate()
             }
             connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+/*
+Rotates a refresh token in one database transaction so the old token is
+revoked before a new one is issued, preventing replay/race-condition reuse.
+ */
+fun rotateRefreshToken(refreshToken: String): RotatedRefreshToken? {
+    val existingTokenHash = hashRefreshToken(refreshToken)
+    val newToken = generateRefreshToken()
+    val newTokenHash = hashRefreshToken(newToken)
+    val expiresAt = Instant.now().plus(30, ChronoUnit.DAYS)
+
+    return Database.dataSource.connection.use { connection ->
+        try {
+            // Stores hashed refresh tokens used to keep users signed in after the app closes.
+            // Tokens are hashed so the raw refresh token is never stored in the database.
+            val userId = connection.prepareStatement(
+                """
+                    UPDATE refresh_tokens
+                    SET revoked_at = now()
+                    WHERE token_hash = ?
+                      AND revoked_at IS NULL
+                      AND expires_at > now()
+                    RETURNING user_id
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, existingTokenHash)
+                statement.executeQuery().use { result ->
+                    if (result.next()) result.getObject("user_id", UUID::class.java) else null
+                }
+            }
+
+            if (userId == null) {
+                connection.rollback()
+                return@use null
+            }
+
+            connection.prepareStatement(
+                """
+                    INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+                    VALUES (?, ?, ?)
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, newTokenHash)
+                statement.setTimestamp(3, Timestamp.from(expiresAt))
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            RotatedRefreshToken(userId, newToken)
         } catch (exception: Exception) {
             connection.rollback()
             throw exception

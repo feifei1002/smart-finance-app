@@ -51,6 +51,7 @@ fun Application.module() {
 
     install(CORS) {
         allowCredentials = true
+        allowHeader(REFRESH_TOKEN_TRANSPORT_HEADER)
 
         allowHost("localhost:8081", schemes = listOf("http"))
         allowHost("127.0.0.1:8081", schemes = listOf("http"))

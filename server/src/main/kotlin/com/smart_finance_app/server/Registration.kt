@@ -72,7 +72,7 @@ fun Route.registrationRoutes(createAccessToken: (UUID) -> String,
             HttpStatusCode.Created,
             RegisterResponse(
                 token = createAccessToken(userId),
-                refreshToken = refreshToken,
+                refreshToken = call.refreshTokenForResponse(refreshToken),
                 userId = userId.toString(),
                 name = name,
                 email = email,

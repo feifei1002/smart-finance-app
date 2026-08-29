@@ -1,6 +1,7 @@
 package com.smart_finance_app.server
 
 import io.ktor.http.Cookie
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -10,7 +11,14 @@ import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
+private val defaultAllowedAuthOrigins = setOf(
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://192.168.1.246:8081"
+)
 private const val REFRESH_COOKIE_NAME = "smart_finance_refresh_token"
+
+const val REFRESH_TOKEN_TRANSPORT_HEADER = "X-Refresh-Token-Transport"
 
 @Serializable
 data class RefreshTokenRequest(val refreshToken: String)
@@ -29,7 +37,11 @@ data class RefreshTokenResponse(
 )
 
 fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
+
+    // Reject refresh/logout requests from unexpected web origins before reading or rotating any refresh token.
     post("/auth/refresh") {
+        if (call.rejectInvalidAuthOrigin()) return@post
+
         val refreshTokenFromBody = runCatching {
             call.receive<RefreshTokenRequest>().refreshToken
         }.getOrNull()
@@ -42,26 +54,44 @@ fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
             return@post
         }
 
-        val userId = validateRefreshToken(refreshToken)
+//        val userId = validateRefreshToken(refreshToken)
+//
+//        if (userId == null) {
+//            call.clearRefreshTokenCookie()
+//            call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Refresh token is invalid or expired"))
+//            return@post
+//        }
+//
+//        revokeRefreshToken(refreshToken)
+//
+//        val user = getSessionUser(userId)
+//            ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
+//
+//        val newRefreshToken = createRefreshToken(userId)
 
-        if (userId == null) {
+
+        val rotated = rotateRefreshToken(refreshToken)
+
+        if (rotated == null) {
             call.clearRefreshTokenCookie()
             call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Refresh token is invalid or expired"))
             return@post
         }
 
-        revokeRefreshToken(refreshToken)
-
+        val userId = rotated.userId
+        val newRefreshToken = rotated.refreshToken
         val user = getSessionUser(userId)
-            ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
+            ?: return@post call.respond(
+                HttpStatusCode.Unauthorized,
+                ErrorResponse("User not found")
+            )
 
-        val newRefreshToken = createRefreshToken(userId)
         call.setRefreshTokenCookie(newRefreshToken)
 
         call.respond(
             RefreshTokenResponse(
                 token = createAccessToken(userId),
-                refreshToken = newRefreshToken,
+                refreshToken = call.refreshTokenForResponse(newRefreshToken),
                 userId = userId.toString(),
                 name = user.fullName,
                 email = user.email,
@@ -71,6 +101,10 @@ fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
     }
 
     post("/auth/logout") {
+
+        // Reject refresh/logout requests from unexpected web origins before reading or rotating any refresh token.
+        if (call.rejectInvalidAuthOrigin()) return@post
+
         val refreshTokenFromBody = runCatching {
             call.receive<LogoutRequest>().refreshToken
         }.getOrNull()
@@ -118,6 +152,15 @@ private fun getSessionUser(userId: UUID): SessionUser? {
         }
     }
 }
+private fun allowedAuthOrigins(): Set<String> {
+    return System.getenv("AUTH_ALLOWED_ORIGINS")
+        ?.split(",")
+        ?.map { it.trim() }
+        ?.filter { it.isNotBlank() }
+        ?.toSet()
+        ?: defaultAllowedAuthOrigins
+}
+
 //For local development:
 //COOKIE_SECURE=false
 //COOKIE_SAME_SITE=Lax
@@ -155,4 +198,29 @@ fun ApplicationCall.clearRefreshTokenCookie() {
             maxAge = 0
         )
     )
+}
+
+/* Web uses an HttpOnly cookie for the refresh token, so JavaScript should not
+ receive the raw token. Android still receives it so it can store it securely.
+ */
+fun ApplicationCall.refreshTokenForResponse(refreshToken: String): String {
+    return if (request.headers[REFRESH_TOKEN_TRANSPORT_HEADER] == "cookie") {
+        ""
+    } else {
+        refreshToken
+    }
+}
+
+/* Protects cookie-based auth routes from cross-site requests. This matters for
+ web because the browser automatically sends HttpOnly cookies with requests.
+ */
+private suspend fun ApplicationCall.rejectInvalidAuthOrigin(): Boolean {
+    val origin = request.headers[HttpHeaders.Origin] ?: return false
+
+    if (origin in allowedAuthOrigins()) {
+        return false
+    }
+
+    respond(HttpStatusCode.Forbidden, ErrorResponse("Invalid request origin"))
+    return true
 }

@@ -72,7 +72,7 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
         call.respond(
             SignInResponse(
                 token = createAccessToken(user.id),
-                refreshToken = refreshToken,
+                refreshToken = call.refreshTokenForResponse(refreshToken),
                 userId = user.id.toString(),
                 name = user.name,
                 email = user.email,

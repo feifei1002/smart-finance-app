@@ -6,9 +6,9 @@ import com.smart_finance_app.auth.WebTokenStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.js.Js
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
 import io.ktor.client.plugins.defaultRequest
-import io.ktor.client.fetchOptions
+import io.ktor.client.request.header
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.browser.window
 import kotlinx.serialization.json.Json
 import web.http.RequestCredentials
@@ -24,6 +24,12 @@ fun main() {
 
     val httpClient = HttpClient(Js) {
         expectSuccess = false
+
+        // Tell the backend this client uses the HttpOnly cookie refresh-token flow,
+        // so the refresh token should not be returned in the JSON response.
+        defaultRequest {
+            header("X-Refresh-Token-Transport", "cookie")
+        }
 
         engine {
             configureRequest {
