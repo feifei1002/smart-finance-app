@@ -94,38 +94,11 @@ fun Application.module() {
     }
 
     routing {
-//        registrationRoutes { userId ->
-//            JWT.create()
-//                .withIssuer(jwtIssuer)
-//                .withAudience(jwtAudience)
-//                .withClaim("userId", userId.toString())
-//                .withExpiresAt(
-//                    Date(
-//                        System.currentTimeMillis() +
-//                                15 * 60 * 1000L
-//                    )
-//                )
-//                .sign(jwtAlgorithm)
-//        }
 
         registrationRoutes(
             createAccessToken = { userId -> createJwtToken(userId, jwtIssuer, jwtAudience, jwtAlgorithm) },
             createRefreshToken = { userId -> createRefreshToken(userId) }
         )
-
-//        signInRoutes { userId ->
-//            JWT.create()
-//                .withIssuer(jwtIssuer)
-//                .withAudience(jwtAudience)
-//                .withClaim("userId", userId.toString())
-//                .withExpiresAt(
-//                    Date(
-//                        System.currentTimeMillis() +
-//                                15 * 60 * 1000L
-//                    )
-//                )
-//                .sign(jwtAlgorithm)
-//        }
 
         signInRoutes(
             createAccessToken = { userId -> createJwtToken(userId, jwtIssuer, jwtAudience, jwtAlgorithm) },
