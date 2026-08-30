@@ -43,28 +43,6 @@ fun createRefreshToken(userId: UUID): String {
     return token
 }
 
-fun validateRefreshToken(refreshToken: String): UUID? {
-    val tokenHash = hashRefreshToken(refreshToken)
-
-    return Database.dataSource.connection.use { connection ->
-        connection.prepareStatement(
-            """
-                SELECT user_id
-                FROM refresh_tokens
-                WHERE token_hash = ?
-                  AND revoked_at IS NULL
-                  AND expires_at > now()
-            """.trimIndent()
-        ).use {
-            it.setString(1, tokenHash)
-
-            it.executeQuery().use { result ->
-                if (result.next()) result.getObject("user_id", UUID::class.java) else null
-            }
-        }
-    }
-}
-
 fun revokeRefreshToken(refreshToken: String) {
     val tokenHash = hashRefreshToken(refreshToken)
 

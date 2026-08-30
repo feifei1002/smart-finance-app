@@ -114,9 +114,19 @@ fun App(
         /* Refreshes the access token when it expires, using the persisted refresh token
         on Android or the HttpOnly refresh cookie on web.
          */
-        suspend fun refreshCurrentSession(): AuthSession? {
+        suspend fun refreshCurrentSession(originalAccessToken: String? = null): AuthSession? {
             return refreshMutex.withLock {
-                val refreshToken = session?.refreshToken
+                val currentSession = session
+
+                if (
+                    originalAccessToken != null &&
+                    currentSession != null &&
+                    currentSession.token != originalAccessToken
+                ) {
+                    return@withLock currentSession
+                }
+
+                val refreshToken = currentSession?.refreshToken
                     ?.takeIf { it.isNotBlank() }
                     ?: tokenStorage.getRefreshToken()
 
@@ -152,7 +162,8 @@ fun App(
         */
         DisposableEffect(httpClient, authApi, tokenStorage) {
             httpClient.plugin(HttpSend).intercept { request ->
-                val originalAuth = request.headers[HttpHeaders.Authorization]
+                val originalAccessToken = request.headers[HttpHeaders.Authorization]
+                    ?.removePrefix("Bearer ")
                 val originalCall = execute(request)
 
                 if (
@@ -162,7 +173,8 @@ fun App(
                     return@intercept originalCall
                 }
 
-                val refreshedSession = refreshCurrentSession() ?: return@intercept originalCall
+                val refreshedSession = refreshCurrentSession(originalAccessToken)
+                    ?: return@intercept originalCall
 
                 request.headers.remove(HttpHeaders.Authorization)
                 request.headers.append(HttpHeaders.Authorization, "Bearer ${refreshedSession.token}")
@@ -410,10 +422,6 @@ fun App(
                     dashboardApi = dashboardApi,
                     budgetApi = budgetApi,
                     onSignOut = {
-//                        session = null
-//                        signInError = null
-//                        registrationError = null
-//                        screen = Screen.Registration
                         val refreshToken = session?.refreshToken
 
                         scope.launch {

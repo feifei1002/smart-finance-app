@@ -10,6 +10,7 @@ import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.header
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.browser.window
+import kotlin.js.ExperimentalWasmJsInterop
 import kotlinx.serialization.json.Json
 import web.http.RequestCredentials
 import web.http.include

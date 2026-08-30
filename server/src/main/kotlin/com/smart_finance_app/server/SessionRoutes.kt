@@ -38,8 +38,8 @@ data class RefreshTokenResponse(
 
 fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
 
-    // Reject refresh/logout requests from unexpected web origins before reading or rotating any refresh token.
     post("/auth/refresh") {
+        // Reject refresh requests from unexpected web origins before reading or rotating any refresh token.
         if (call.rejectInvalidAuthOrigin()) return@post
 
         val refreshTokenFromBody = runCatching {
@@ -53,22 +53,6 @@ fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
             call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Missing refresh token"))
             return@post
         }
-
-//        val userId = validateRefreshToken(refreshToken)
-//
-//        if (userId == null) {
-//            call.clearRefreshTokenCookie()
-//            call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Refresh token is invalid or expired"))
-//            return@post
-//        }
-//
-//        revokeRefreshToken(refreshToken)
-//
-//        val user = getSessionUser(userId)
-//            ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
-//
-//        val newRefreshToken = createRefreshToken(userId)
-
 
         val rotated = rotateRefreshToken(refreshToken)
 
@@ -102,7 +86,7 @@ fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
 
     post("/auth/logout") {
 
-        // Reject refresh/logout requests from unexpected web origins before reading or rotating any refresh token.
+        // Reject logout requests from unexpected web origins before reading or rotating any refresh token.
         if (call.rejectInvalidAuthOrigin()) return@post
 
         val refreshTokenFromBody = runCatching {
@@ -161,13 +145,15 @@ private fun allowedAuthOrigins(): Set<String> {
         ?: defaultAllowedAuthOrigins
 }
 
-//For local development:
-//COOKIE_SECURE=false
-//COOKIE_SAME_SITE=Lax
+/*
+For local development:
+COOKIE_SECURE=false
+COOKIE_SAME_SITE=Lax
 
-//For deployed Web with HTTPS:
-//COOKIE_SECURE=true
-//COOKIE_SAME_SITE=None
+For deployed Web with HTTPS:
+COOKIE_SECURE=true
+COOKIE_SAME_SITE=None
+ */
 fun ApplicationCall.setRefreshTokenCookie(refreshToken: String) {
     response.cookies.append(
         Cookie(
