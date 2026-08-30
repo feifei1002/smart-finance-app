@@ -14,6 +14,7 @@ import com.smart_finance_app.accounts.BankConnectionResult
 import com.smart_finance_app.accounts.BankConnectionStatusResult
 import com.smart_finance_app.accounts.BankOption
 import com.smart_finance_app.accounts.BankProviderResult
+import com.smart_finance_app.accounts.BankProviderVariant
 import com.smart_finance_app.accounts.BankingApi
 import com.smart_finance_app.accounts.ConnectBankAccountScreen
 import com.smart_finance_app.accounts.ConnectedAccount
@@ -26,6 +27,7 @@ import com.smart_finance_app.transactions.TransactionsResult
 import com.smart_finance_app.transactions.TransactionsScreen
 import com.smart_finance_app.budget.BudgetScreen
 import com.smart_finance_app.dashboard.DashboardApi
+import com.smart_finance_app.payments.SubscriptionApi
 import com.smart_finance_app.settings.SettingsScreen
 import com.smart_finance_app.transactions.TransactionSyncResult
 import io.ktor.client.HttpClient
@@ -115,6 +117,7 @@ private fun NavigationContent(
     onNavigateToTransactions: () -> Unit
 ) {
     val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
+    val subscriptionApi = remember(apiBaseUrl, httpClient) { SubscriptionApi(apiBaseUrl, httpClient) }
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var transactionsLoading by remember { mutableStateOf(false) }
     var transactionsError by remember { mutableStateOf<String?>(null) }
@@ -306,6 +309,7 @@ private fun NavigationContent(
         AppNavigation.Dashboard -> DashboardScreen(
             authToken                   = authToken,
             userName                    = userName,
+            userId                       = userEmail,
             transactions                = mappedTransactions,
             onConnectAccountClicked     = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,
@@ -408,8 +412,19 @@ private fun NavigationContent(
                     banksError = null
                     when (val result = bankingApi.getBankProviders(authToken)) {
                         is BankProviderResult.Success -> {
-                            banks = result.providers.map {
-                                BankOption(id = it.id, name = it.name, logoUrl = it.logoUrl)
+                            banks = result.providers.map { provider ->
+                                BankOption(
+                                    id = provider.id,
+                                    name = provider.name,
+                                    logoUrl = provider.logoUrl,
+                                    variants = provider.variants.map { variant ->
+                                        BankProviderVariant(
+                                            id = variant.id,
+                                            label = variant.label,
+                                            name = variant.name
+                                        )
+                                    }
+                                )
                             }
                         }
                         is BankProviderResult.Failure -> { banksError = result.message }
@@ -482,6 +497,8 @@ private fun NavigationContent(
             SettingsScreen(
                 userName = userName,
                 userEmail = userEmail,
+                authToken = authToken,
+                subscriptionApi = subscriptionApi,
                 onSignOut = onSignOut
             )
         }

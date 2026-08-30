@@ -283,6 +283,7 @@ fun computeDashboardState(
     val accountOverviews = accounts.map { account ->
         val balance = balances.find { it.accountId == account.accountId }
         AccountOverview(
+            accountId    = account.accountId,
             bankName     = account.bankName,
             maskedNumber = account.maskedNumber,
             balance      = if (balance != null) formatCurrency(balance.current, symbol) else "--"

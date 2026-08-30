@@ -71,6 +71,9 @@ kotlin {
             implementation(libs.coil.network.ktor)
             implementation(libs.coil.svg)
 
+            // Multiplatform key-value persistence — works on Android, iOS, JVM, JS, WASM
+            // -no-arg variant provides a Settings() no-arg constructor on all platforms
+            implementation("com.russhwolf:multiplatform-settings-no-arg:1.2.0")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

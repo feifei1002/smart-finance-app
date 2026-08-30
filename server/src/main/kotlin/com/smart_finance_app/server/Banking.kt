@@ -3,6 +3,7 @@ package com.smart_finance_app.server
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
+import com.google.gson.reflect.TypeToken
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.principal
@@ -13,6 +14,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -54,7 +56,8 @@ data class TransactionResponse(
     val amount: Double,
     val currency: String,
     val type: String,       // CREDIT or DEBIT
-    val merchantName: String?
+    val merchantName: String?,
+    val accountId: String? = null   // which connected account this transaction belongs to
 )
 
 @Serializable
@@ -86,10 +89,17 @@ data class PaginatedTransactionsResponse(
 )
 
 @Serializable
+data class BankProviderVariantResponse(
+    val id: String,
+    val label: String,
+    val name: String
+)
+@Serializable
 data class BankProviderResponse(
     val id: String,
     val name: String,
-    val logoUrl: String? = null
+    val logoUrl: String? = null,
+    val variants: List<BankProviderVariantResponse> = emptyList()
 )
 
 @Serializable
@@ -192,6 +202,13 @@ private data class LogoDevSearchResult(val name: String, val domain: String)
 private val httpClient = OkHttpClient()
 private val gson = Gson()
 
+// Bank Provider List Cache
+private const val PROVIDER_CACHE_TTL_DAYS = 7L
+
+private val trueLayerProviderListType = object : TypeToken<List<TrueLayerProvider>>() {}.type
+
+private const val PROVIDER_CACHE_KEY = "truelayer-providers:all"
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 fun Route.bankingRoutes() {
@@ -207,7 +224,7 @@ fun Route.bankingRoutes() {
         post("/api/banking/connect") {
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.userIdOrNull()?:
-                return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+            return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
 
             val request = call.receive<CreateBankConnectionRequest>()
@@ -310,6 +327,7 @@ fun Route.bankingRoutes() {
             storedAccounts.forEach { stored ->
                 val token = ensureFreshToken(stored)
                 val tlTransactions = fetchTransactions(token, stored.accountId)
+                    .map { it.copy(accountId = stored.accountId) }   // tag with owning account
                 transactions.addAll(tlTransactions)
             }
 
@@ -343,7 +361,7 @@ fun Route.bankingRoutes() {
 
         get("/api/banking/providers") {
             val providers = runCatching {
-                fetchTrueLayerProviders()
+                fetchTrueLayerProvidersFromDB()
             }.getOrElse { exception ->
                 call.respond(
                     HttpStatusCode.BadGateway,
@@ -352,15 +370,40 @@ fun Route.bankingRoutes() {
                 return@get
             }
 
-            call.respond(
-                providers.map {
-                    BankProviderResponse(
-                        id = it.providerId,
-                        name = it.displayName,
-                        logoUrl = it.logoUrl
-                    )
-                }
-            )
+            call.respond(groupBankProviders(providers))
+        }
+
+        /**
+         * GET /api/dashboard/layout
+         *
+         * Returns the saved dashboard layout for the authenticated user, or 404 if
+         * they have never saved one (client should use its local defaults).
+         */
+        get("/api/dashboard/layout") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val layout = getDashboardLayout(userId)
+                ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("No layout saved"))
+
+            call.respond(layout)
+        }
+
+        /**
+         * PUT /api/dashboard/layout
+         *
+         * Saves (upserts) the dashboard layout for the authenticated user.
+         * Called by the client when the user presses Done in customise mode.
+         */
+        put("/api/dashboard/layout") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@put call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val body = call.receive<DashboardLayoutRequest>()
+            saveDashboardLayout(userId, body)
+            call.respond(HttpStatusCode.OK, mapOf("status" to "saved"))
         }
 
         get("/api/banking/connection-session/{state}") {
@@ -493,7 +536,7 @@ fun Route.bankingRoutes() {
 
         // ── Step 3: Save each account to the database ─────────────────────
         runCatching {
-                saveConnectedAccounts(
+            saveConnectedAccounts(
                 userId       = session.userId,
                 accounts     = accounts,
                 accessToken  = tokenResponse.accessToken,
@@ -905,9 +948,11 @@ private fun buildTrueLayerAuthUrl(state: String, providerId: String): String = b
 private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
 
     /** Use the production providers endpoint only for displaying the bank list,
-    * only the Mock Bank works for sandbox TrueLayer auth connection testing */
+     * only the Mock Bank works for sandbox TrueLayer auth connection testing */
     val url = buildString {
         append("${TrueLayerConfig.PROVIDERS_BASE_URL}/api/providers")
+        append("?clientId=${URLEncoder.encode(TrueLayerConfig.clientId, "UTF-8")}")
+        append("&scopes=${URLEncoder.encode(TrueLayerConfig.SCOPES, "UTF-8")}")
     }
 
     val request = Request.Builder().url(url).get().build()
@@ -941,13 +986,170 @@ private fun fetchTrueLayerProviders(): List<TrueLayerProvider> {
     }
 }
 
+private fun fetchTrueLayerProvidersFromDB(): List<TrueLayerProvider> {
+
+    val cachedProviders = getCachedTrueLayerProviders(
+        cacheKey = PROVIDER_CACHE_KEY,
+        allowExpired = false
+    )
+
+    if (cachedProviders != null) {
+        println("Using cached TrueLayer providers: ${cachedProviders.size}")
+        return cachedProviders
+    }
+
+    return runCatching {
+        val freshProviders = fetchTrueLayerProviders()
+        saveCachedTrueLayerProviders(PROVIDER_CACHE_KEY, freshProviders)
+
+        println("Fetched fresh TrueLayer providers: ${freshProviders.size}")
+        freshProviders
+    }.getOrElse { exception ->
+        val expiredCache = getCachedTrueLayerProviders(
+            cacheKey = PROVIDER_CACHE_KEY,
+            allowExpired = true
+        )
+
+        if (expiredCache != null) {
+            println("TrueLayer fetch failed, using expired provider cache: ${expiredCache.size}")
+            expiredCache
+        } else {
+            throw exception
+        }
+    }
+}
+
+private fun getCachedTrueLayerProviders(
+    cacheKey: String,
+    allowExpired: Boolean
+): List<TrueLayerProvider>? {
+    val sql = if (allowExpired) {
+        """
+            SELECT providers_json FROM bank_provider_cache WHERE cache_key = ?
+        """.trimIndent()
+    } else {
+        """
+            SELECT providers_json FROM bank_provider_cache WHERE cache_key = ?
+            AND fetched_at >= NOW() - INTERVAL '$PROVIDER_CACHE_TTL_DAYS days'
+        """.trimIndent()
+    }
+
+    val providersJson = Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(sql).use { statement ->
+            statement.setString(1, cacheKey)
+
+            statement.executeQuery().use { result ->
+                if (result.next()) {
+                    result.getString("providers_json")
+                } else {
+                    null
+                }
+            }
+        }
+    }
+
+    return providersJson?.let {
+        gson.fromJson(it, trueLayerProviderListType)
+    }
+}
+
+private fun saveCachedTrueLayerProviders(
+    cacheKey: String,
+    providers: List<TrueLayerProvider>
+) {
+    val providersJson = gson.toJson(providers)
+
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                INSERT INTO bank_provider_cache (cache_key, providers_json, fetched_at)
+                VALUES (?, ?::jsonb, NOW()) ON CONFLICT (cache_key) DO UPDATE SET
+                    providers_json = EXCLUDED.providers_json,
+                    fetched_at = NOW()
+            """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, cacheKey)
+                statement.setString(2, providersJson)
+                statement.executeUpdate()
+            }
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private fun groupBankProviders(providers: List<TrueLayerProvider>): List<BankProviderResponse> {
+    val providersWithMock = providers.toMutableList()
+
+    return providersWithMock
+        .groupBy { normalisedBankName(it) }
+        .map { (bankName, group) ->
+            val sortedVariants = group.sortedWith(
+                compareBy<TrueLayerProvider> { providerVariantLabel(it) != "Personal" }
+                    .thenBy { it.displayName }
+            )
+
+            val primary = sortedVariants.first()
+
+            BankProviderResponse(
+                id = primary.providerId,
+                name = bankName,
+                logoUrl = group.firstNotNullOfOrNull { it.logoUrl },
+                variants = sortedVariants.map {
+                    BankProviderVariantResponse(
+                        id = it.providerId,
+                        label = providerVariantLabel(it),
+                        name = it.displayName
+                    )
+                }.distinctBy { it.label }
+            )
+        }
+        .sortedWith(
+            compareBy<BankProviderResponse> { it.id != "uk-cs-mock" }
+                .thenBy { it.name }
+        )
+}
+
+private fun normalisedBankName(provider: TrueLayerProvider): String {
+    val cleanedName = provider.displayName
+        .replace(Regex("\\s*\\((personal|business|corporate|commercial).*\\)", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\s+-\\s+(personal|business|corporate|commercial).*", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\b(personal|business|corporate|commercial)\\b", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    return cleanedName.ifBlank {
+        provider.providerId
+            .removePrefix("ob-")
+            .split("-")
+            .filterNot { it in setOf("personal", "business", "corporate", "commercial") }
+            .joinToString(" ") { token ->
+                token.replaceFirstChar { char -> char.titlecase() }
+            }
+    }
+}
+
+private fun providerVariantLabel(provider: TrueLayerProvider): String {
+    val value = "${provider.providerId} ${provider.displayName}".lowercase()
+
+    return when {
+        "business" in value -> "Business"
+        "corporate" in value -> "Corporate"
+        "commercial" in value -> "Commercial"
+        else -> "Personal"
+    }
+}
+
 private data class BankConnectionSession(val userId: UUID, val providerId: String, val providerName: String)
 
 /**
-* Finds a pending bank connection session by its state value.
-*
-* Returns null if the state is unknown, already completed, failed, or expired.
-*/
+ * Finds a pending bank connection session by its state value.
+ *
+ * Returns null if the state is unknown, already completed, failed, or expired.
+ */
 private fun getPendingBankConnectionSession(state: String): BankConnectionSession? =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
@@ -1107,64 +1309,64 @@ private fun getImportedTransactionsForUser(
         else -> ""
     }
 
-        return Database.dataSource.connection.use { connection ->
-            val totalCount = connection.prepareStatement(
-                """
+    return Database.dataSource.connection.use { connection ->
+        val totalCount = connection.prepareStatement(
+            """
                     SELECT COUNT(*) FROM transactions WHERE user_id = ?
                     $typeCondition
                 """.trimIndent()
-            ).use { statement ->
-                statement.setObject(1, userId)
-                statement.executeQuery().use { result ->
-                    result.next()
-                    result.getInt(1)
-                }
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.executeQuery().use { result ->
+                result.next()
+                result.getInt(1)
             }
+        }
 
-            val transactions = connection.prepareStatement(
-                """
+        val transactions = connection.prepareStatement(
+            """
                     SELECT id, transaction_timestamp, merchant_name, category, account_name,
                     amount, currency, merchant_logo_url FROM transactions WHERE user_id = ?
                     $typeCondition
                     ORDER BY transaction_timestamp DESC, id DESC LIMIT ? OFFSET ?
                     """.trimIndent()
-                ).use { statement ->
-                    statement.setObject(1, userId)
-                    statement.setInt(2, pageSize)
-                    statement.setInt(3, offset)
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.setInt(2, pageSize)
+            statement.setInt(3, offset)
 
-                    statement.executeQuery().use { result ->
-                        val items = mutableListOf<ImportedTransactionResponse>()
+            statement.executeQuery().use { result ->
+                val items = mutableListOf<ImportedTransactionResponse>()
 
-                        while (result.next()) {
-                            items.add(
-                                ImportedTransactionResponse(
-                                    id = result.getObject("id").toString(),
-                                    date = result.getTimestamp("transaction_timestamp").toInstant()
-                                        .toString(),
-                                    merchantName = result.getString("merchant_name"),
-                                    category = result.getString("category"),
-                                    accountName = result.getString("account_name"),
-                                    amount = result.getDouble("amount"),
-                                    currency = result.getString("currency"),
-                                    merchantLogoUrl = result.getString("merchant_logo_url")
-                                )
-                            )
-                        }
-
-                        items
-                    }
+                while (result.next()) {
+                    items.add(
+                        ImportedTransactionResponse(
+                            id = result.getObject("id").toString(),
+                            date = result.getTimestamp("transaction_timestamp").toInstant()
+                                .toString(),
+                            merchantName = result.getString("merchant_name"),
+                            category = result.getString("category"),
+                            accountName = result.getString("account_name"),
+                            amount = result.getDouble("amount"),
+                            currency = result.getString("currency"),
+                            merchantLogoUrl = result.getString("merchant_logo_url")
+                        )
+                    )
                 }
 
-            PaginatedTransactionsResponse(
-                transactions = transactions,
-                page = page,
-                pageSize = pageSize,
-                totalCount = totalCount,
-                hasMore = offset + transactions.size < totalCount
-            )
+                items
+            }
         }
+
+        PaginatedTransactionsResponse(
+            transactions = transactions,
+            page = page,
+            pageSize = pageSize,
+            totalCount = totalCount,
+            hasMore = offset + transactions.size < totalCount
+        )
     }
+}
 
 private fun recordTransactionSyncSuccess(userId: UUID, syncedAt: Instant) {
     Database.dataSource.connection.use { connection ->
@@ -1357,6 +1559,75 @@ private fun fetchMerchantLogoFromLogoDev(merchantName: String): Pair<String, Str
     }
 
     return domain to logoUrl
+}
+
+// ── Dashboard layout sync ─────────────────────────────────────────────────────
+
+@Serializable
+data class DashboardLayoutRequest(
+    val cardOrder: String    = "",   // comma-separated built-in card order
+    val deletedCards: String = "",   // pipe-separated deleted card keys
+    val chartCards: String   = "",   // pipe-separated chart card keys on dashboard
+    val halfPositions: String = ""   // "key:float|…" encoded half-card positions
+)
+
+/**
+ * Returns the saved layout for [userId], or null if none exists yet.
+ */
+private fun getDashboardLayout(userId: UUID): DashboardLayoutRequest? =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT card_order, deleted_cards, chart_cards, half_positions
+            FROM dashboard_layouts
+            WHERE user_id = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.executeQuery().use { result ->
+                if (result.next()) DashboardLayoutRequest(
+                    cardOrder     = result.getString("card_order")     ?: "",
+                    deletedCards  = result.getString("deleted_cards")  ?: "",
+                    chartCards    = result.getString("chart_cards")    ?: "",
+                    halfPositions = result.getString("half_positions") ?: ""
+                ) else null
+            }
+        }
+    }
+
+/**
+ * Upserts the layout for [userId].  Creates the row on first save, overwrites on
+ * subsequent saves — so the backend always holds the user's latest layout.
+ */
+private fun saveDashboardLayout(userId: UUID, layout: DashboardLayoutRequest) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                INSERT INTO dashboard_layouts
+                    (user_id, card_order, deleted_cards, chart_cards, half_positions, updated_at)
+                VALUES (?, ?, ?, ?, ?, now())
+                ON CONFLICT (user_id) DO UPDATE SET
+                    card_order     = EXCLUDED.card_order,
+                    deleted_cards  = EXCLUDED.deleted_cards,
+                    chart_cards    = EXCLUDED.chart_cards,
+                    half_positions = EXCLUDED.half_positions,
+                    updated_at     = now()
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, layout.cardOrder)
+                statement.setString(3, layout.deletedCards)
+                statement.setString(4, layout.chartCards)
+                statement.setString(5, layout.halfPositions)
+                statement.executeUpdate()
+            }
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
 }
 
 private fun normaliseMerchantKey(value: String): String =

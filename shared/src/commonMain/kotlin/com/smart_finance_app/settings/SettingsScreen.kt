@@ -32,14 +32,26 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.payments.BillingAddressResponse
+import com.smart_finance_app.payments.BillingAddressResult
+import com.smart_finance_app.payments.BillingInvoiceResponse
+import com.smart_finance_app.payments.BillingInvoicesResult
+import com.smart_finance_app.payments.CheckoutResult
+import com.smart_finance_app.payments.CustomerPortalResult
+import com.smart_finance_app.payments.PaymentDetailsResponse
+import com.smart_finance_app.payments.PaymentDetailsResult
+import com.smart_finance_app.payments.PaymentScreen
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
@@ -53,15 +65,46 @@ import smart_finance_app.shared.generated.resources.language
 import smart_finance_app.shared.generated.resources.light_mode
 import smart_finance_app.shared.generated.resources.logout
 import smart_finance_app.shared.generated.resources.person
+import com.smart_finance_app.payments.PlanScreen
+import com.smart_finance_app.payments.SubscriptionApi
+import com.smart_finance_app.payments.SubscriptionStatusResult
+import kotlinx.coroutines.launch
 
 private enum class SettingsPanel {
     Main,
     EditProfile,
-    Subscription
+    Payments,
+    SubscriptionPlan
 }
 
 @Composable
-fun SettingsScreen(userName: String, userEmail: String, onSignOut: () -> Unit) {
+fun SettingsScreen(
+    userName: String,
+    userEmail: String,
+    authToken: String,
+    subscriptionApi: SubscriptionApi,
+    onSignOut: () -> Unit
+) {
+    val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+
+    var subscriptionStatus by remember { mutableStateOf("free") }
+    var subscriptionLoading by remember { mutableStateOf(false) }
+    var subscriptionError by remember { mutableStateOf<String?>(null) }
+
+    var paymentDetails by remember { mutableStateOf<PaymentDetailsResponse?>(null) }
+    var paymentsLoading by remember { mutableStateOf(false) }
+    var paymentsError by remember { mutableStateOf<String?>(null) }
+
+    var invoices by remember { mutableStateOf(emptyList<BillingInvoiceResponse>()) }
+    var invoicesLoading by remember { mutableStateOf(false) }
+    var invoicesError by remember { mutableStateOf<String?>(null) }
+
+    var billingAddress by remember { mutableStateOf<BillingAddressResponse?>(null) }
+    var billingAddressLoading by remember { mutableStateOf(false) }
+    var billingAddressError by remember { mutableStateOf<String?>(null) }
+
+    var openingPaymentPortal by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(SettingsPanel.Main) }
     var selectedLanguage by remember { mutableStateOf("English") }
     var selectedCurrency by remember { mutableStateOf("GBP") }
@@ -69,6 +112,24 @@ fun SettingsScreen(userName: String, userEmail: String, onSignOut: () -> Unit) {
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(authToken, panel) {
+        if (authToken.isNotBlank() && panel == SettingsPanel.SubscriptionPlan) {
+            subscriptionLoading = true
+            subscriptionError = null
+
+            when (val result = subscriptionApi.getStatus(authToken)) {
+                is SubscriptionStatusResult.Success -> {
+                    subscriptionStatus = result.status
+                }
+
+                is SubscriptionStatusResult.Failure -> {
+                    subscriptionError = result.message
+                }
+            }
+            subscriptionLoading = false
+        }
+    }
 
     if (showLanguageDialog) {
         SettingOptionDialog(
@@ -114,6 +175,50 @@ fun SettingsScreen(userName: String, userEmail: String, onSignOut: () -> Unit) {
         )
     }
 
+    LaunchedEffect(authToken, panel) {
+        if (authToken.isNotBlank() && panel == SettingsPanel.Payments) {
+            paymentsLoading = true
+            paymentsError = null
+
+            when (val result = subscriptionApi.getPaymentDetails(authToken)) {
+                is PaymentDetailsResult.Success -> {
+                    paymentDetails = result.details
+                    subscriptionStatus = result.details.subscriptionStatus
+                }
+
+                is PaymentDetailsResult.Failure -> {
+                    paymentsError = result.message
+                }
+            }
+
+            paymentsLoading = false
+        }
+    }
+
+    LaunchedEffect(authToken, panel) {
+        if (authToken.isNotBlank() && panel == SettingsPanel.Payments) {
+            invoicesLoading = true
+            invoicesError = null
+
+            when (val result = subscriptionApi.getInvoices(authToken)) {
+                is BillingInvoicesResult.Success -> invoices = result.invoices
+                is BillingInvoicesResult.Failure -> invoicesError = result.message
+            }
+
+            invoicesLoading = false
+
+            billingAddressLoading = true
+            billingAddressError = null
+
+            when (val result = subscriptionApi.getBillingAddress(authToken)) {
+                is BillingAddressResult.Success -> billingAddress = result.address
+                is BillingAddressResult.Failure -> billingAddressError = result.message
+            }
+
+            billingAddressLoading = false
+        }
+    }
+
     when (panel) {
         SettingsPanel.Main -> {
             SettingsMainContent(
@@ -124,9 +229,10 @@ fun SettingsScreen(userName: String, userEmail: String, onSignOut: () -> Unit) {
                 selectedAppearance = selectedAppearance,
                 onAppearanceSelected = { selectedAppearance = it },
                 onUpdateProfile = { panel = SettingsPanel.EditProfile },
-                onManageSubscription = { panel = SettingsPanel.Subscription },
+                onSubscriptionPaymentsClick = { panel = SettingsPanel.Payments },
+                onManageSubscription = { panel = SettingsPanel.SubscriptionPlan },
                 onLanguageClick = { showLanguageDialog = true },
-                onCurrencyClick = {showCurrencyDialog = true },
+                onCurrencyClick = { showCurrencyDialog = true },
                 onSignOutClick = { showSignOutDialog = true }
             )
         }
@@ -139,22 +245,87 @@ fun SettingsScreen(userName: String, userEmail: String, onSignOut: () -> Unit) {
             )
         }
 
-        SettingsPanel.Subscription -> {
-            PlaceholderSettingsSubScreen(
-                title = "Subscription & Payments",
-                description = "Subscription and payment management screen coming soon.",
+        SettingsPanel.Payments -> {
+            PaymentScreen(
+                paymentDetails = paymentDetails,
+                isLoading = paymentsLoading,
+                errorMessage = paymentsError,
+                invoices = invoices,
+                invoicesLoading = invoicesLoading,
+                invoicesError = invoicesError,
+                billingAddress = billingAddress,
+                billingAddressLoading = billingAddressLoading,
+                billingAddressError = billingAddressError,
+                fullName = userName,
+                email = userEmail,
+                isOpeningPortal = openingPaymentPortal,
+                onChangePaymentCard = {
+                    scope.launch {
+                        openingPaymentPortal = true
+                        paymentsError = null
+
+                        when (val result = subscriptionApi.createCustomerPortalSession(authToken)) {
+                            is CustomerPortalResult.Success -> {
+                                uriHandler.openUri(result.portalUrl)
+                            }
+
+                            is CustomerPortalResult.Failure -> {
+                                paymentsError = result.message
+                            }
+                        }
+
+                        openingPaymentPortal = false
+                    }
+                },
+                onViewPlans = {
+                    panel = SettingsPanel.SubscriptionPlan
+                },
                 onBack = { panel = SettingsPanel.Main }
+            )
+        }
+
+        SettingsPanel.SubscriptionPlan -> {
+            PlanScreen(
+                subscriptionStatus = subscriptionStatus,
+                isLoading = subscriptionLoading,
+                errorMessage = subscriptionError,
+                onSubscribeToBasic = {
+                    scope.launch {
+                        subscriptionLoading = true
+                        subscriptionError = null
+
+                        when (val result = subscriptionApi.createCheckoutSession(authToken)) {
+                            is CheckoutResult.Success -> uriHandler.openUri(result.checkoutUrl)
+                            is CheckoutResult.Failure -> subscriptionError = result.message
+                        }
+
+                        subscriptionLoading = false
+                    }
+                },
+                onBack = {
+                    subscriptionStatus = "free"
+                    panel = SettingsPanel.Main
+                }
             )
         }
     }
 }
 
 @Composable
-private fun SettingsMainContent(userName: String, userEmail: String, selectedLanguage: String,
-                                selectedCurrency: String, selectedAppearance: String,
-                                onAppearanceSelected: (String) -> Unit, onUpdateProfile: () -> Unit,
-                                onManageSubscription: () -> Unit, onLanguageClick: () -> Unit,
-                                onCurrencyClick: () -> Unit, onSignOutClick: () -> Unit) {
+private fun SettingsMainContent(
+    userName: String,
+    userEmail: String,
+    selectedLanguage: String,
+    selectedCurrency: String,
+    selectedAppearance: String,
+    onAppearanceSelected: (String) -> Unit,
+    onUpdateProfile: () -> Unit,
+    onSubscriptionPaymentsClick: () -> Unit,
+    onManageSubscription: () -> Unit,
+    onLanguageClick: () -> Unit,
+    onCurrencyClick: () -> Unit,
+    onSignOutClick: () -> Unit
+) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
@@ -233,9 +404,9 @@ private fun SettingsMainContent(userName: String, userEmail: String, selectedLan
                     SettingsGroup {
                         SettingsActionRow(
                             icon = Res.drawable.credit_card,
-                            title = "Subscription & Payments",
+                            title = "Payments & Billing",
                             value = null,
-                            onClick = onManageSubscription
+                            onClick = onSubscriptionPaymentsClick
                         )
 
                         SettingsDivider()
@@ -313,7 +484,7 @@ private fun ProfileHeader(userName: String, userEmail: String) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
+    ) {
         Surface(
             modifier = Modifier.size(72.dp),
             shape = CircleShape,
@@ -373,8 +544,12 @@ private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun SettingsActionRow(icon: DrawableResource, title: String,
-                              value: String?, onClick: () -> Unit) {
+private fun SettingsActionRow(
+    icon: DrawableResource,
+    title: String,
+    value: String?,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -517,8 +692,13 @@ private fun SettingsDivider() {
 }
 
 @Composable
-private fun SettingOptionDialog(title: String, options: List<String>, selectedOption: String,
-                                onSelected: (String) -> Unit, onDismiss: () -> Unit) {
+private fun SettingOptionDialog(
+    title: String,
+    options: List<String>,
+    selectedOption: String,
+    onSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
