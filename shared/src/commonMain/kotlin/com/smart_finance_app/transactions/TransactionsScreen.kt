@@ -52,9 +52,17 @@ import smart_finance_app.shared.generated.resources.filter
 import smart_finance_app.shared.generated.resources.search
 import kotlin.math.ceil
 
-data class TransactionUI(val id: String, val dateLabel: String, val merchantName: String,
-                         val category: String, val accountName: String, val amount: Double,
-                         val currency: String, val merchantLogoUrl: String? = null)
+data class TransactionUI(
+    val id: String,
+    val dateLabel: String,
+    val merchantName: String,
+    val category: String,
+    val accountName: String,
+    val amount: Double,
+    val currency: String,
+    val merchantLogoUrl: String? = null,
+    val accountId: String? = null
+)
 
 @Composable
 fun TransactionsScreen(

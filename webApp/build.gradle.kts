@@ -22,8 +22,17 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.shared)
 
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.json)
+
             implementation(libs.compose.ui)
             implementation(libs.wrappers.browser)
+        }
+
+        wasmJsMain.dependencies {
+            implementation(libs.ktor.client.wasm)
+            implementation(libs.ktor.client.js)
         }
     }
 }

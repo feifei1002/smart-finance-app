@@ -67,6 +67,7 @@ data class ImportedTransactionResponse(
     val merchantName: String,
     val category: String,
     val accountName: String,
+    val accountId: String? = null,
     val amount: Double,
     val currency: String,
     val merchantLogoUrl: String? = null
@@ -1312,7 +1313,8 @@ private fun getImportedTransactionsForUser(
         val transactions = connection.prepareStatement(
             """
                     SELECT id, transaction_timestamp, merchant_name, category, account_name,
-                    amount, currency, merchant_logo_url FROM transactions WHERE user_id = ?
+                        provider_account_id AS account_id, amount, currency, merchant_logo_url
+                    FROM transactions WHERE user_id = ?
                     $typeCondition
                     ORDER BY transaction_timestamp DESC, id DESC LIMIT ? OFFSET ?
                     """.trimIndent()
@@ -1331,6 +1333,7 @@ private fun getImportedTransactionsForUser(
                             date = result.getTimestamp("transaction_timestamp").toInstant()
                                 .toString(),
                             merchantName = result.getString("merchant_name"),
+                            accountId = result.getString("account_id"),
                             category = result.getString("category"),
                             accountName = result.getString("account_name"),
                             amount = result.getDouble("amount"),

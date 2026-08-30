@@ -16,6 +16,7 @@ data class ImportedTransactionResponse(
     val merchantName: String,
     val category: String,
     val accountName: String,
+    val accountId: String? = null,
     val amount: Double,
     val currency: String,
     val merchantLogoUrl: String? = null
@@ -52,7 +53,6 @@ class TransactionsApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
 
     suspend fun syncTransactions(token: String): TransactionSyncResult {
-        println("Frontend is calling transaction sync")
         return try {
             val response = client.post("$normalizedBaseUrl/api/banking/transactions/sync") {
                 bearerAuth(token)
