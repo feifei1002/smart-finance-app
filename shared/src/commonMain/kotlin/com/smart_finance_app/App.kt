@@ -145,11 +145,14 @@ fun App(
                         result.session
                     }
 
-                    RefreshSessionResult.Expired,
-                    is RefreshSessionResult.Failure -> {
+                    RefreshSessionResult.Expired -> {
                         tokenStorage.clearRefreshToken()
                         session = null
                         screen = Screen.SignIn
+                        null
+                    }
+
+                    is RefreshSessionResult.Failure -> {
                         null
                     }
                 }

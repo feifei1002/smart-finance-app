@@ -190,7 +190,7 @@ fun ApplicationCall.clearRefreshTokenCookie() {
  receive the raw token. Android still receives it so it can store it securely.
  */
 fun ApplicationCall.refreshTokenForResponse(refreshToken: String): String {
-    return if (request.headers[REFRESH_TOKEN_TRANSPORT_HEADER] == "cookie") {
+    return if (request.headers[HttpHeaders.Origin] != null) {
         ""
     } else {
         refreshToken
