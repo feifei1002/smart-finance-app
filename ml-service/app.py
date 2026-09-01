@@ -73,8 +73,7 @@ def classify_transaction(req: TransactionRequest):
     exact_category = get_exact_brand_match(req.description) or get_exact_brand_match(clean_desc)
     if exact_category is not None:
         return {
-            "category": exact_category,
-            "source": "exact_brand"
+            "category": exact_category
         }
 
     # 4. Augment text
@@ -93,6 +92,5 @@ def classify_transaction(req: TransactionRequest):
     mapped_category = verbalizer_to_category.get(top_verbalizer, "Miscellaneous")
 
     return {
-        "category": mapped_category,
-        "source": "deberta"
+        "category": mapped_category
     }

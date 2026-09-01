@@ -6,6 +6,10 @@ object TransactionCategories {
     const val BILLS_HOUSING = "Bills & Housing"
     const val ENTERTAINMENT_SUBSCRIPTIONS = "Entertainment & Subscriptions"
     const val TRANSPORTATION = "Transportation"
+
+    const val TRANSFERS = "Transfers"
+
+    const val INCOME = "Income"
     const val MISCELLANEOUS = "Miscellaneous"
 
     val all = listOf(
@@ -14,6 +18,8 @@ object TransactionCategories {
         BILLS_HOUSING,
         ENTERTAINMENT_SUBSCRIPTIONS,
         TRANSPORTATION,
+        TRANSFERS,
+        INCOME,
         MISCELLANEOUS
     )
 

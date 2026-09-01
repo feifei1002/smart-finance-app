@@ -298,7 +298,7 @@ fun Route.bankingRoutes() {
 
             val pageSize = call.request.queryParameters["pageSize"]
                 ?.toIntOrNull()
-                ?.coerceIn(1, 100)
+                ?.coerceIn(1, 500)
                 ?: 25
 
             val type = call.request.queryParameters["type"]
@@ -1255,6 +1255,7 @@ suspend fun saveImportedTransaction(
     val merchantLogoUrl = logoLookupMerchantName?.let {
         resolveMerchantLogoUrl(it)
     }
+    val category = inferTransactionCategory(transaction)
 
     return Database.dataSource.connection.use { connection ->
         try {
@@ -1277,7 +1278,7 @@ suspend fun saveImportedTransaction(
                 statement.setString(4, transaction.transactionId)
                 statement.setString(5, displayMerchantName)
                 statement.setString(6, transaction.description)
-                statement.setString(7, inferTransactionCategory(transaction))
+                statement.setString(7, category)
                 statement.setString(8, account.accountName)
                 statement.setDouble(9, transaction.amount)
                 statement.setString(10, transaction.currency)
@@ -1664,18 +1665,6 @@ private fun merchantNameForLogoLookup(transaction: TransactionResponse): String?
     return if (notMerchant) null else cleanMerchantNameForLogoLookup(candidate)
 }
 
-//private fun inferTransactionCategory(transaction: TransactionResponse): String {
-//    val text = "${transaction.merchantName.orEmpty()} ${transaction.description}".lowercase()
-//
-//    return when {
-//        "salary" in text || "payroll" in text -> "Income"
-//        "uber" in text || "train" in text || "bus" in text -> "Transport"
-//        "starbucks" in text || "coffee" in text -> "Coffee"
-//        "grocery" in text || "tesco" in text || "sainsbury" in text -> "Groceries"
-//        "netflix" in text || "spotify" in text -> "Entertainment"
-//        else -> "Uncategorised"
-//    }
-//}
 private suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
     val transactions = Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
@@ -1746,6 +1735,24 @@ suspend fun inferTransactionCategory(transaction: TransactionResponse): String {
     val cleanDesc = rawDescription.split(Regex("[#\\-\\(]")).first().trim()
 
     if (cleanDesc.isEmpty()) return "Miscellaneous"
+
+    val isPersonTransfer =
+        cleanDesc.contains(Regex("\\b(MR|MS|MRS|MISS|DR)\\s+[A-Z]", RegexOption.IGNORE_CASE)) ||
+                cleanDesc.contains("FASTER PAYMENT", ignoreCase = true) ||
+                cleanDesc.contains("BANK TRANSFER", ignoreCase = true) ||
+                cleanDesc.contains("TRANSFER", ignoreCase = true)
+
+    if (isPersonTransfer) {
+        return "Transfers"
+    }
+
+    if (cleanDesc.contains("REFUND", ignoreCase = true)) {
+        return CategoryServiceClient.classify(cleanDesc)
+    }
+
+    if (transaction.amount > 0 || transaction.type.equals("CREDIT", ignoreCase = true)) {
+        return "Income"
+    }
 
     return CategoryServiceClient.classify(cleanDesc)
 }

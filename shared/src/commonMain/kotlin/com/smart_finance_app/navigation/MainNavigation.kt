@@ -228,7 +228,7 @@ private fun NavigationContent(
             val result = transactionsApi.getTransactions(
                 token = authToken,
                 page = 0,
-                pageSize = 10,
+                pageSize = 500,
                 type = "All"
             )
         ) {

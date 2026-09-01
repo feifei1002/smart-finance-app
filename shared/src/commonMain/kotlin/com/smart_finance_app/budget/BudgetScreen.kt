@@ -41,13 +41,22 @@ import smart_finance_app.shared.generated.resources.edit
 
 val budgetCategories = TransactionCategories.all
 
+//private val categoryColors = mapOf(
+//    "Housing"       to Color(0xFF6366F1),
+//    "Food"          to Color(0xFF22C55E),
+//    "Transport"     to Color(0xFFF59E0B),
+//    "Shopping"      to Color(0xFFEC4899),
+//    "Entertainment" to Color(0xFF3B82F6),
+//    "Other"         to Color(0xFF94A3B8)
+//)
+
 private val categoryColors = mapOf(
-    "Housing"       to Color(0xFF6366F1),
-    "Food"          to Color(0xFF22C55E),
-    "Transport"     to Color(0xFFF59E0B),
-    "Shopping"      to Color(0xFFEC4899),
-    "Entertainment" to Color(0xFF3B82F6),
-    "Other"         to Color(0xFF94A3B8)
+    TransactionCategories.FOOD_DINING to Color(0xFF22C55E),
+    TransactionCategories.SHOPPING_PERSONAL to Color(0xFFEC4899),
+    TransactionCategories.BILLS_HOUSING to Color(0xFF6366F1),
+    TransactionCategories.ENTERTAINMENT_SUBSCRIPTIONS to Color(0xFF3B82F6),
+    TransactionCategories.TRANSPORTATION to Color(0xFFF59E0B),
+    TransactionCategories.MISCELLANEOUS to Color(0xFF94A3B8)
 )
 
 // Helper formatting function to avoid floating point layout bugs
