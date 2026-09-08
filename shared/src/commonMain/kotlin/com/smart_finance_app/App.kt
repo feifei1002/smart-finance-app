@@ -1,8 +1,16 @@
 package com.smart_finance_app
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.smart_finance_app.auth.AuthApi
+import com.smart_finance_app.auth.RefreshSessionResult
+import com.smart_finance_app.auth.TokenStorage
 import com.smart_finance_app.budget.BudgetApi
 import com.smart_finance_app.consent.ConsentApi
 import com.smart_finance_app.consent.ReadOnlyConsentScreen
@@ -23,10 +31,14 @@ import com.smart_finance_app.signin.SignInApi
 import com.smart_finance_app.signin.SignInResult
 import com.smart_finance_app.signin.SignInScreen
 import io.ktor.client.HttpClient
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.serialization.kotlinx.json.json
+import io.ktor.client.plugins.HttpSend
+import io.ktor.client.plugins.plugin
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.encodedPath
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 // Tracks which screen is currently shown
 private enum class Screen {
@@ -39,21 +51,20 @@ private enum class Screen {
 }
 
 @Composable
-fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordResetToken: String? = null) {
+fun App(
+    apiBaseUrl: String,
+    tokenStorage: TokenStorage,
+    httpClient: HttpClient,
+    isPasswordResetRoute: Boolean = false,
+    passwordResetToken: String? = null
+) {
     MaterialTheme {
-        val httpClient = remember {
-            HttpClient {
-                expectSuccess = false
-
-                install(ContentNegotiation) {
-                    json(Json { ignoreUnknownKeys = true })
-                }
-            }
-        }
 
         val registrationApi = remember(apiBaseUrl, httpClient) { RegistrationApi(apiBaseUrl, httpClient) }
 
         val signInApi = remember(apiBaseUrl, httpClient) { SignInApi(apiBaseUrl, httpClient) }
+
+        val authApi = remember(apiBaseUrl, httpClient) { AuthApi(apiBaseUrl, httpClient) }
 
         val dashboardApi = remember(apiBaseUrl, httpClient) { DashboardApi(apiBaseUrl, httpClient) }
 
@@ -82,6 +93,7 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
         }
 
         var session by remember { mutableStateOf<AuthSession?>(null) }
+        var checkingSavedSession by remember { mutableStateOf(true) }
         var registrationLoading by remember { mutableStateOf(false) }
         var registrationError by remember { mutableStateOf<String?>(null) }
         var signInLoading by remember { mutableStateOf(false) }
@@ -95,6 +107,104 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
         var resetPasswordSuccess by remember { mutableStateOf<String?>(null) }
         var resetPasswordTokenInvalid by remember(passwordResetToken) {
             mutableStateOf(passwordResetToken.isNullOrBlank())
+        }
+
+        val refreshMutex = remember { Mutex() }
+
+        /* Refreshes the access token when it expires, using the persisted refresh token
+        on Android or the HttpOnly refresh cookie on web.
+         */
+        suspend fun refreshCurrentSession(originalAccessToken: String? = null): AuthSession? {
+            return refreshMutex.withLock {
+                val currentSession = session
+
+                if (
+                    originalAccessToken != null &&
+                    currentSession != null &&
+                    currentSession.token != originalAccessToken
+                ) {
+                    return@withLock currentSession
+                }
+
+                val refreshToken = currentSession?.refreshToken
+                    ?.takeIf { it.isNotBlank() }
+                    ?: tokenStorage.getRefreshToken()
+
+                val result = if (refreshToken.isNullOrBlank()) {
+                    authApi.refresh()
+                } else {
+                    authApi.refresh(refreshToken)
+                }
+
+                when (result) {
+                    is RefreshSessionResult.Success -> {
+                        session = result.session
+                        if (result.session.refreshToken.isNotBlank()) {
+                            tokenStorage.saveRefreshToken(result.session.refreshToken)
+                        }
+                        result.session
+                    }
+
+                    RefreshSessionResult.Expired -> {
+                        tokenStorage.clearRefreshToken()
+                        session = null
+                        screen = Screen.SignIn
+                        null
+                    }
+
+                    is RefreshSessionResult.Failure -> {
+                        null
+                    }
+                }
+            }
+        }
+
+        /*
+        If an authenticated API request returns 401, try refreshing the session once
+        and retry the original request with the new access token.
+        */
+        DisposableEffect(httpClient, authApi, tokenStorage) {
+            httpClient.plugin(HttpSend).intercept { request ->
+                val originalAccessToken = request.headers[HttpHeaders.Authorization]
+                    ?.removePrefix("Bearer ")
+                val originalCall = execute(request)
+
+                if (
+                    originalCall.response.status != HttpStatusCode.Unauthorized ||
+                    request.url.encodedPath.startsWith("/auth/")
+                ) {
+                    return@intercept originalCall
+                }
+
+                val refreshedSession = refreshCurrentSession(originalAccessToken)
+                    ?: return@intercept originalCall
+
+                request.headers.remove(HttpHeaders.Authorization)
+                request.headers.append(HttpHeaders.Authorization, "Bearer ${refreshedSession.token}")
+
+                execute(request)
+            }
+
+            onDispose {}
+        }
+
+        LaunchedEffect(Unit) {
+            if (isPasswordResetRoute) {
+                checkingSavedSession = false
+                return@LaunchedEffect
+            }
+
+            val refreshedSession = refreshCurrentSession()
+
+            if (refreshedSession != null) {
+                screen = if (refreshedSession.consentAccepted) {
+                    Screen.Main
+                } else {
+                    Screen.Consent
+                }
+            }
+
+            checkingSavedSession = false
         }
 
         LaunchedEffect(screen, passwordResetToken) {
@@ -111,6 +221,18 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
             }
         }
 
+        if (checkingSavedSession) {
+            MaterialTheme {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            return@MaterialTheme
+        }
+
         when (screen) {
             Screen.Registration -> {
                 RegistrationScreen(
@@ -124,6 +246,7 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
                                 when (val result = registrationApi.register(form)) {
                                     is RegistrationResult.Success -> {
                                         session = result.session
+                                        tokenStorage.saveRefreshToken(result.session.refreshToken)
                                         screen = Screen.Consent
                                     }
                                     is RegistrationResult.Failure -> registrationError = result.message
@@ -151,6 +274,8 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
                                 when (val result = signInApi.signIn(form)) {
                                     is SignInResult.Success -> {
                                         session = result.session
+                                        tokenStorage.saveRefreshToken(result.session.refreshToken)
+
                                         screen = if (result.session.consentAccepted) {
                                             Screen.Main
                                         } else {
@@ -300,10 +425,17 @@ fun App(apiBaseUrl: String, isPasswordResetRoute: Boolean = false, passwordReset
                     dashboardApi = dashboardApi,
                     budgetApi = budgetApi,
                     onSignOut = {
-                        session = null
-                        signInError = null
-                        registrationError = null
-                        screen = Screen.Registration
+                        val refreshToken = session?.refreshToken
+
+                        scope.launch {
+                            if (refreshToken != null) {
+                                authApi.logout(refreshToken)
+                            }
+
+                            tokenStorage.clearRefreshToken()
+                            session = null
+                            screen = Screen.SignIn
+                        }
                     }
                 )
             }
