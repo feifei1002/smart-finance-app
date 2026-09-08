@@ -20,6 +20,7 @@ private data class RegisterRequest(
 @Serializable
 data class RegisterResponse(
     val token: String,
+    val refreshToken: String,
     val userId: String,
     val name: String,
     val email: String,
@@ -52,6 +53,7 @@ class RegistrationApi(private val baseUrl: String, private val client: HttpClien
                     RegistrationResult.Success(
                         AuthSession(
                             token = body.token,
+                            refreshToken = body.refreshToken,
                             userId = body.userId,
                             name = body.name,
                             email = body.email,

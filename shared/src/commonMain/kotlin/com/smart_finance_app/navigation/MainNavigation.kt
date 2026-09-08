@@ -242,7 +242,8 @@ private fun NavigationContent(
                         accountName = transaction.accountName,
                         amount = transaction.amount,
                         currency = transaction.currency,
-                        merchantLogoUrl = transaction.merchantLogoUrl
+                        merchantLogoUrl = transaction.merchantLogoUrl,
+                        accountId = transaction.accountId
                     )
                 }
             }
@@ -267,7 +268,8 @@ private fun NavigationContent(
                 currency = tx.currency,
                 type = if (tx.amount < 0) "DEBIT" else "CREDIT",
                 merchantName = tx.merchantName,
-                category = tx.category
+                category = tx.category,
+                accountId = tx.accountId
             )
         }
     }
