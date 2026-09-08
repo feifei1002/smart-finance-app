@@ -1327,8 +1327,10 @@ private fun getImportedTransactionsForUser(
 
         val transactions = connection.prepareStatement(
             """
-                    SELECT id, transaction_timestamp, merchant_name, category, account_name,
-                        provider_account_id AS account_id, amount, currency, merchant_logo_url
+                    SELECT id, transaction_timestamp, merchant_name, 
+                        COALESCE(NULLIF(category, ''), 'Miscellaneous') AS category, 
+                        account_name, provider_account_id AS account_id,
+                        amount, currency, merchant_logo_url
                     FROM transactions WHERE user_id = ?
                     $typeCondition
                     ORDER BY transaction_timestamp DESC, id DESC LIMIT ? OFFSET ?

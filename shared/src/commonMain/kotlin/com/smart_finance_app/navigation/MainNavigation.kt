@@ -162,7 +162,8 @@ private fun NavigationContent(
                             accountName = transaction.accountName,
                             amount = transaction.amount,
                             currency = transaction.currency,
-                            merchantLogoUrl = transaction.merchantLogoUrl
+                            merchantLogoUrl = transaction.merchantLogoUrl,
+                            accountId = transaction.accountId
                         )
                     }
 
