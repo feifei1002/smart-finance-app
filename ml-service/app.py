@@ -68,7 +68,7 @@ def classify_transaction(req: TransactionRequest):
     clean_desc = re.split(r"[#\-\(]", req.description)[0].strip()
 
     if not clean_desc:
-        return {"category": "Miscellaneous"}
+        return {"category": "Others"}
 
     exact_category = get_exact_brand_match(req.description) or get_exact_brand_match(clean_desc)
     if exact_category is not None:
@@ -89,7 +89,7 @@ def classify_transaction(req: TransactionRequest):
 
     # 6. Map back to your category
     top_verbalizer = res["labels"][0]
-    mapped_category = verbalizer_to_category.get(top_verbalizer, "Miscellaneous")
+    mapped_category = verbalizer_to_category.get(top_verbalizer, "Others")
 
     return {
         "category": mapped_category

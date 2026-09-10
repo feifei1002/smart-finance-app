@@ -10,7 +10,7 @@ object TransactionCategories {
     const val TRANSFERS = "Transfers"
 
     const val INCOME = "Income"
-    const val MISCELLANEOUS = "Miscellaneous"
+    const val OTHERS = "Others"
 
     val all = listOf(
         FOOD_DINING,
@@ -20,12 +20,12 @@ object TransactionCategories {
         TRANSPORTATION,
         TRANSFERS,
         INCOME,
-        MISCELLANEOUS
+        OTHERS
     )
 
     fun normalize(category: String?): String {
         return category
             ?.takeIf { it in all }
-            ?: MISCELLANEOUS
+            ?: OTHERS
     }
 }

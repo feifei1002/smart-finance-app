@@ -1328,7 +1328,7 @@ private fun getImportedTransactionsForUser(
         val transactions = connection.prepareStatement(
             """
                     SELECT id, transaction_timestamp, merchant_name, 
-                        COALESCE(NULLIF(category, ''), 'Miscellaneous') AS category, 
+                        COALESCE(NULLIF(category, ''), 'Others') AS category, 
                         account_name, provider_account_id AS account_id,
                         amount, currency, merchant_logo_url
                     FROM transactions WHERE user_id = ?
@@ -1737,9 +1737,9 @@ private suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
 
 suspend fun inferTransactionCategory(transaction: TransactionResponse): String {
     val rawDescription = "${transaction.merchantName.orEmpty()} ${transaction.description}".trim()
-    val cleanDesc = rawDescription.split(Regex("[#\\-\\(]")).first().trim()
+    val cleanDesc = rawDescription.split(Regex("[#\\-(]")).first().trim()
 
-    if (cleanDesc.isEmpty()) return "Miscellaneous"
+    if (cleanDesc.isEmpty()) return "Others"
 
     val isPersonTransfer =
         cleanDesc.contains(Regex("\\b(MR|MS|MRS|MISS|DR)\\s+[A-Z]", RegexOption.IGNORE_CASE)) ||

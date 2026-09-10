@@ -72,7 +72,6 @@ import smart_finance_app.shared.generated.resources.moving
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
-data class BudgetItem(val category: String, val spent: Float, val total: Float, val color: Color)
 data class MonthlyPoint(val month: String, val income: Float, val expenses: Float)
 data class Transaction(val name: String, val date: String, val amount: String, val isIncome: Boolean)
 data class AccountOverview(val accountId: String, val bankName: String, val maskedNumber: String, val balance: String)
@@ -85,6 +84,7 @@ data class InferredBill(val merchant: String, val amount: Double, val expectedDa
 private fun inferUpcomingBills(transactions: List<TransactionData>): List<InferredBill> {
     val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
     return transactions
+        .asSequence()
         .filter { it.amount < 0 }
         .groupBy { it.merchantName?.takeIf(String::isNotBlank) ?: it.description }
         .mapNotNull { (merchant, entries) ->
@@ -95,15 +95,15 @@ private fun inferUpcomingBills(transactions: List<TransactionData>): List<Inferr
 
             val gaps = dated.zipWithNext { first, second -> first.first.daysUntil(second.first) }
             val averageGap = gaps.average()
-            val cadence = when {
-                averageGap in 6.0..9.0 -> "Weekly"
-                averageGap in 25.0..35.0 -> "Monthly"
+            val cadence = when (averageGap) {
+                in 6.0..9.0 -> "Weekly"
+                in 25.0..35.0 -> "Monthly"
                 else -> return@mapNotNull null
             }
-            if (gaps.any { kotlin.math.abs(it - averageGap) > if (cadence == "Weekly") 2 else 6 }) return@mapNotNull null
+            if (gaps.any { abs(it - averageGap) > if (cadence == "Weekly") 2 else 6 }) return@mapNotNull null
 
             val averageAmount = dated.map { it.second }.average()
-            if (averageAmount <= 0.0 || dated.any { kotlin.math.abs(it.second - averageAmount) > averageAmount * 0.15 }) return@mapNotNull null
+            if (averageAmount <= 0.0 || dated.any { abs(it.second - averageAmount) > averageAmount * 0.15 }) return@mapNotNull null
 
             val nextDate = dated.last().first.plus(DatePeriod(days = averageGap.roundToInt()))
             InferredBill(merchant, averageAmount, nextDate, cadence)
@@ -111,6 +111,7 @@ private fun inferUpcomingBills(transactions: List<TransactionData>): List<Inferr
         .filter { it.expectedDate >= today }
         .sortedBy { it.expectedDate }
         .take(6)
+        .toList()
 }
 
 // ── Chart card catalogue ──────────────────────────────────────────────────────
@@ -148,9 +149,6 @@ private val FULL_CARD_HEIGHT = 240.dp
 
 /** Treemap gets a shorter fixed height — the scroll handles detail visibility. */
 private val TREEMAP_CARD_HEIGHT = 180.dp
-
-/** Built-in cards always start on the dashboard (never in the + Charts sheet). */
-private val BUILTIN_CARD_KEYS = setOf("spending", "trend", "top_categories", "budget")
 
 /** Swaps two elements in a MutableList by index. */
 private fun <T> MutableList<T>.move(from: Int, to: Int) {
@@ -925,18 +923,26 @@ private fun MobileDashboard(
                             "spending" -> {
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-                                    val cats = computeSpendingCategories(filteredRawTransactions, spendingPeriod, state.currency)
+                                    val filteredCategories = computeSpendingCategories(filteredRawTransactions, spendingPeriod, state.currency)
+                                    val chartCategories = filteredCategories.filter { it.percent >= 0.01f }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        DonutChart(categories = cats, modifier = Modifier.size(120.dp))
-                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            if (cats.isEmpty()) {
+                                        DonutChart(categories = chartCategories, modifier = Modifier.size(120.dp))
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            if (filteredCategories.isEmpty()) {
                                                 Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            } else cats.forEach { CategoryLegendRow(it) }
+                                            } else {
+                                                filteredCategories.forEach { cat ->
+                                                    CategoryLegendRow(cat)
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1133,7 +1139,7 @@ private fun DesktopDashboard(
                 val nextKey = visible.getOrNull(di + 1)
                 val nextDef = nextKey?.let { k -> ALL_CHART_CARDS.find { it.key == k } }
                 if (def?.size == CardSize.HALF && nextDef?.size == CardSize.HALF) {
-                    rows.add(listOf(key, nextKey!!))
+                    rows.add(listOf(key, nextKey))
                     di += 2
                 } else {
                     rows.add(listOf(key))
@@ -1321,27 +1327,23 @@ private fun DesktopDashboard(
                                     period = spendingPeriod,
                                     currency = state.currency
                                 )
+                                val chartCategories = filteredCategories.filter { it.percent >= 0.01f }
+
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    DonutChart(categories = filteredCategories, modifier = Modifier.size(140.dp))
-                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    DonutChart(categories = chartCategories, modifier = Modifier.size(150.dp))
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
                                         if (filteredCategories.isEmpty()) {
                                             Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         } else {
                                             filteredCategories.forEach { cat ->
-                                                Row(
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Box(Modifier.size(10.dp).background(cat.color, CircleShape))
-                                                    Text("${cat.name}  ${(cat.percent * 100).toInt()}%",
-                                                        style = MaterialTheme.typography.bodySmall)
-                                                    Text(cat.amount, style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                }
+                                                CategoryLegendRow(cat)
                                             }
                                         }
                                     }
@@ -1610,26 +1612,35 @@ private fun DesktopDashboard(
 
 @Composable
 private fun DonutChart(categories: List<SpendingCategory>, modifier: Modifier = Modifier) {
+
     if (categories.isEmpty()) return
+
     Canvas(modifier = modifier) {
         val strokeWidth = size.minDimension * 0.18f
         val radius = (size.minDimension - strokeWidth) / 2f
         val center = Offset(size.width / 2f, size.height / 2f)
+
+        val total = categories
+            .sumOf { it.percent.toDouble() }
+            .toFloat()
+            .takeIf { it > 0f }
+            ?: return@Canvas
+
         var startAngle = -90f
+
         categories.forEach { cat ->
-            val sweep = cat.percent * 360f
-            // Only draw if sweep is large enough to be visible
-            if (sweep > 3f) {
-                drawArc(
-                    color = cat.color,
-                    startAngle = startAngle,
-                    sweepAngle = sweep - 2f,
-                    useCenter = false,
-                    topLeft = Offset(center.x - radius, center.y - radius),
-                    size = Size(radius * 2f, radius * 2f),
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
-                )
-            }
+            val sweep = (cat.percent / total) * 360f
+
+            drawArc(
+                color = cat.color,
+                startAngle = startAngle,
+                sweepAngle = sweep - 0.8f,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2f, radius * 2f),
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+            )
+
             startAngle += sweep
         }
     }
@@ -1980,7 +1991,7 @@ private fun BudgetProgressCardContent(
 
 // KMP-compatible 2dp formatter
 private fun formatDp(value: Double): String {
-    val abs  = kotlin.math.abs(value)
+    val abs  = abs(value)
     val int  = abs.toLong()
     val dec  = kotlin.math.round((abs - int) * 100).toLong()
     return "$int.${dec.toString().padStart(2, '0')}"
@@ -2371,11 +2382,48 @@ private fun SectionTitle(text: String) {
 
 @Composable
 private fun CategoryLegendRow(cat: SpendingCategory) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.size(10.dp).background(cat.color, CircleShape))
-        Text("${cat.name} ${(cat.percent * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
-        Text(cat.amount, style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(cat.color, CircleShape)
+        )
+
+        Text(
+            text = cat.name,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Text(
+            text = cat.amount,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1
+        )
+
+        Text(
+            text = formatPercentLabel(cat.percent),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+    }
+}
+
+private fun formatPercentLabel(percent: Float): String {
+    return when {
+        percent <= 0f -> "0%"
+        percent < 0.01f -> "< 1%"
+        else -> "${(percent * 100).toInt()}%"
     }
 }
 
@@ -2397,7 +2445,7 @@ private fun TransactionRow(tx: Transaction) {
 @Composable
 private fun TrendIndicator(percentageChange: Float) {
     val isPositive = percentageChange >= 0f
-    val absValue = kotlin.math.abs(percentageChange)
+    val absValue = abs(percentageChange)
     val color = if (isPositive) Color(0xFF16A34A) else Color(0xFFEF4444)
     val icon = if (isPositive) Res.drawable.arrow_upward else Res.drawable.arrow_downward
 
@@ -2545,7 +2593,7 @@ private fun DashboardCustomizeButton(
 // ── Half-size built-in card content ──────────────────────────────────────────
 
 @Composable
-private fun ColumnScope.HalfCardContent(
+private fun HalfCardContent(
     cardKey: String,
     state: DashboardState
 ) {
@@ -2572,7 +2620,7 @@ private fun ColumnScope.HalfCardContent(
 // ── + Charts card content dispatcher ─────────────────────────────────────────
 
 @Composable
-private fun ColumnScope.ChartCardContent(
+private fun ChartCardContent(
     cardKey: String,
     state: DashboardState,
     rawTransactions: List<TransactionData>
@@ -2794,6 +2842,7 @@ private fun ColumnScope.ChartCardContent(
         // 4. Group by description, sum duplicates, then rank top 5
         "largest_tx" -> {
             val top5 = rawTransactions
+                .asSequence()
                 .filter { tx ->
                     val p = tx.timestamp.take(10).split("-")
                     p.size == 3 &&
@@ -2805,6 +2854,7 @@ private fun ColumnScope.ChartCardContent(
                 .map { (name, txList) -> name to txList.sumOf { kotlin.math.abs(it.amount) } }
                 .sortedByDescending { it.second }
                 .take(5)
+                .toList()
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Largest Transactions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (top5.isEmpty()) {
@@ -2854,6 +2904,7 @@ private fun ColumnScope.ChartCardContent(
         // 4. Same grouping logic — sum duplicates, then rank bottom 5
         "smallest_tx" -> {
             val bottom5 = rawTransactions
+                .asSequence()
                 .filter { tx ->
                     val p = tx.timestamp.take(10).split("-")
                     p.size == 3 &&
@@ -2865,6 +2916,7 @@ private fun ColumnScope.ChartCardContent(
                 .map { (name, txList) -> name to txList.sumOf { kotlin.math.abs(it.amount) } }
                 .sortedBy { it.second }
                 .take(5)
+                .toList()
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Smallest Transactions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (bottom5.isEmpty()) {

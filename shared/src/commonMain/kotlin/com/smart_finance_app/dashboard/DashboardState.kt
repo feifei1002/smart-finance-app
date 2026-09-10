@@ -39,43 +39,17 @@ data class DashboardState(
 // ── Category colours ──────────────────────────────────────────────────────────
 
 private val categoryColors = listOf(
-    Color(0xFF6366F1),
-    Color(0xFF22C55E),
-    Color(0xFFF59E0B),
-    Color(0xFFEC4899),
-    Color(0xFF3B82F6),
-    Color(0xFF94A3B8),
+    Color(0xFF22C55E), // Food & Dining - green
+    Color(0xFFEC4899), // Shopping & Personal - pink
+    Color(0xFF2563EB), // Bills & Housing - strong blue
+    Color(0xFFF97316), // Entertainment & Subscriptions - orange
+    Color(0xFF06B6D4), // Transportation - cyan
+    Color(0xFF8B5CF6), // Transfers - violet
+    Color(0xFF14B8A6), // Income - teal
+    Color(0xFFEF4444), // Others - red
 )
 
-//private val categoryNames = listOf(
-//    "Housing", "Food", "Transport", "Shopping", "Entertainment", "Other"
-//)
-
 private val categoryNames = TransactionCategories.all
-
-// Keyword-based categorisation — replace with ML/backend logic later
-private fun categorise(description: String, merchantName: String?): String {
-    val text = (merchantName ?: description).lowercase()
-    return when {
-        text.contains("rent") || text.contains("mortgage") || text.contains("utilities")
-                || text.contains("electricity") || text.contains("gas") || text.contains("water") -> "Housing"
-        text.contains("tesco") || text.contains("sainsbury") || text.contains("waitrose")
-                || text.contains("asda") || text.contains("aldi") || text.contains("lidl")
-                || text.contains("grocery") || text.contains("food") || text.contains("restaurant")
-                || text.contains("cafe") || text.contains("coffee") || text.contains("starbucks")
-                || text.contains("mcdonald") || text.contains("deliveroo") || text.contains("uber eats") -> "Food"
-        text.contains("uber") || text.contains("lyft") || text.contains("taxi")
-                || text.contains("tfl") || text.contains("train") || text.contains("bus")
-                || text.contains("fuel") || text.contains("petrol") || text.contains("parking") -> "Transport"
-        text.contains("amazon") || text.contains("asos") || text.contains("ebay")
-                || text.contains("zara") || text.contains("h&m") || text.contains("primark")
-                || text.contains("shopping") || text.contains("store") -> "Shopping"
-        text.contains("netflix") || text.contains("spotify") || text.contains("cinema")
-                || text.contains("disney") || text.contains("apple") || text.contains("game")
-                || text.contains("entertainment") -> "Entertainment"
-        else -> "Other"
-    }
-}
 
 fun getCurrencySymbol(currency: String) = when (currency.uppercase()) {
     "GBP" -> "£"
@@ -148,7 +122,6 @@ fun computeSpendingCategories(
     val colorMap   = categoryNames.zip(categoryColors).toMap()
 
     return filtered
-//        .groupBy { categorise(it.description, it.merchantName) }
         .groupBy { TransactionCategories.normalize(it.category) }
         .entries
         .sortedByDescending { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
@@ -229,7 +202,6 @@ fun computeDashboardState(
     val colorMap   = categoryNames.zip(categoryColors).toMap()
 
     val spendingCategories = debitTx
-//        .groupBy { categorise(it.description, it.merchantName) }
         .groupBy { TransactionCategories.normalize(it.category) }
         .entries
         .sortedByDescending { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
@@ -308,7 +280,6 @@ fun computeDashboardState(
         if (monthDebits.isEmpty()) return@mapNotNull null
 
         val topCategory = monthDebits
-//            .groupBy { categorise(it.description, it.merchantName) }
             .groupBy { TransactionCategories.normalize(it.category) }
             .maxByOrNull { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
             ?: return@mapNotNull null
@@ -336,72 +307,4 @@ fun computeDashboardState(
         incomeChangePercent   = incomeChangePercent,
         expenseChangePercent  = expenseChangePercent
     )
-}
-
-/**
- * Filters and recomputes spending categories based on the selected period.
- * Called from DashboardScreen when the user changes the calendar period.
- */
-fun filterCategoriesByPeriod(
-    state: DashboardState,
-    period: SpendingPeriod
-): List<SpendingCategory> {
-    val now          = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-    val currentMonth = now.month.number
-    val currentYear  = now.year
-    val symbol       = getCurrencySymbol(state.currency)
-
-    val filtered = state.rawTransactions.filter { tx ->
-        val parts = tx.timestamp.take(10).split("-")
-        if (parts.size != 3) return@filter false
-        val txYear  = parts[0].toIntOrNull() ?: return@filter false
-        val txMonth = parts[1].toIntOrNull() ?: return@filter false
-        val txDay   = parts[2].toIntOrNull() ?: return@filter false
-        if (tx.amount >= 0) return@filter false  // only expenses
-
-        when (period) {
-            SpendingPeriod.THIS_MONTH ->
-                txYear == currentYear && txMonth == currentMonth
-            SpendingPeriod.LAST_MONTH -> {
-                val lastMonth = if (currentMonth == 1) 12 else currentMonth - 1
-                val lastYear  = if (currentMonth == 1) currentYear - 1 else currentYear
-                txYear == lastYear && txMonth == lastMonth
-            }
-            SpendingPeriod.LAST_3_MONTHS -> {
-                val cutoff = now.date.minus(DatePeriod(months = 3))
-                val txDate = kotlinx.datetime.LocalDate(txYear, txMonth, txDay)
-                txDate >= cutoff
-            }
-            SpendingPeriod.THIS_YEAR ->
-                txYear == currentYear
-        }
-    }
-
-    if (filtered.isEmpty()) return emptyList()
-
-    val totalSpend = filtered.sumOf { kotlin.math.abs(it.amount) }.takeIf { it > 0 } ?: 1.0
-    val colorMap   = listOf("Housing","Food","Transport","Shopping","Entertainment","Other")
-        .zip(listOf(
-            Color(0xFF6366F1),
-            Color(0xFF22C55E),
-            Color(0xFFF59E0B),
-            Color(0xFFEC4899),
-            Color(0xFF3B82F6),
-            Color(0xFF94A3B8)
-        )).toMap()
-
-    return filtered
-//        .groupBy { categorise(it.description, it.merchantName) }
-        .groupBy { TransactionCategories.normalize(it.category) }
-        .entries
-        .sortedByDescending { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
-        .mapIndexed { i, (category, txList) ->
-            val absAmount = txList.sumOf { kotlin.math.abs(it.amount) }
-            SpendingCategory(
-                name    = category,
-                percent = (absAmount / totalSpend).toFloat().coerceIn(0f, 1f),
-                amount  = formatCurrency(absAmount, symbol),
-                color   = colorMap[category] ?: categoryColors[i % categoryColors.size]
-            )
-        }
 }

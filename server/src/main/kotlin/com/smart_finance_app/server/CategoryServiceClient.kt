@@ -58,7 +58,7 @@ object CategoryServiceClient {
             println("❌ ML Service Error for description '$description': ${e.message}")
             e.printStackTrace()
 
-            "Miscellaneous" // Fallback category on failure
+            "Others" // Fallback category on failure
         }
     }
 }
