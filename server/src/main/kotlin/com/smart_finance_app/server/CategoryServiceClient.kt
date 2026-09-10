@@ -33,7 +33,7 @@ object CategoryServiceClient {
         install(ContentNegotiation) { json() }
     }
 
-    private val mlServiceUrl = System.getenv("ML_SERVICE_URL") ?: "http://localhost:8000/classify/"
+    private val mlServiceUrl = System.getenv("ML_SERVICE_URL") ?: "http://localhost:8000/classify"
 
     suspend fun classify(description: String): String {
         // Step 1: Try the fast native Regex match
