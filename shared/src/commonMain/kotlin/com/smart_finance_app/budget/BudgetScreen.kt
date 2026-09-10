@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smart_finance_app.dashboard.TransactionData
 import com.smart_finance_app.dashboard.getCurrencySymbol
+import com.smart_finance_app.transactions.TransactionCategories
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.time.Clock
@@ -34,17 +35,16 @@ import smart_finance_app.shared.generated.resources.edit
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
-val budgetCategories = listOf(
-    "Housing", "Food", "Transport", "Shopping", "Entertainment", "Other"
-)
+val budgetCategories = TransactionCategories.all.filter { it != TransactionCategories.INCOME }
 
 private val categoryColors = mapOf(
-    "Housing"       to Color(0xFF6366F1),
-    "Food"          to Color(0xFF22C55E),
-    "Transport"     to Color(0xFFF59E0B),
-    "Shopping"      to Color(0xFFEC4899),
-    "Entertainment" to Color(0xFF3B82F6),
-    "Other"         to Color(0xFF94A3B8)
+    TransactionCategories.FOOD_DINING to Color(0xFF22C55E), // Food & Dining - green
+    TransactionCategories.SHOPPING_PERSONAL to Color(0xFFEC4899), // Shopping & Personal - pink
+    TransactionCategories.BILLS_HOUSING to Color(0xFF2563EB), // Bills & Housing - strong blue
+    TransactionCategories.ENTERTAINMENT_SUBSCRIPTIONS to Color(0xFFF97316), // Entertainment & Subscriptions - orange
+    TransactionCategories.TRANSPORTATION to Color(0xFF06B6D4), // Transportation - cyan
+    TransactionCategories.TRANSFERS to Color(0xFF8B5CF6), // Transfers - violet
+    TransactionCategories.OTHERS to Color(0xFFEF4444) // Others - red
 )
 
 // Helper formatting function to avoid floating point layout bugs
@@ -103,7 +103,7 @@ fun computeBudgetsWithSpending(
 
             if (!inPeriod) return@filter false
 
-            categoriseForBudget(tx.description, tx.merchantName) == budget.category
+            TransactionCategories.normalize(tx.category) == budget.category
         }
 
         BudgetWithSpending(
@@ -111,29 +111,6 @@ fun computeBudgetsWithSpending(
             spent  = relevant.sumOf { abs(it.amount) },
             color  = categoryColors[budget.category] ?: Color(0xFF94A3B8)
         )
-    }
-}
-
-fun categoriseForBudget(description: String, merchantName: String?): String {
-    val text = (merchantName ?: description).lowercase()
-    return when {
-        text.contains("rent") || text.contains("mortgage") || text.contains("utilities")
-                || text.contains("electricity") || text.contains("gas") || text.contains("water") -> "Housing"
-        text.contains("tesco") || text.contains("sainsbury") || text.contains("waitrose")
-                || text.contains("asda") || text.contains("aldi") || text.contains("lidl")
-                || text.contains("grocery") || text.contains("food") || text.contains("restaurant")
-                || text.contains("cafe") || text.contains("coffee") || text.contains("starbucks")
-                || text.contains("mcdonald") || text.contains("deliveroo") || text.contains("uber eats") -> "Food"
-        text.contains("uber") || text.contains("lyft") || text.contains("taxi")
-                || text.contains("tfl") || text.contains("train") || text.contains("bus")
-                || text.contains("fuel") || text.contains("petrol") || text.contains("parking") -> "Transport"
-        text.contains("amazon") || text.contains("asos") || text.contains("ebay")
-                || text.contains("zara") || text.contains("h&m") || text.contains("primark")
-                || text.contains("shopping") || text.contains("store") -> "Shopping"
-        text.contains("netflix") || text.contains("spotify") || text.contains("cinema")
-                || text.contains("disney") || text.contains("apple") || text.contains("game")
-                || text.contains("entertainment") -> "Entertainment"
-        else -> "Other"
     }
 }
 

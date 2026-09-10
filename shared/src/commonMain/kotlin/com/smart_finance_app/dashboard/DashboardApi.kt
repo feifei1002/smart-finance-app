@@ -29,6 +29,7 @@ data class TransactionData(
     val currency: String,
     val type: String,           // "CREDIT" or "DEBIT"
     val merchantName: String? = null,
+    val category: String? = null,
     val accountId: String? = null   // populated once backend includes it; used for per-account filtering
 )
 
