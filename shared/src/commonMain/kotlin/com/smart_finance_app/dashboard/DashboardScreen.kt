@@ -2285,7 +2285,7 @@ private fun CustomizableCard(
                                                     onMoveUp()
                                                     dragAccumY = 0f; dragAccumX = 0f
                                                 }
-                                                kotlin.math.abs(dragAccumX) > kotlin.math.abs(dragAccumY) ->
+                                                abs(dragAccumX) > abs(dragAccumY) ->
                                                     onMoveHorizontally(delta.x / 300f)
                                             }
                                         } else {
@@ -2647,7 +2647,7 @@ private fun ChartCardContent(
                                 p[2].toIntOrNull() == targetDate.dayOfMonth &&
                                 tx.amount < 0
                     }
-                    .sumOf { kotlin.math.abs(it.amount) }.toFloat()
+                    .sumOf { abs(it.amount) }.toFloat()
                 MonthlyTopCategory(month = dayLabel, category = "", amount = total, color = Color(0xFF6366F1))
             }
             // 1. Center the chart content vertically and horizontally inside the card
@@ -2681,7 +2681,7 @@ private fun ChartCardContent(
                     } catch (_: Exception) { return@filter false }
                     // DayOfWeek: MONDAY=1..SUNDAY=7, ordinal 0-based = 0..6
                     date.dayOfWeek.ordinal == idx && tx.amount < 0
-                }.sumOf { kotlin.math.abs(it.amount) }.toFloat()
+                }.sumOf { abs(it.amount) }.toFloat()
                 SpendingCategory(
                     name   = label,
                     amount = formatCurrency(total.toDouble(), sym),
@@ -2745,7 +2745,7 @@ private fun ChartCardContent(
 //                                (tx.accountId == null || tx.accountId == acc.accountId)
                                 tx.accountId == acc.accountId
                     }
-                    .sumOf { kotlin.math.abs(it.amount) }
+                    .sumOf { abs(it.amount) }
                     .toFloat()
 
                 acc.bankName to total
@@ -2804,9 +2804,9 @@ private fun ChartCardContent(
                     val hour = tx.timestamp.drop(11).take(2).toIntOrNull() ?: 12
                     when { hour < 12 -> "Morning"; hour < 18 -> "Afternoon"; else -> "Night" }
                 }
-            val total = grouped.values.flatten().sumOf { kotlin.math.abs(it.amount) }.takeIf { it > 0 } ?: 1.0
+            val total = grouped.values.flatten().sumOf { abs(it.amount) }.takeIf { it > 0 } ?: 1.0
             val cats = buckets.map { (label, color) ->
-                val amt = grouped[label]?.sumOf { kotlin.math.abs(it.amount) } ?: 0.0
+                val amt = grouped[label]?.sumOf { abs(it.amount) } ?: 0.0
                 SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym), color = color)
             }
             Box(
@@ -2851,7 +2851,7 @@ private fun ChartCardContent(
                             tx.amount < 0
                 }
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { kotlin.math.abs(it.amount) } }
+                .map { (name, txList) -> name to txList.sumOf { abs(it.amount) } }
                 .sortedByDescending { it.second }
                 .take(5)
                 .toList()
@@ -2913,7 +2913,7 @@ private fun ChartCardContent(
                             tx.amount < 0
                 }
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { kotlin.math.abs(it.amount) } }
+                .map { (name, txList) -> name to txList.sumOf { abs(it.amount) } }
                 .sortedBy { it.second }
                 .take(5)
                 .toList()
@@ -3016,7 +3016,7 @@ private fun ChartCardContent(
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
                 .map { (name, txList) ->
                     val count = txList.size
-                    val total = txList.sumOf { kotlin.math.abs(it.amount) }
+                    val total = txList.sumOf { abs(it.amount) }
                     name to Triple(count, total / count, total)
                 }
                 .sortedByDescending { it.second.third }
