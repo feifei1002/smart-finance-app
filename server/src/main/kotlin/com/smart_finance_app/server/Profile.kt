@@ -33,6 +33,11 @@ data class ChangePasswordRequest(
     val newPassword: String
 )
 
+@Serializable
+data class ChangePasswordResponse(
+    val message: String
+)
+
 fun Route.profileRoutes() {
     authenticate("auth-jwt") {
         get("/api/profile/me") {
@@ -41,6 +46,8 @@ fun Route.profileRoutes() {
 
             val profile = getProfile(userId)
                 ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+
+            call.respond(profile)
         }
 
         put("/api/profile/me") {
@@ -110,7 +117,7 @@ fun Route.profileRoutes() {
 
             updatePassword(userId, newPasswordHash)
 
-            call.respond(mapOf("status" to "updated"))
+            call.respond(ChangePasswordResponse("Password updated successfully"))
         }
     }
 }
@@ -176,9 +183,7 @@ private fun getPasswordHash(userId: UUID): String? =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
-                SELECT password_hash
-                FROM users
-                WHERE id = ?
+                SELECT password_hash FROM users WHERE id = ?
             """.trimIndent()
         ).use { statement ->
             statement.setObject(1, userId)
@@ -194,9 +199,7 @@ private fun updatePassword(userId: UUID, passwordHash: String) {
         try {
             connection.prepareStatement(
                 """
-                    UPDATE users
-                    SET password_hash = ?
-                    WHERE id = ?
+                    UPDATE users SET password_hash = ? WHERE id = ?
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, passwordHash)

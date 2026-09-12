@@ -3,7 +3,6 @@ package com.smart_finance_app.profile
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
-import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -52,34 +51,6 @@ sealed interface ChangePasswordResult {
 
 class ProfileApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
-
-    suspend fun getProfile(token: String): ProfileResult {
-        return try {
-            val response = client.get("$normalizedBaseUrl/api/profile/me") {
-                bearerAuth(token)
-            }
-
-            when (response.status) {
-                HttpStatusCode.OK -> {
-                    ProfileResult.Success(response.body<ProfileResponse>())
-                }
-
-                HttpStatusCode.Unauthorized -> {
-                    ProfileResult.Failure("Your session expired. Please sign in again.")
-                }
-
-                HttpStatusCode.NotFound -> {
-                    ProfileResult.Failure("Profile was not found.")
-                }
-
-                else -> {
-                    ProfileResult.Failure("Could not load profile. Status: ${response.status.value}")
-                }
-            }
-        } catch (_: Exception) {
-            ProfileResult.Failure("Cannot connect to the server.")
-        }
-    }
 
     suspend fun updateProfile(
         token: String,

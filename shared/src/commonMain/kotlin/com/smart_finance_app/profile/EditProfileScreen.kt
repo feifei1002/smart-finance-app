@@ -44,6 +44,7 @@ fun EditProfileScreen(
     authToken: String,
     profileApi: ProfileApi,
     onProfileUpdated: (String, String) -> Unit,
+    onUpdatePassword: () -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -130,9 +131,7 @@ fun EditProfileScreen(
                     )
 
                     Button(
-                        onClick = {
-                            // Later: navigate to Change Password screen.
-                        },
+                        onClick = onUpdatePassword,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
                     ) {

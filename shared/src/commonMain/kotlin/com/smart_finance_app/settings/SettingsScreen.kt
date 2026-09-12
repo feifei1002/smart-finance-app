@@ -70,11 +70,13 @@ import com.smart_finance_app.payments.SubscriptionApi
 import com.smart_finance_app.payments.SubscriptionStatusResult
 import com.smart_finance_app.profile.EditProfileScreen
 import com.smart_finance_app.profile.ProfileApi
+import com.smart_finance_app.profile.UpdatePasswordScreen
 import kotlinx.coroutines.launch
 
 private enum class SettingsPanel {
     Main,
     EditProfile,
+    UpdatePassword,
     Payments,
     SubscriptionPlan
 }
@@ -248,7 +250,18 @@ fun SettingsScreen(
                 authToken = authToken,
                 profileApi = profileApi,
                 onProfileUpdated = onProfileUpdated,
+                onUpdatePassword = {
+                    panel = SettingsPanel.UpdatePassword
+                },
                 onBack = { panel = SettingsPanel.Main }
+            )
+        }
+
+        SettingsPanel.UpdatePassword -> {
+            UpdatePasswordScreen(
+                authToken = authToken,
+                profileApi = profileApi,
+                onBack = { panel = SettingsPanel.EditProfile }
             )
         }
 
@@ -735,45 +748,6 @@ private fun SettingOptionDialog(
             }
         }
     )
-}
-
-@Composable
-private fun PlaceholderSettingsSubScreen(title: String, description: String, onBack: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 640.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            TextButton(onClick = onBack) {
-                Text("Back")
-            }
-
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Text(
-                    text = description,
-                    modifier = Modifier.padding(24.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
 }
 
 private fun String.initials(): String {
