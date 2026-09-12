@@ -140,6 +140,7 @@ fun Route.profileRoutes() {
                 .hashToString(12, request.newPassword.toCharArray())
 
             updatePasswordAndRevokeSessions(userId, newPasswordHash)
+            clearFailedAttempts(rateLimitIdentifier, rateLimitAction)
 
             call.respond(ChangePasswordResponse("Password updated successfully"))
         }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -50,6 +51,7 @@ import smart_finance_app.shared.generated.resources.visibility_off
 fun UpdatePasswordScreen(
     authToken: String,
     profileApi: ProfileApi,
+    onPasswordUpdated: () -> Unit,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -61,6 +63,7 @@ fun UpdatePasswordScreen(
     var showCurrentPassword by remember { mutableStateOf(false) }
     var showNewPassword by remember { mutableStateOf(false) }
     var showConfirmPassword by remember{ mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
 
     var isSaving by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
@@ -96,7 +99,7 @@ fun UpdatePasswordScreen(
                         currentPassword = ""
                         newPassword = ""
                         confirmPassword = ""
-                        successMessage = "Password updated successfully."
+                        showSuccessDialog = true
                     }
 
                     is ChangePasswordResult.Failure -> {
@@ -107,6 +110,28 @@ fun UpdatePasswordScreen(
                 isSaving = false
             }
         }
+    }
+
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = {
+                Text("Password updated")
+            },
+            text = {
+                Text("Password updated successfully. Please sign in again.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSuccessDialog = false
+                        onPasswordUpdated()
+                    }
+                ) {
+                    Text("OK")
+                }
+            }
+        )
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -261,7 +286,7 @@ fun UpdatePasswordScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text("Save password")
+                            Text("Update password")
                         }
                     }
 

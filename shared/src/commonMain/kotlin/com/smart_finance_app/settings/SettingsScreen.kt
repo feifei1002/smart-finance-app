@@ -261,7 +261,8 @@ fun SettingsScreen(
             UpdatePasswordScreen(
                 authToken = authToken,
                 profileApi = profileApi,
-                onBack = { panel = SettingsPanel.EditProfile }
+                onBack = { panel = SettingsPanel.EditProfile },
+                onPasswordUpdated = onSignOut
             )
         }
 
