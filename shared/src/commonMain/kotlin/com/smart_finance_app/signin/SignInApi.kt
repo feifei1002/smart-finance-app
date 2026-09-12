@@ -55,6 +55,11 @@ class SignInApi(baseUrl: String, private val client: HttpClient) {
                 HttpStatusCode.BadRequest, HttpStatusCode.Unauthorized -> {
                     SignInResult.Failure(response.errorMessage("Invalid email or password"))
                 }
+
+                HttpStatusCode.TooManyRequests -> {
+                    SignInResult.Failure(response.errorMessage("Too many failed attempts. Please try again later."))
+                }
+                
                 else -> {
                     SignInResult.Failure(response.errorMessage("Sign in failed (${response.status.value})"))
                 }

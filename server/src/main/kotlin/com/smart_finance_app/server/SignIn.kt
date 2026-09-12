@@ -32,6 +32,17 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
 
         val email = request.email.trim().lowercase()
 
+        val rateLimitIdentifier = "signin:$email"
+        val rateLimitAction = "password-login"
+
+        if (isRateLimited(rateLimitIdentifier, rateLimitAction)) {
+            call.respond(
+                HttpStatusCode.TooManyRequests,
+                ErrorResponse("Too many failed attempts. Please try again later.")
+            )
+            return@post
+        }
+
         val user = Database.dataSource.connection.use { connection ->
             connection.prepareStatement(
                 """
@@ -59,11 +70,13 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
                     .verify(request.password.toCharArray(), user.passwordHash).verified
 
         if (!passwordCorrect) {
+            recordFailedAttempt(rateLimitIdentifier, rateLimitAction)
             call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid email or password")
             )
             return@post
         }
 
+        clearFailedAttempts(rateLimitIdentifier, rateLimitAction)
         val refreshToken = createRefreshToken(user.id)
 
         call.setRefreshTokenCookie(refreshToken)

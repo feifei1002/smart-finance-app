@@ -137,6 +137,8 @@ fun Application.module() {
         }
 
         subscriptionRoutes()
+
+        profileRoutes()
     }
 }
 
