@@ -115,8 +115,13 @@ class ProfileApi(baseUrl: String, private val client: HttpClient) {
                 }
 
                 HttpStatusCode.BadRequest,
-                HttpStatusCode.Unauthorized -> {
+                HttpStatusCode.Forbidden,
+                HttpStatusCode.TooManyRequests -> {
                     ChangePasswordResult.Failure(response.errorMessage("Could not update password."))
+                }
+
+                HttpStatusCode.Unauthorized -> {
+                    ChangePasswordResult.Failure("Your session expired. Please sign in again.")
                 }
 
                 else -> {

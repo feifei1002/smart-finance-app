@@ -87,6 +87,17 @@ fun Route.profileRoutes() {
             val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
                 ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
+            val rateLimitIdentifier = "change-password:$userId"
+            val rateLimitAction = "change-password"
+
+            if (isRateLimited(rateLimitIdentifier, rateLimitAction)) {
+                call.respond(
+                    HttpStatusCode.TooManyRequests,
+                    ErrorResponse("Too many failed attempts. Please try again later.")
+                )
+                return@post
+            }
+
             val request = runCatching { call.receive<ChangePasswordRequest>() }
                 .getOrElse {
                     return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request"))
@@ -109,13 +120,26 @@ fun Route.profileRoutes() {
                 .verified
 
             if (!currentPasswordCorrect) {
-                return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Current password is incorrect"))
+                recordFailedAttempt(rateLimitIdentifier, rateLimitAction)
+
+                return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Current password is incorrect"))
+            }
+
+            val sameAsCurrentPassword = BCrypt.verifyer()
+                .verify(request.newPassword.toCharArray(), currentHash)
+                .verified
+
+            if (sameAsCurrentPassword) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    ErrorResponse("New password must be different from your current password")
+                )
             }
 
             val newPasswordHash = BCrypt.withDefaults()
                 .hashToString(12, request.newPassword.toCharArray())
 
-            updatePassword(userId, newPasswordHash)
+            updatePasswordAndRevokeSessions(userId, newPasswordHash)
 
             call.respond(ChangePasswordResponse("Password updated successfully"))
         }
@@ -194,17 +218,27 @@ private fun getPasswordHash(userId: UUID): String? =
         }
     }
 
-private fun updatePassword(userId: UUID, passwordHash: String) {
+private fun updatePasswordAndRevokeSessions(userId: UUID, passwordHash: String) {
     Database.dataSource.connection.use { connection ->
         try {
             connection.prepareStatement(
+                "UPDATE users SET password_hash = ? WHERE id = ?"
+            ).use {
+                it.setString(1, passwordHash)
+                it.setObject(2, userId)
+                it.executeUpdate()
+            }
+
+            connection.prepareStatement(
                 """
-                    UPDATE users SET password_hash = ? WHERE id = ?
+                    UPDATE refresh_tokens
+                    SET revoked_at = now()
+                    WHERE user_id = ?
+                      AND revoked_at IS NULL
                 """.trimIndent()
-            ).use { statement ->
-                statement.setString(1, passwordHash)
-                statement.setObject(2, userId)
-                statement.executeUpdate()
+            ).use {
+                it.setObject(1, userId)
+                it.executeUpdate()
             }
 
             connection.commit()

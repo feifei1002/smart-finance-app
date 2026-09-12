@@ -146,11 +146,19 @@ fun EditProfileScreen(
                     }
 
                     errorMessage?.let {
-                        Text(it, color = MaterialTheme.colorScheme.error)
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
 
                     successMessage?.let {
-                        Text(it, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodySmall
+                            )
                     }
 
                     Button(
