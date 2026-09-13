@@ -24,7 +24,8 @@ data class ProfileResponse(
 @Serializable
 data class UpdateProfileRequest(
     val fullName: String,
-    val email: String
+    val email: String,
+    val currentPassword: String? = null
 )
 
 @Serializable
@@ -70,6 +71,44 @@ fun Route.profileRoutes() {
                 return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Please enter a valid email address"))
             }
 
+            val currentProfile = getProfileWithPasswordHash(userId)
+                ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+
+            val emailChanged = email != currentProfile.email
+
+            if (emailChanged) {
+                val rateLimitIdentifier = "change-email:$userId"
+                val rateLimitAction = "change-email"
+
+                if (isRateLimited(rateLimitIdentifier, rateLimitAction)) {
+                    return@put call.respond(
+                        HttpStatusCode.TooManyRequests,
+                        ErrorResponse("Too many failed attempts. Please try again later.")
+                    )
+                }
+
+                if (request.currentPassword.isNullOrBlank()) {
+                    return@put call.respond(
+                        HttpStatusCode.BadRequest,
+                        ErrorResponse("Current password is required to change email")
+                    )
+                }
+
+
+                val passwordCorrect = BCrypt.verifyer()
+                    .verify(request.currentPassword.toCharArray(), currentProfile.passwordHash)
+                    .verified
+
+                if (!passwordCorrect) {
+                    recordFailedAttempt(rateLimitIdentifier, rateLimitAction)
+                    
+                    return@put call.respond(
+                        HttpStatusCode.Forbidden,
+                        ErrorResponse("Current password is incorrect")
+                    )
+                }
+            }
+
             val updatedProfile = try {
                 updateProfile(userId, fullName, email)
             } catch (exception: SQLException) {
@@ -78,6 +117,13 @@ fun Route.profileRoutes() {
                 }
 
                 throw exception
+            }
+
+            if (emailChanged) {
+                clearFailedAttempts(
+                    identifier = "change-email:$userId",
+                    action = "change-email"
+                )
             }
 
             call.respond(updatedProfile)
@@ -165,6 +211,37 @@ private fun getProfile(userId: UUID): ProfileResponse? =
                     ProfileResponse(
                         fullName = result.getString("full_name"),
                         email = result.getString("email")
+                    )
+                }
+            }
+        }
+    }
+
+private data class ProfileWithPasswordHash(
+    val fullName: String,
+    val email: String,
+    val passwordHash: String
+)
+
+private fun getProfileWithPasswordHash(userId: UUID): ProfileWithPasswordHash? =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+                SELECT full_name, email, password_hash
+                FROM users
+                WHERE id = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+
+            statement.executeQuery().use { result ->
+                if (!result.next()) {
+                    null
+                } else {
+                    ProfileWithPasswordHash(
+                        fullName = result.getString("full_name"),
+                        email = result.getString("email"),
+                        passwordHash = result.getString("password_hash")
                     )
                 }
             }

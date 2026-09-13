@@ -20,7 +20,8 @@ data class ProfileResponse(
 @Serializable
 private data class UpdateProfileRequest(
     val fullName: String,
-    val email: String
+    val email: String,
+    val currentPassword: String? = null
 )
 
 @Serializable
@@ -55,7 +56,8 @@ class ProfileApi(baseUrl: String, private val client: HttpClient) {
     suspend fun updateProfile(
         token: String,
         fullName: String,
-        email: String
+        email: String,
+        currentPassword: String? = null
     ): UpdateProfileResult {
         return try {
             val response = client.put("$normalizedBaseUrl/api/profile/me") {
@@ -64,7 +66,8 @@ class ProfileApi(baseUrl: String, private val client: HttpClient) {
                 setBody(
                     UpdateProfileRequest(
                         fullName = fullName,
-                        email = email
+                        email = email,
+                        currentPassword = currentPassword
                     )
                 )
             }
@@ -75,7 +78,9 @@ class ProfileApi(baseUrl: String, private val client: HttpClient) {
                 }
 
                 HttpStatusCode.BadRequest,
-                HttpStatusCode.Conflict -> {
+                HttpStatusCode.Conflict,
+                HttpStatusCode.Forbidden,
+                HttpStatusCode.TooManyRequests -> {
                     UpdateProfileResult.Failure(response.errorMessage("Could not update profile."))
                 }
 

@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,11 +33,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.lock
+import smart_finance_app.shared.generated.resources.visibility
+import smart_finance_app.shared.generated.resources.visibility_off
 
 @Composable
 fun EditProfileScreen(
@@ -54,10 +60,155 @@ fun EditProfileScreen(
     var isSaving by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
+    var emailPassword by remember { mutableStateOf("") }
+    var showEmailPassword by remember { mutableStateOf(false) }
+    var showEmailPasswordDialog by remember { mutableStateOf(false) }
+    var emailPasswordError by remember { mutableStateOf<String?>(null) }
 
     val emailIsValid = email.trim().matches(Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))
     val hasChanges = fullName.trim() != userName || email.trim() != userEmail
+    val emailChanged = email.trim().lowercase() != userEmail.trim().lowercase()
     val canSave = hasChanges && fullName.trim().isNotBlank() && emailIsValid && !isSaving
+
+    fun saveProfile(currentPassword: String?, isEmailPasswordDialog: Boolean = false) {
+        scope.launch {
+            isSaving = true
+            errorMessage = null
+            successMessage = null
+
+            if (isEmailPasswordDialog) {
+                emailPasswordError = null
+            }
+
+            try {
+                when (
+                    val result = profileApi.updateProfile(
+                        token = authToken,
+                        fullName = fullName.trim(),
+                        email = email.trim(),
+                        currentPassword = currentPassword
+                    )
+                ) {
+                    is UpdateProfileResult.Success -> {
+                        onProfileUpdated(
+                            result.profile.fullName,
+                            result.profile.email
+                        )
+
+                        showEmailPasswordDialog = false
+                        emailPassword = ""
+                        emailPasswordError = null
+
+                        successMessage = "Profile updated successfully"
+                        onBack()
+                    }
+
+                    is UpdateProfileResult.Failure -> {
+                        if (isEmailPasswordDialog) {
+                            emailPasswordError = result.message
+                        } else {
+                            errorMessage = result.message
+                        }
+                    }
+                }
+            } finally {
+                isSaving = false
+            }
+        }
+    }
+
+    if (showEmailPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSaving) {
+                    showEmailPasswordDialog = false
+                    emailPassword = ""
+                    emailPasswordError = null
+                }
+            },
+            title = {
+                Text("Confirm password")
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "To update your email, please enter your current password.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = emailPassword,
+                        onValueChange = {
+                            emailPassword = it
+                            emailPasswordError = null
+                        },
+                        label = { Text("Current password") },
+                        singleLine = true,
+                        visualTransformation = if (showEmailPassword) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { showEmailPassword = !showEmailPassword }
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        if (showEmailPassword) {
+                                            Res.drawable.visibility_off
+                                        } else {
+                                            Res.drawable.visibility
+                                        }
+                                    ),
+                                    contentDescription = if (showEmailPassword) {
+                                        "Hide password"
+                                    } else {
+                                        "Show password"
+                                    }
+                                )
+                            }
+                        }
+                    )
+                    emailPasswordError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = emailPassword.isNotBlank() && !isSaving,
+                    onClick = {
+                        saveProfile(
+                            currentPassword = emailPassword,
+                            isEmailPasswordDialog = true
+                        )
+                    }
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isSaving,
+                    onClick = {
+                        showEmailPasswordDialog = false
+                        emailPassword = ""
+                        emailPasswordError = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -164,33 +315,10 @@ fun EditProfileScreen(
                     Button(
                         enabled = canSave,
                         onClick = {
-                            scope.launch {
-                                isSaving = true
-                                errorMessage = null
-                                successMessage = null
-
-                                when (
-                                    val result = profileApi.updateProfile(
-                                        token = authToken,
-                                        fullName = fullName.trim(),
-                                        email = email.trim()
-                                    )
-                                ) {
-                                    is UpdateProfileResult.Success -> {
-                                        onProfileUpdated(
-                                            result.profile.fullName,
-                                            result.profile.email
-                                        )
-                                        successMessage = "Profile updated successfully"
-                                        onBack()
-                                    }
-
-                                    is UpdateProfileResult.Failure -> {
-                                        errorMessage = result.message
-                                    }
-                                }
-
-                                isSaving = false
+                            if (emailChanged) {
+                                showEmailPasswordDialog = true
+                            } else {
+                                saveProfile(currentPassword = null)
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
