@@ -61,10 +61,19 @@ fun Route.profileRoutes() {
                 }
 
             val fullName = request.fullName.trim()
+
             val email = request.email.trim().lowercase()
 
             if (fullName.isBlank()) {
                 return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Full name is required"))
+            }
+
+            if (fullName.length > 100) {
+                return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Full name must be 100 characters or less"))
+            }
+
+            if (email.length > 254) {
+                return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Email address must be 254 characters or less"))
             }
 
             if (!isValidEmail(email)) {
@@ -101,7 +110,7 @@ fun Route.profileRoutes() {
 
                 if (!passwordCorrect) {
                     recordFailedAttempt(rateLimitIdentifier, rateLimitAction)
-                    
+
                     return@put call.respond(
                         HttpStatusCode.Forbidden,
                         ErrorResponse("Current password is incorrect")
