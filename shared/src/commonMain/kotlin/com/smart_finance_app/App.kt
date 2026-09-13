@@ -424,6 +424,12 @@ fun App(
                     httpClient = httpClient,
                     dashboardApi = dashboardApi,
                     budgetApi = budgetApi,
+                    onProfileUpdated = { fullName, email ->
+                        session = session?.copy(
+                            name = fullName,
+                            email = email
+                        )
+                    },
                     onSignOut = {
                         val refreshToken = session?.refreshToken
 
