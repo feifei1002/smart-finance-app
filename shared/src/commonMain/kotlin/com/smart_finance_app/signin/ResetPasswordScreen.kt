@@ -22,22 +22,8 @@ import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.lock
 import smart_finance_app.shared.generated.resources.visibility
 import smart_finance_app.shared.generated.resources.visibility_off
-import smart_finance_app.shared.generated.resources.reset_password_title
-import smart_finance_app.shared.generated.resources.reset_password_subtitle
-import smart_finance_app.shared.generated.resources.reset_password_new_label
-import smart_finance_app.shared.generated.resources.reset_password_confirm_label
-import smart_finance_app.shared.generated.resources.reset_password_button
-import smart_finance_app.shared.generated.resources.reset_password_back
-import smart_finance_app.shared.generated.resources.reset_password_expired_title
-import smart_finance_app.shared.generated.resources.reset_password_expired_description
-import smart_finance_app.shared.generated.resources.reset_password_expired_message
-import smart_finance_app.shared.generated.resources.reset_password_success_title
-import smart_finance_app.shared.generated.resources.reset_password_success_description
-import smart_finance_app.shared.generated.resources.reset_password_success_message
-import smart_finance_app.shared.generated.resources.reset_password_error_length
-import smart_finance_app.shared.generated.resources.reset_password_error_mismatch
-import smart_finance_app.shared.generated.resources.register_show_password
-import smart_finance_app.shared.generated.resources.register_hide_password
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 @Composable
 fun ResetPasswordScreen(
@@ -53,10 +39,10 @@ fun ResetPasswordScreen(
     var showPassword by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
 
-    val errorLengthMsg   = stringResource(Res.string.reset_password_error_length)
-    val errorMismatchMsg = stringResource(Res.string.reset_password_error_mismatch)
-    val showPasswordLabel = stringResource(Res.string.register_show_password)
-    val hidePasswordLabel = stringResource(Res.string.register_hide_password)
+    val errorLengthMsg   = appStringResource(StringKey.RESET_PASSWORD_ERROR_LENGTH)
+    val errorMismatchMsg = appStringResource(StringKey.RESET_PASSWORD_ERROR_MISMATCH)
+    val showPasswordLabel = appStringResource(StringKey.REGISTER_SHOW_PASSWORD)
+    val hidePasswordLabel = appStringResource(StringKey.REGISTER_HIDE_PASSWORD)
 
     val valid = password.isNotBlank() && confirmation.isNotBlank() && !isLoading
 
@@ -70,12 +56,12 @@ fun ResetPasswordScreen(
     }
 
     // Resolve status screen strings up front so we can pass them as plain strings
-    val expiredTitle       = stringResource(Res.string.reset_password_expired_title)
-    val expiredDescription = stringResource(Res.string.reset_password_expired_description)
-    val expiredMessage     = stringResource(Res.string.reset_password_expired_message)
-    val successTitle       = stringResource(Res.string.reset_password_success_title)
-    val successDescription = stringResource(Res.string.reset_password_success_description)
-    val successMsg         = stringResource(Res.string.reset_password_success_message)
+    val expiredTitle       = appStringResource(StringKey.RESET_PASSWORD_EXPIRED_TITLE)
+    val expiredDescription = appStringResource(StringKey.RESET_PASSWORD_EXPIRED_DESCRIPTION)
+    val expiredMessage     = appStringResource(StringKey.RESET_PASSWORD_EXPIRED_MESSAGE)
+    val successTitle       = appStringResource(StringKey.RESET_PASSWORD_SUCCESS_TITLE)
+    val successDescription = appStringResource(StringKey.RESET_PASSWORD_SUCCESS_DESCRIPTION)
+    val successMsg         = appStringResource(StringKey.RESET_PASSWORD_SUCCESS_MESSAGE)
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -98,14 +84,14 @@ fun ResetPasswordScreen(
                         title = expiredTitle,
                         description = expiredDescription,
                         message = expiredMessage,
-                        backLabel = stringResource(Res.string.reset_password_back),
+                        backLabel = appStringResource(StringKey.RESET_PASSWORD_BACK),
                         onBackToSignIn = onBackToSignIn
                     )
                     successMessage != null -> ResetPasswordStatusContent(
                         title = successTitle,
                         description = successDescription,
                         message = successMsg,
-                        backLabel = stringResource(Res.string.reset_password_back),
+                        backLabel = appStringResource(StringKey.RESET_PASSWORD_BACK),
                         onBackToSignIn = onBackToSignIn
                     )
                     else -> Column(
@@ -132,14 +118,14 @@ fun ResetPasswordScreen(
                         }
 
                         Text(
-                            text = stringResource(Res.string.reset_password_title),
+                            text = appStringResource(StringKey.RESET_PASSWORD_TITLE),
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
                         )
 
                         Text(
-                            text = stringResource(Res.string.reset_password_subtitle),
+                            text = appStringResource(StringKey.RESET_PASSWORD_SUBTITLE),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -149,7 +135,7 @@ fun ResetPasswordScreen(
                         OutlinedTextField(
                             value = password,
                             onValueChange = { password = it; validationError = null },
-                            label = { Text(stringResource(Res.string.reset_password_new_label)) },
+                            label = { Text(appStringResource(StringKey.RESET_PASSWORD_NEW_LABEL)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             visualTransformation = if (showPassword) VisualTransformation.None
@@ -175,7 +161,7 @@ fun ResetPasswordScreen(
                         OutlinedTextField(
                             value = confirmation,
                             onValueChange = { confirmation = it; validationError = null },
-                            label = { Text(stringResource(Res.string.reset_password_confirm_label)) },
+                            label = { Text(appStringResource(StringKey.RESET_PASSWORD_CONFIRM_LABEL)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             visualTransformation = PasswordVisualTransformation(),
@@ -206,12 +192,12 @@ fun ResetPasswordScreen(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Text(stringResource(Res.string.reset_password_button))
+                                Text(appStringResource(StringKey.RESET_PASSWORD_BUTTON))
                             }
                         }
 
                         TextButton(onClick = onBackToSignIn) {
-                            Text(stringResource(Res.string.reset_password_back))
+                            Text(appStringResource(StringKey.RESET_PASSWORD_BACK))
                         }
                     }
                 }

@@ -70,69 +70,8 @@ import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.add
 import smart_finance_app.shared.generated.resources.moving
 import org.jetbrains.compose.resources.stringResource
-import smart_finance_app.shared.generated.resources.accounts_status_connected
-import smart_finance_app.shared.generated.resources.dashboard_loading
-import smart_finance_app.shared.generated.resources.dashboard_error_title
-import smart_finance_app.shared.generated.resources.dashboard_retry
-import smart_finance_app.shared.generated.resources.dashboard_no_accounts_title
-import smart_finance_app.shared.generated.resources.dashboard_no_accounts_subtitle
-import smart_finance_app.shared.generated.resources.dashboard_connect_account
-import smart_finance_app.shared.generated.resources.dashboard_all_accounts
-import smart_finance_app.shared.generated.resources.dashboard_accounts_count
-import smart_finance_app.shared.generated.resources.dashboard_add_charts
-import smart_finance_app.shared.generated.resources.dashboard_all_charts_added
-import smart_finance_app.shared.generated.resources.dashboard_chart_size_full
-import smart_finance_app.shared.generated.resources.dashboard_chart_size_half
-import smart_finance_app.shared.generated.resources.dashboard_add_button
-import smart_finance_app.shared.generated.resources.dashboard_view_all
-import smart_finance_app.shared.generated.resources.dashboard_income
-import smart_finance_app.shared.generated.resources.dashboard_expenses
-import smart_finance_app.shared.generated.resources.dashboard_recent_transactions
-import smart_finance_app.shared.generated.resources.dashboard_connected_accounts
-import smart_finance_app.shared.generated.resources.dashboard_greeting_morning
-import smart_finance_app.shared.generated.resources.dashboard_greeting_afternoon
-import smart_finance_app.shared.generated.resources.dashboard_greeting_night
-import smart_finance_app.shared.generated.resources.period_this_month
-import smart_finance_app.shared.generated.resources.period_last_month
-import smart_finance_app.shared.generated.resources.period_last_3_months
-import smart_finance_app.shared.generated.resources.period_this_year
-import smart_finance_app.shared.generated.resources.chart_weekly_spending_title
-import smart_finance_app.shared.generated.resources.chart_weekly_spending_desc
-import smart_finance_app.shared.generated.resources.chart_spending_per_day_title
-import smart_finance_app.shared.generated.resources.chart_spending_per_day_desc
-import smart_finance_app.shared.generated.resources.chart_bank_comparison_title
-import smart_finance_app.shared.generated.resources.chart_bank_comparison_desc
-import smart_finance_app.shared.generated.resources.chart_time_of_day_title
-import smart_finance_app.shared.generated.resources.chart_time_of_day_desc
-import smart_finance_app.shared.generated.resources.chart_largest_tx_title
-import smart_finance_app.shared.generated.resources.chart_largest_tx_desc
-import smart_finance_app.shared.generated.resources.chart_smallest_tx_title
-import smart_finance_app.shared.generated.resources.chart_smallest_tx_desc
-import smart_finance_app.shared.generated.resources.chart_merchant_frequency_title
-import smart_finance_app.shared.generated.resources.chart_merchant_frequency_desc
-import smart_finance_app.shared.generated.resources.chart_upcoming_bills_title
-import smart_finance_app.shared.generated.resources.chart_upcoming_bills_desc
-import smart_finance_app.shared.generated.resources.budgets_add
-import smart_finance_app.shared.generated.resources.common_coming_soon
-import smart_finance_app.shared.generated.resources.common_retry
-import smart_finance_app.shared.generated.resources.dashboard_accounts_overview
-import smart_finance_app.shared.generated.resources.dashboard_add_account
-import smart_finance_app.shared.generated.resources.dashboard_budget_progress
-import smart_finance_app.shared.generated.resources.dashboard_charts_button
-import smart_finance_app.shared.generated.resources.dashboard_current_balance
-import smart_finance_app.shared.generated.resources.dashboard_customise
-import smart_finance_app.shared.generated.resources.dashboard_done
-import smart_finance_app.shared.generated.resources.dashboard_highest_spending
-import smart_finance_app.shared.generated.resources.dashboard_monthly_comparison
-import smart_finance_app.shared.generated.resources.dashboard_monthly_trend
-import smart_finance_app.shared.generated.resources.dashboard_quick_actions
-import smart_finance_app.shared.generated.resources.dashboard_spending_period
-import smart_finance_app.shared.generated.resources.dashboard_subtitle
-import smart_finance_app.shared.generated.resources.dashboard_upcoming_bills
-import smart_finance_app.shared.generated.resources.settings_cancel
-import smart_finance_app.shared.generated.resources.vs_last_month
-import smart_finance_app.shared.generated.resources.transactions_empty
-import smart_finance_app.shared.generated.resources.budgets_empty_title
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -268,9 +207,9 @@ private fun rememberGreeting(): String {
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
     val hour = now.hour
     return when {
-        hour < 12 -> stringResource(Res.string.dashboard_greeting_morning)
-        hour < 18 -> stringResource(Res.string.dashboard_greeting_afternoon)
-        else      -> stringResource(Res.string.dashboard_greeting_night)
+        hour < 12 -> appStringResource(StringKey.DASHBOARD_GREETING_MORNING)
+        hour < 18 -> appStringResource(StringKey.DASHBOARD_GREETING_AFTERNOON)
+        else      -> appStringResource(StringKey.DASHBOARD_GREETING_NIGHT)
     }
 }
 
@@ -327,7 +266,7 @@ fun DashboardScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator()
-                        Text(stringResource(Res.string.dashboard_loading),
+                        Text(appStringResource(StringKey.DASHBOARD_LOADING),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -338,14 +277,14 @@ fun DashboardScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.padding(24.dp)) {
-                        Text(stringResource(Res.string.dashboard_error_title),
+                        Text(appStringResource(StringKey.DASHBOARD_ERROR_TITLE),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
                         Text(errorMsg ?: "",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center)
-                        Button(onClick = { scope.launch { load() } }) { Text(stringResource(Res.string.dashboard_retry)) }
+                        Button(onClick = { scope.launch { load() } }) { Text(appStringResource(StringKey.DASHBOARD_RETRY)) }
                     }
                 }
             }
@@ -360,10 +299,10 @@ fun DashboardScreen(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(48.dp)
                         )
-                        Text(stringResource(Res.string.dashboard_no_accounts_title),
+                        Text(appStringResource(StringKey.DASHBOARD_NO_ACCOUNTS_TITLE),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
-                        Text(stringResource(Res.string.dashboard_no_accounts_subtitle),
+                        Text(appStringResource(StringKey.DASHBOARD_NO_ACCOUNTS_SUBTITLE),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center)
@@ -372,7 +311,7 @@ fun DashboardScreen(
                             onClick = { onConnectAccountClicked() },
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                         ) {
-                            Text(text = stringResource(Res.string.dashboard_connect_account),
+                            Text(text = appStringResource(StringKey.DASHBOARD_CONNECTED_ACCOUNTS),
                                 style = MaterialTheme.typography.labelLarge
                             )
                         }
@@ -628,8 +567,8 @@ private fun MobileDashboard(
     }
 
     // Label on the top-right button
-    val allAccountsLabel = stringResource(Res.string.dashboard_all_accounts)
-    val accountsCountLabel = stringResource(Res.string.dashboard_accounts_count)
+    val allAccountsLabel = appStringResource(StringKey.DASHBOARD_ALL_ACCOUNTS)
+    val accountsCountLabel = appStringResource(StringKey.DASHBOARD_ACCOUNTS_COUNT)
     val selectorLabel = if (selectedAccounts.isEmpty()) allAccountsLabel
     else if (selectedAccounts.size == 1) selectedAccounts.first()
     else accountsCountLabel.replace("%1\$d", "${selectedAccounts.size}")
@@ -664,7 +603,7 @@ private fun MobileDashboard(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
-                Text(stringResource(Res.string.dashboard_subtitle),
+                Text(appStringResource(StringKey.DASHBOARD_SUBTITLE),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1038,15 +977,15 @@ private fun MobileDashboard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SectionTitle(stringResource(Res.string.dashboard_recent_transactions))
-                        Text(text = stringResource(Res.string.dashboard_view_all),
+                        SectionTitle(appStringResource(StringKey.DASHBOARD_RECENT_TRANSACTIONS))
+                        Text(text = appStringResource(StringKey.DASHBOARD_VIEW_ALL),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.clickable { onViewAllTransactionsClicked() }
                         )
                     }
                     if (state.recentTransactions.isEmpty()) {
-                        Text(stringResource(Res.string.transactions_empty), style = MaterialTheme.typography.bodySmall,
+                        Text(appStringResource(StringKey.TRANSACTIONS_EMPTY), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         state.recentTransactions.take(6).forEach { tx -> TransactionRow(tx) }
@@ -1186,8 +1125,8 @@ private fun DesktopDashboard(
         }
     }
 
-    val allAccountsLabel = stringResource(Res.string.dashboard_all_accounts)
-    val accountsCountLabel = stringResource(Res.string.dashboard_accounts_count)
+    val allAccountsLabel = appStringResource(StringKey.DASHBOARD_ALL_ACCOUNTS)
+    val accountsCountLabel = appStringResource(StringKey.DASHBOARD_ACCOUNTS_COUNT)
     val selectorLabel = if (selectedAccounts.isEmpty()) allAccountsLabel
     else if (selectedAccounts.size == 1) selectedAccounts.first()
     else accountsCountLabel.replace("%1\$d", "${selectedAccounts.size}")
@@ -1241,7 +1180,7 @@ private fun DesktopDashboard(
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Text(stringResource(Res.string.dashboard_subtitle),
+                Text(appStringResource(StringKey.DASHBOARD_SUBTITLE),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1425,7 +1364,7 @@ private fun DesktopDashboard(
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SectionTitle(stringResource(Res.string.dashboard_monthly_trend))
+                                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_TREND))
                                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                     LegendDot(color = Color(0xFF16A34A), label = "In")
                                     LegendDot(color = Color(0xFFEF4444), label = "Out")
@@ -1450,7 +1389,7 @@ private fun DesktopDashboard(
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SectionTitle(stringResource(Res.string.dashboard_monthly_comparison))
+                                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_COMPARISON))
                                 BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
                             }
                         }
@@ -1580,13 +1519,13 @@ private fun DesktopDashboard(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                SectionTitle(stringResource(Res.string.dashboard_recent_transactions))
-                                Text(stringResource(Res.string.dashboard_view_all), style = MaterialTheme.typography.labelMedium,
+                                SectionTitle(appStringResource(StringKey.DASHBOARD_RECENT_TRANSACTIONS))
+                                Text(appStringResource(StringKey.DASHBOARD_VIEW_ALL), style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.clickable { onViewAllTransactionsClicked() })
                             }
                             if (state.recentTransactions.isEmpty()) {
-                                Text(stringResource(Res.string.transactions_empty), style = MaterialTheme.typography.bodySmall,
+                                Text(appStringResource(StringKey.TRANSACTIONS_EMPTY), style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
                                 Column(
@@ -1607,9 +1546,9 @@ private fun DesktopDashboard(
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SectionTitle(stringResource(Res.string.dashboard_accounts_overview))
+                            SectionTitle(appStringResource(StringKey.DASHBOARD_ACCOUNTS_OVERVIEW))
                             if (state.accounts.isEmpty()) {
-                                Text(stringResource(Res.string.dashboard_no_accounts_title), style = MaterialTheme.typography.bodySmall,
+                                Text(appStringResource(StringKey.DASHBOARD_NO_ACCOUNTS_TITLE), style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
                                 Column(
@@ -1631,7 +1570,7 @@ private fun DesktopDashboard(
                                             Column(horizontalAlignment = Alignment.End) {
                                                 Text(account.balance, style = MaterialTheme.typography.bodyMedium,
                                                     fontWeight = FontWeight.SemiBold)
-                                                Text(stringResource(Res.string.accounts_status_connected), style = MaterialTheme.typography.labelSmall,
+                                                Text(appStringResource(StringKey.ACCOUNTS_STATUS_CONNECTED), style = MaterialTheme.typography.labelSmall,
                                                     color = Color(0xFF16A34A))
                                             }
                                         }
@@ -1641,7 +1580,7 @@ private fun DesktopDashboard(
                             }
                             Spacer(Modifier.height(4.dp))
                             OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(Res.string.dashboard_add_account), style = MaterialTheme.typography.labelMedium)
+                                Text(appStringResource(StringKey.DASHBOARD_ADD_ACCOUNT), style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
@@ -1654,16 +1593,16 @@ private fun DesktopDashboard(
                         modifier = Modifier.weight(0.8f).fillMaxHeight()
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SectionTitle(stringResource(Res.string.dashboard_quick_actions))
+                            SectionTitle(appStringResource(StringKey.DASHBOARD_QUICK_ACTIONS))
                             Button(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(Res.string.dashboard_connect_account), style = MaterialTheme.typography.labelMedium)
+                                Text(appStringResource(StringKey.DASHBOARD_CONNECTED_ACCOUNTS), style = MaterialTheme.typography.labelMedium)
                             }
                             OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(Res.string.budgets_add), style = MaterialTheme.typography.labelMedium)
+                                Text(appStringResource(StringKey.BUDGETS_ADD), style = MaterialTheme.typography.labelMedium)
                             }
                             Spacer(Modifier.height(8.dp))
-                            SectionTitle(stringResource(Res.string.dashboard_upcoming_bills))
-                            Text(stringResource(Res.string.common_coming_soon), style = MaterialTheme.typography.bodySmall,
+                            SectionTitle(appStringResource(StringKey.DASHBOARD_UPCOMING_BILLS))
+                            Text(appStringResource(StringKey.COMMON_COMING_SOON), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -1926,7 +1865,7 @@ private fun BudgetProgressCardContent(
         modifier = Modifier.fillMaxHeight(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        SectionTitle(stringResource(Res.string.dashboard_budget_progress))
+        SectionTitle(appStringResource(StringKey.DASHBOARD_BUDGET_PROGRESS))
         if (errorMsg != null) {
             Text(
                 text = errorMsg ?: "",
@@ -1959,7 +1898,7 @@ private fun BudgetProgressCardContent(
                             fontWeight = FontWeight.Light
                         )
                     }
-                    Text(stringResource(Res.string.budgets_empty_title),
+                    Text(appStringResource(StringKey.BUDGETS_EMPTY_TITLE),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -2010,7 +1949,7 @@ private fun BudgetProgressCardContent(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(stringResource(Res.string.budgets_add), style = MaterialTheme.typography.labelMedium)
+                Text(appStringResource(StringKey.BUDGETS_ADD), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -2072,13 +2011,13 @@ private fun SpendingOverviewHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val periodLabel = when (selectedPeriod) {
-            SpendingPeriod.THIS_MONTH    -> stringResource(Res.string.period_this_month)
-            SpendingPeriod.LAST_MONTH    -> stringResource(Res.string.period_last_month)
-            SpendingPeriod.LAST_3_MONTHS -> stringResource(Res.string.period_last_3_months)
-            SpendingPeriod.THIS_YEAR     -> stringResource(Res.string.period_this_year)
+            SpendingPeriod.THIS_MONTH    -> appStringResource(StringKey.PERIOD_THIS_MONTH)
+            SpendingPeriod.LAST_MONTH    -> appStringResource(StringKey.PERIOD_LAST_MONTH)
+            SpendingPeriod.LAST_3_MONTHS -> appStringResource(StringKey.PERIOD_LAST_3_MONTHS)
+            SpendingPeriod.THIS_YEAR     -> appStringResource(StringKey.PERIOD_THIS_YEAR)
         }
 
-        val spendingLabel = stringResource(Res.string.dashboard_spending_period)
+        val spendingLabel = appStringResource(StringKey.DASHBOARD_SPENDING_PERIOD)
             .replace("%1\$s", periodLabel)
         SectionTitle(spendingLabel)
         Box {
@@ -2113,10 +2052,10 @@ private fun SpendingOverviewHeader(
                                     Spacer(Modifier.width(14.dp))
                                 }
                                 val periodLabels = mapOf(
-                                    SpendingPeriod.THIS_MONTH    to stringResource(Res.string.period_this_month),
-                                    SpendingPeriod.LAST_MONTH    to stringResource(Res.string.period_last_month),
-                                    SpendingPeriod.LAST_3_MONTHS to stringResource(Res.string.period_last_3_months),
-                                    SpendingPeriod.THIS_YEAR     to stringResource(Res.string.period_this_year)
+                                    SpendingPeriod.THIS_MONTH    to appStringResource(StringKey.PERIOD_THIS_MONTH),
+                                    SpendingPeriod.LAST_MONTH    to appStringResource(StringKey.PERIOD_LAST_MONTH),
+                                    SpendingPeriod.LAST_3_MONTHS to appStringResource(StringKey.PERIOD_LAST_3_MONTHS),
+                                    SpendingPeriod.THIS_YEAR     to appStringResource(StringKey.PERIOD_THIS_YEAR)
                                 )
                             }
                         },
@@ -2189,7 +2128,7 @@ private fun FinancialOverviewCard(
                     modifier = Modifier.weight(1.5f),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(text = stringResource(Res.string.dashboard_current_balance),
+                    Text(text = appStringResource(StringKey.DASHBOARD_CURRENT_BALANCE),
                         style = MaterialTheme.typography.labelMedium,
                         color = accentColor.copy(alpha = 0.8f),
                         fontWeight = FontWeight.SemiBold
@@ -2227,7 +2166,7 @@ private fun FinancialOverviewCard(
                                     .size(6.dp)
                                     .background(Color(0xFF16A34A), CircleShape)
                             )
-                            Text(text = stringResource(Res.string.dashboard_income),
+                            Text(text = appStringResource(StringKey.DASHBOARD_INCOME),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2253,7 +2192,7 @@ private fun FinancialOverviewCard(
                                     .size(6.dp)
                                     .background(Color(0xFFEF4444), CircleShape)
                             )
-                            Text(text = stringResource(Res.string.dashboard_expenses),
+                            Text(text = appStringResource(StringKey.DASHBOARD_EXPENSES),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2547,7 +2486,7 @@ private fun TrendIndicator(percentageChange: Float) {
             fontWeight = FontWeight.Bold,
             color = color
         )
-        Text(text = stringResource(Res.string.vs_last_month),
+        Text(text = appStringResource(StringKey.DASHBOARD_VS_LAST_MONTH),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -2592,7 +2531,7 @@ private fun DashboardChartsButton(
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(text = stringResource(Res.string.dashboard_charts_button),
+        Text(text = appStringResource(StringKey.DASHBOARD_CHARTS_BUTTON),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -2620,7 +2559,7 @@ private fun DashboardCustomizeButton(
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(text = stringResource(Res.string.dashboard_done),
+                Text(text = appStringResource(StringKey.DASHBOARD_DONE),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -2637,7 +2576,7 @@ private fun DashboardCustomizeButton(
                         contentColor = Color.White
                     )
                 ) {
-                    Text(text = stringResource(Res.string.settings_cancel),
+                    Text(text = appStringResource(StringKey.SETTINGS_CANCEL),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -2651,7 +2590,7 @@ private fun DashboardCustomizeButton(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
             shape = RoundedCornerShape(18.dp)
         ) {
-            Text(text = stringResource(Res.string.dashboard_customise),
+            Text(text = appStringResource(StringKey.DASHBOARD_CUSTOMISE),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -2669,7 +2608,7 @@ private fun HalfCardContent(
     when (cardKey) {
         "trend" -> {
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(stringResource(Res.string.dashboard_monthly_trend))
+                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_TREND))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LegendDot(color = Color(0xFF16A34A), label = "In")
                     LegendDot(color = Color(0xFFEF4444), label = "Out")
@@ -2679,7 +2618,7 @@ private fun HalfCardContent(
         }
         "top_categories" -> {
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(stringResource(Res.string.dashboard_highest_spending))
+                SectionTitle(appStringResource(StringKey.DASHBOARD_HIGHEST_SPENDING))
                 BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().weight(1f))
             }
         }
@@ -2728,7 +2667,7 @@ private fun ChartCardContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(stringResource(Res.string.chart_weekly_spending_title), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     BarChart(data = weeklyData, modifier = Modifier.fillMaxWidth().height(160.dp))
                 }
             }
@@ -2764,7 +2703,7 @@ private fun ChartCardContent(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(stringResource(Res.string.chart_spending_per_day_title),
+                Text(appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -2821,7 +2760,7 @@ private fun ChartCardContent(
             val maxAmt = accountSpend.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1f
             val barColors = listOf(Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B), Color(0xFFEC4899))
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(stringResource(Res.string.chart_bank_comparison_title), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 Column(
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -2885,7 +2824,7 @@ private fun ChartCardContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(stringResource(Res.string.chart_time_of_day_title), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     DonutChart(categories = cats, modifier = Modifier.size(80.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         cats.forEach { cat ->
@@ -2924,7 +2863,7 @@ private fun ChartCardContent(
                 .take(5)
                 .toList()
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(Res.string.chart_largest_tx_title), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(appStringResource(StringKey.CHART_LARGEST_TX_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (top5.isEmpty()) {
                     Text("No data", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2986,7 +2925,7 @@ private fun ChartCardContent(
                 .take(5)
                 .toList()
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(Res.string.chart_smallest_tx_title), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(appStringResource(StringKey.CHART_SMALLEST_TX_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (bottom5.isEmpty()) {
                     Text("No data", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -3034,7 +2973,7 @@ private fun ChartCardContent(
             val bills = remember(rawTransactions) { inferUpcomingBills(rawTransactions) }
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(stringResource(Res.string.chart_upcoming_bills_title), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     Text("Predicted from history", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (bills.isEmpty()) {
@@ -3098,7 +3037,7 @@ private fun ChartCardContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Text(stringResource(Res.string.chart_merchant_frequency_title), style = MaterialTheme.typography.labelMedium,
+                    Text(appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE), style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold)
                     Text("area = total spend",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
@@ -3213,7 +3152,7 @@ private fun ChartsBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = stringResource(Res.string.dashboard_add_charts),
+                Text(text = appStringResource(StringKey.DASHBOARD_ADD_CHARTS),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -3226,7 +3165,7 @@ private fun ChartsBottomSheet(
             if (available.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center) {
-                    Text(text = stringResource(Res.string.dashboard_all_charts_added),
+                    Text(text = appStringResource(StringKey.DASHBOARD_ALL_CHARTS_ADDED),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -3254,25 +3193,25 @@ private fun ChartOptionRow(
     onAdd: () -> Unit
 ) {
     val title = when (def.key) {
-        "weekly_spending"    -> stringResource(Res.string.chart_weekly_spending_title)
-        "spending_per_day"   -> stringResource(Res.string.chart_spending_per_day_title)
-        "bank_comparison"    -> stringResource(Res.string.chart_bank_comparison_title)
-        "time_of_day"        -> stringResource(Res.string.chart_time_of_day_title)
-        "largest_tx"         -> stringResource(Res.string.chart_largest_tx_title)
-        "smallest_tx"        -> stringResource(Res.string.chart_smallest_tx_title)
-        "merchant_frequency" -> stringResource(Res.string.chart_merchant_frequency_title)
-        "upcoming_bills"     -> stringResource(Res.string.chart_upcoming_bills_title)
+        "weekly_spending"    -> appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE)
+        "spending_per_day"   -> appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE)
+        "bank_comparison"    -> appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE)
+        "time_of_day"        -> appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE)
+        "largest_tx"         -> appStringResource(StringKey.CHART_LARGEST_TX_TITLE)
+        "smallest_tx"        -> appStringResource(StringKey.CHART_SMALLEST_TX_TITLE)
+        "merchant_frequency" -> appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE)
+        "upcoming_bills"     -> appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE)
         else                 -> def.title
     }
     val description = when (def.key) {
-        "weekly_spending"    -> stringResource(Res.string.chart_weekly_spending_desc)
-        "spending_per_day"   -> stringResource(Res.string.chart_spending_per_day_desc)
-        "bank_comparison"    -> stringResource(Res.string.chart_bank_comparison_desc)
-        "time_of_day"        -> stringResource(Res.string.chart_time_of_day_desc)
-        "largest_tx"         -> stringResource(Res.string.chart_largest_tx_desc)
-        "smallest_tx"        -> stringResource(Res.string.chart_smallest_tx_desc)
-        "merchant_frequency" -> stringResource(Res.string.chart_merchant_frequency_desc)
-        "upcoming_bills"     -> stringResource(Res.string.chart_upcoming_bills_desc)
+        "weekly_spending"    -> appStringResource(StringKey.CHART_WEEKLY_SPENDING_DESC)
+        "spending_per_day"   -> appStringResource(StringKey.CHART_SPENDING_PER_DAY_DESC)
+        "bank_comparison"    -> appStringResource(StringKey.CHART_BANK_COMPARISON_DESC)
+        "time_of_day"        -> appStringResource(StringKey.CHART_TIME_OF_DAY_DESC)
+        "largest_tx"         -> appStringResource(StringKey.CHART_LARGEST_TX_DESC)
+        "smallest_tx"        -> appStringResource(StringKey.CHART_SMALLEST_TX_DESC)
+        "merchant_frequency" -> appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_DESC)
+        "upcoming_bills"     -> appStringResource(StringKey.CHART_UPCOMING_BILLS_DESC)
         else                 -> def.description
     }
 
@@ -3300,9 +3239,9 @@ private fun ChartOptionRow(
                     ) {
                         Text(
                             text = if (def.size == CardSize.FULL)
-                                stringResource(Res.string.dashboard_chart_size_full)
+                                appStringResource(StringKey.DASHBOARD_CHART_SIZE_FULL)
                             else
-                                stringResource(Res.string.dashboard_chart_size_half),
+                                appStringResource(StringKey.DASHBOARD_CHART_SIZE_HALF),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (def.size == CardSize.FULL) Color(0xFF6366F1) else Color(0xFF16A34A),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -3321,7 +3260,7 @@ private fun ChartOptionRow(
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Text(
-                    stringResource(Res.string.dashboard_add_button),
+                    appStringResource(StringKey.DASHBOARD_ADD_BUTTON),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )

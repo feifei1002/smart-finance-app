@@ -17,21 +17,8 @@ import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.star
-import smart_finance_app.shared.generated.resources.plan_title
-import smart_finance_app.shared.generated.resources.plan_back
-import smart_finance_app.shared.generated.resources.plan_free_title
-import smart_finance_app.shared.generated.resources.plan_free_price
-import smart_finance_app.shared.generated.resources.plan_free_price_detail_top
-import smart_finance_app.shared.generated.resources.plan_free_price_detail_bottom
-import smart_finance_app.shared.generated.resources.plan_free_button_current
-import smart_finance_app.shared.generated.resources.plan_free_button
-import smart_finance_app.shared.generated.resources.plan_basic_title
-import smart_finance_app.shared.generated.resources.plan_basic_subtitle
-import smart_finance_app.shared.generated.resources.plan_basic_price
-import smart_finance_app.shared.generated.resources.plan_basic_price_detail_top
-import smart_finance_app.shared.generated.resources.plan_basic_price_detail_bottom
-import smart_finance_app.shared.generated.resources.plan_basic_button_current
-import smart_finance_app.shared.generated.resources.plan_basic_button
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 @Composable
 fun PlanScreen(
@@ -46,19 +33,19 @@ fun PlanScreen(
     val isFreePlan = !isPaidPlan
 
     // Resolve all strings at the top so they're ready for PlanCard params
-    val freeTitleStr       = stringResource(Res.string.plan_free_title)
-    val freePriceStr       = stringResource(Res.string.plan_free_price)
-    val freeDetailTopStr   = stringResource(Res.string.plan_free_price_detail_top)
-    val freeDetailBotStr   = stringResource(Res.string.plan_free_price_detail_bottom)
-    val freeButtonStr      = if (isFreePlan) stringResource(Res.string.plan_free_button_current)
-    else stringResource(Res.string.plan_free_button)
-    val basicTitleStr      = stringResource(Res.string.plan_basic_title)
-    val basicSubtitleStr   = stringResource(Res.string.plan_basic_subtitle)
-    val basicPriceStr      = stringResource(Res.string.plan_basic_price)
-    val basicDetailTopStr  = stringResource(Res.string.plan_basic_price_detail_top)
-    val basicDetailBotStr  = stringResource(Res.string.plan_basic_price_detail_bottom)
-    val basicButtonStr     = if (isPaidPlan) stringResource(Res.string.plan_basic_button_current)
-    else stringResource(Res.string.plan_basic_button)
+    val freeTitleStr       = appStringResource(StringKey.PLAN_FREE_TITLE)
+    val freePriceStr       = appStringResource(StringKey.PLAN_FREE_PRICE)
+    val freeDetailTopStr   = appStringResource(StringKey.PLAN_FREE_PRICE_DETAIL_TOP)
+    val freeDetailBotStr   = appStringResource(StringKey.PLAN_FREE_PRICE_DETAIL_BOTTOM)
+    val freeButtonStr      = if (isFreePlan) appStringResource(StringKey.PLAN_FREE_BUTTON_CURRENT)
+    else appStringResource(StringKey.PLAN_FREE_BUTTON)
+    val basicTitleStr      = appStringResource(StringKey.PLAN_BASIC_TITLE)
+    val basicSubtitleStr   = appStringResource(StringKey.PLAN_BASIC_SUBTITLE)
+    val basicPriceStr      = appStringResource(StringKey.PLAN_BASIC_PRICE)
+    val basicDetailTopStr  = appStringResource(StringKey.PLAN_BASIC_PRICE_DETAIL_TOP)
+    val basicDetailBotStr  = appStringResource(StringKey.PLAN_BASIC_PRICE_DETAIL_BOTTOM)
+    val basicButtonStr     = if (isPaidPlan) appStringResource(StringKey.PLAN_BASIC_BUTTON_CURRENT)
+    else appStringResource(StringKey.PLAN_BASIC_BUTTON)
 
     // Feature lists — these are marketing copy specific to the Free/Basic plans.
     // They are intentionally kept as plain strings here since they describe fixed
@@ -96,12 +83,12 @@ fun PlanScreen(
                     horizontalArrangement = Arrangement.Start
                 ) {
                     TextButton(onClick = onBack) {
-                        Text(stringResource(Res.string.plan_back))
+                        Text(appStringResource(StringKey.PLAN_BACK))
                     }
                 }
 
                 Text(
-                    text = stringResource(Res.string.plan_title),
+                    text = appStringResource(StringKey.PLAN_TITLE),
                     modifier = Modifier.fillMaxWidth(),
                     style = if (compact) MaterialTheme.typography.headlineSmall
                     else MaterialTheme.typography.headlineMedium,

@@ -33,27 +33,8 @@ import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.close
 import smart_finance_app.shared.generated.resources.delete
 import smart_finance_app.shared.generated.resources.edit
-import smart_finance_app.shared.generated.resources.budgets_title
-import smart_finance_app.shared.generated.resources.budgets_add
-import smart_finance_app.shared.generated.resources.budgets_empty_title
-import smart_finance_app.shared.generated.resources.budgets_empty_subtitle
-import smart_finance_app.shared.generated.resources.budgets_of
-import smart_finance_app.shared.generated.resources.budgets_spent
-import smart_finance_app.shared.generated.resources.budgets_remaining
-import smart_finance_app.shared.generated.resources.budgets_over_by
-import smart_finance_app.shared.generated.resources.budgets_dialog_add_title
-import smart_finance_app.shared.generated.resources.budgets_dialog_edit_title
-import smart_finance_app.shared.generated.resources.budgets_dialog_category
-import smart_finance_app.shared.generated.resources.budgets_dialog_period
-import smart_finance_app.shared.generated.resources.budgets_dialog_limit
-import smart_finance_app.shared.generated.resources.budgets_dialog_period_monthly
-import smart_finance_app.shared.generated.resources.budgets_dialog_period_weekly
-import smart_finance_app.shared.generated.resources.budgets_dialog_category_set
-import smart_finance_app.shared.generated.resources.budgets_dialog_cancel
-import smart_finance_app.shared.generated.resources.budgets_dialog_save
-import smart_finance_app.shared.generated.resources.budgets_dialog_add_button
-import smart_finance_app.shared.generated.resources.budgets_dialog_amount_error
-import smart_finance_app.shared.generated.resources.common_retry
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
@@ -178,7 +159,7 @@ fun BudgetScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = stringResource(Res.string.budgets_title),
+                text = appStringResource(StringKey.BUDGETS_TITLE),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -202,7 +183,7 @@ fun BudgetScreen(
                             textAlign = TextAlign.Center
                         )
                         Button(onClick = { scope.launch { loadBudgets() } }) {
-                            Text(stringResource(Res.string.common_retry))
+                            Text(appStringResource(StringKey.COMMON_RETRY))
                         }
                     }
                 }
@@ -248,7 +229,7 @@ fun BudgetScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                stringResource(Res.string.budgets_add),
+                                appStringResource(StringKey.BUDGETS_ADD),
                                 style = MaterialTheme.typography.labelMedium
                             )
                         }
@@ -341,13 +322,13 @@ private fun EmptyBudgetCard(onAddClick: () -> Unit) {
                         )
                     }
                     Text(
-                        text = stringResource(Res.string.budgets_empty_title),
+                        text = appStringResource(StringKey.BUDGETS_EMPTY_TITLE),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = stringResource(Res.string.budgets_empty_subtitle),
+                        text = appStringResource(StringKey.BUDGETS_EMPTY_SUBTITLE),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         textAlign = TextAlign.Center
@@ -378,10 +359,10 @@ fun BudgetCard(
     val remaining = item.budget.amount - item.spent
 
     // Read strings outside the string interpolations below
-    val spentLabel     = stringResource(Res.string.budgets_spent)
-    val ofLabel        = stringResource(Res.string.budgets_of)
-    val remainingLabel = stringResource(Res.string.budgets_remaining)
-    val overByLabel    = stringResource(Res.string.budgets_over_by)
+    val spentLabel     = appStringResource(StringKey.BUDGETS_SPENT)
+    val ofLabel        = appStringResource(StringKey.BUDGETS_OF)
+    val remainingLabel = appStringResource(StringKey.BUDGETS_REMAINING)
+    val overByLabel    = appStringResource(StringKey.BUDGETS_OVER_BY)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -424,7 +405,7 @@ fun BudgetCard(
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
                         Text(
-                            stringResource(Res.string.budgets_dialog_save),
+                            appStringResource(StringKey.BUDGETS_DIALOG_SAVE),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -578,10 +559,10 @@ fun AddBudgetDialog(
     var categoryExpanded by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf<String?>(null) }
 
-    val amountErrorMsg   = stringResource(Res.string.budgets_dialog_amount_error)
-    val categorySetLabel = stringResource(Res.string.budgets_dialog_category_set)
-    val monthlyLabel     = stringResource(Res.string.budgets_dialog_period_monthly)
-    val weeklyLabel      = stringResource(Res.string.budgets_dialog_period_weekly)
+    val amountErrorMsg   = appStringResource(StringKey.BUDGETS_DIALOG_AMOUNT_ERROR)
+    val categorySetLabel = appStringResource(StringKey.BUDGETS_DIALOG_CATEGORY_SET)
+    val monthlyLabel     = appStringResource(StringKey.BUDGETS_DIALOG_PERIOD_MONTHLY)
+    val weeklyLabel      = appStringResource(StringKey.BUDGETS_DIALOG_PERIOD_WEEKLY)
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -602,8 +583,8 @@ fun AddBudgetDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isEdit) stringResource(Res.string.budgets_dialog_edit_title)
-                        else stringResource(Res.string.budgets_dialog_add_title),
+                        text = if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_EDIT_TITLE)
+                        else appStringResource(StringKey.BUDGETS_DIALOG_ADD_TITLE),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -628,7 +609,7 @@ fun AddBudgetDialog(
                 // Category selector
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        stringResource(Res.string.budgets_dialog_category),
+                        appStringResource(StringKey.BUDGETS_DIALOG_CATEGORY),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -706,7 +687,7 @@ fun AddBudgetDialog(
                 // Period selection
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        stringResource(Res.string.budgets_dialog_period),
+                        appStringResource(StringKey.BUDGETS_DIALOG_PERIOD),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -749,7 +730,7 @@ fun AddBudgetDialog(
                 // Amount text field
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        stringResource(Res.string.budgets_dialog_limit),
+                        appStringResource(StringKey.BUDGETS_DIALOG_LIMIT),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -775,7 +756,7 @@ fun AddBudgetDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text(stringResource(Res.string.budgets_dialog_cancel))
+                        Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
                     }
                     Button(onClick = {
                         val cleanedAmountText = amountText.trim().replace(",", ".")
@@ -787,8 +768,8 @@ fun AddBudgetDialog(
                         onConfirm(selectedCategory, amount, selectedPeriod)
                     }) {
                         Text(
-                            if (isEdit) stringResource(Res.string.budgets_dialog_save)
-                            else stringResource(Res.string.budgets_dialog_add_button)
+                            if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
+                            else appStringResource(StringKey.BUDGETS_DIALOG_ADD_BUTTON)
                         )
                     }
                 }

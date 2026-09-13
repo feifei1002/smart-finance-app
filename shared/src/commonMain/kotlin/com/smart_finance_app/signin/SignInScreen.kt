@@ -27,17 +27,8 @@ import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.visibility
 import smart_finance_app.shared.generated.resources.visibility_off
-import smart_finance_app.shared.generated.resources.signin_title
-import smart_finance_app.shared.generated.resources.signin_subtitle
-import smart_finance_app.shared.generated.resources.signin_email
-import smart_finance_app.shared.generated.resources.signin_password
-import smart_finance_app.shared.generated.resources.signin_forgot_password
-import smart_finance_app.shared.generated.resources.signin_button
-import smart_finance_app.shared.generated.resources.signin_button_loading
-import smart_finance_app.shared.generated.resources.signin_no_account
-import smart_finance_app.shared.generated.resources.signin_create_account
-import smart_finance_app.shared.generated.resources.register_show_password
-import smart_finance_app.shared.generated.resources.register_hide_password
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 data class SignInForm(val email: String, val password: String)
 
@@ -58,8 +49,8 @@ fun SignInScreen(
     val buttonFocus   = remember { FocusRequester() }
     val focusManager  = LocalFocusManager.current
 
-    val showPasswordLabel = stringResource(Res.string.register_show_password)
-    val hidePasswordLabel = stringResource(Res.string.register_hide_password)
+    val showPasswordLabel = appStringResource(StringKey.REGISTER_SHOW_PASSWORD)
+    val hidePasswordLabel = appStringResource(StringKey.REGISTER_HIDE_PASSWORD)
 
     val valid = email.trim().contains("@") && password.isNotBlank()
 
@@ -90,12 +81,12 @@ fun SignInScreen(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = stringResource(Res.string.signin_title),
+                text = appStringResource(StringKey.SIGNIN_TITLE),
                 style = MaterialTheme.typography.headlineMedium
             )
 
             Text(
-                text = stringResource(Res.string.signin_subtitle),
+                text = appStringResource(StringKey.SIGNIN_SUBTITLE),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -103,7 +94,7 @@ fun SignInScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text(stringResource(Res.string.signin_email)) },
+                label = { Text(appStringResource(StringKey.SIGNIN_EMAIL)) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -119,7 +110,7 @@ fun SignInScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text(stringResource(Res.string.signin_password)) },
+                label = { Text(appStringResource(StringKey.SIGNIN_PASSWORD)) },
                 singleLine = true,
                 visualTransformation = if (showPassword) VisualTransformation.None
                 else PasswordVisualTransformation(),
@@ -163,7 +154,7 @@ fun SignInScreen(
                     onClick = onForgotPassword,
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text(stringResource(Res.string.signin_forgot_password))
+                    Text(appStringResource(StringKey.SIGNIN_FORGOT_PASSWORD))
                 }
             }
 
@@ -181,8 +172,8 @@ fun SignInScreen(
                 modifier = Modifier.fillMaxWidth().focusRequester(buttonFocus)
             ) {
                 Text(
-                    if (isLoading) stringResource(Res.string.signin_button_loading)
-                    else stringResource(Res.string.signin_button)
+                    if (isLoading) appStringResource(StringKey.SIGNIN_BUTTON_LOADING)
+                    else appStringResource(StringKey.SIGNIN_BUTTON)
                 )
             }
 
@@ -191,12 +182,12 @@ fun SignInScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(stringResource(Res.string.signin_no_account))
+                Text(appStringResource(StringKey.SIGNIN_NO_ACCOUNT))
                 TextButton(
                     onClick = onCreateAccount,
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Text(stringResource(Res.string.signin_create_account))
+                    Text(appStringResource(StringKey.SIGNIN_CREATE_ACCOUNT))
                 }
             }
         }

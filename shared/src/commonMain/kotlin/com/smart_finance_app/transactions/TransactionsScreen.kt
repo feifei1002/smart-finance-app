@@ -51,22 +51,8 @@ import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.download
 import smart_finance_app.shared.generated.resources.filter
 import smart_finance_app.shared.generated.resources.search
-import smart_finance_app.shared.generated.resources.transactions_title
-import smart_finance_app.shared.generated.resources.transactions_search_placeholder
-import smart_finance_app.shared.generated.resources.transactions_filter_all
-import smart_finance_app.shared.generated.resources.transactions_filter_income
-import smart_finance_app.shared.generated.resources.transactions_filter_expenses
-import smart_finance_app.shared.generated.resources.transactions_loading
-import smart_finance_app.shared.generated.resources.transactions_empty
-import smart_finance_app.shared.generated.resources.transactions_previous
-import smart_finance_app.shared.generated.resources.transactions_next
-import smart_finance_app.shared.generated.resources.transactions_col_date
-import smart_finance_app.shared.generated.resources.transactions_col_merchant
-import smart_finance_app.shared.generated.resources.transactions_col_category
-import smart_finance_app.shared.generated.resources.transactions_col_account
-import smart_finance_app.shared.generated.resources.transactions_col_amount
-import smart_finance_app.shared.generated.resources.transactions_col_actions
-import smart_finance_app.shared.generated.resources.transactions_edit
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 import kotlin.math.ceil
 
 data class TransactionUI(
@@ -145,12 +131,12 @@ private fun MobileTransactionsList(
 
     // Filter keys are internal constants — keep them as English strings for
     // logic comparisons. Only the displayed labels are localised.
-    val filterAllLabel      = stringResource(Res.string.transactions_filter_all)
-    val filterIncomeLabel   = stringResource(Res.string.transactions_filter_income)
-    val filterExpensesLabel = stringResource(Res.string.transactions_filter_expenses)
-    val emptyLabel          = stringResource(Res.string.transactions_empty)
-    val loadingLabel        = stringResource(Res.string.transactions_loading)
-    val searchPlaceholder   = stringResource(Res.string.transactions_search_placeholder)
+    val filterAllLabel      = appStringResource(StringKey.TRANSACTIONS_FILTER_ALL)
+    val filterIncomeLabel   = appStringResource(StringKey.TRANSACTIONS_FILTER_INCOME)
+    val filterExpensesLabel = appStringResource(StringKey.TRANSACTIONS_FILTER_EXPENSES)
+    val emptyLabel          = appStringResource(StringKey.TRANSACTIONS_EMPTY)
+    val loadingLabel        = appStringResource(StringKey.TRANSACTIONS_LOADING)
+    val searchPlaceholder   = appStringResource(StringKey.TRANSACTIONS_SEARCH_PLACEHOLDER)
 
     val shouldLoadMore by remember(
         hasMore, isLoading, transactions.size, lastRequestedPage
@@ -203,7 +189,7 @@ private fun MobileTransactionsList(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = stringResource(Res.string.transactions_title),
+                text = appStringResource(StringKey.TRANSACTIONS_TITLE),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -345,21 +331,21 @@ private fun DesktopTransactionsTable(
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
-    val filterAllLabel      = stringResource(Res.string.transactions_filter_all)
-    val filterIncomeLabel   = stringResource(Res.string.transactions_filter_income)
-    val filterExpensesLabel = stringResource(Res.string.transactions_filter_expenses)
-    val emptyLabel          = stringResource(Res.string.transactions_empty)
-    val loadingLabel        = stringResource(Res.string.transactions_loading)
-    val searchPlaceholder   = stringResource(Res.string.transactions_search_placeholder)
-    val previousLabel       = stringResource(Res.string.transactions_previous)
-    val nextLabel           = stringResource(Res.string.transactions_next)
-    val dateHeader          = stringResource(Res.string.transactions_col_date)
-    val merchantHeader      = stringResource(Res.string.transactions_col_merchant)
-    val categoryHeader      = stringResource(Res.string.transactions_col_category)
-    val accountHeader       = stringResource(Res.string.transactions_col_account)
-    val amountHeader        = stringResource(Res.string.transactions_col_amount)
-    val actionsHeader       = stringResource(Res.string.transactions_col_actions)
-    val editLabel           = stringResource(Res.string.transactions_edit)
+    val filterAllLabel      = appStringResource(StringKey.TRANSACTIONS_FILTER_ALL)
+    val filterIncomeLabel   = appStringResource(StringKey.TRANSACTIONS_FILTER_INCOME)
+    val filterExpensesLabel = appStringResource(StringKey.TRANSACTIONS_FILTER_EXPENSES)
+    val emptyLabel          = appStringResource(StringKey.TRANSACTIONS_EMPTY)
+    val loadingLabel        = appStringResource(StringKey.TRANSACTIONS_LOADING)
+    val searchPlaceholder   = appStringResource(StringKey.TRANSACTIONS_SEARCH_PLACEHOLDER)
+    val previousLabel       = appStringResource(StringKey.TRANSACTIONS_PREVIOUS)
+    val nextLabel           = appStringResource(StringKey.TRANSACTIONS_NEXT)
+    val dateHeader          = appStringResource(StringKey.TRANSACTIONS_COL_DATE)
+    val merchantHeader      = appStringResource(StringKey.TRANSACTIONS_COL_MERCHANT)
+    val categoryHeader      = appStringResource(StringKey.TRANSACTIONS_COL_CATEGORY)
+    val accountHeader       = appStringResource(StringKey.TRANSACTIONS_COL_ACCOUNT)
+    val amountHeader        = appStringResource(StringKey.TRANSACTIONS_COL_AMOUNT)
+    val actionsHeader       = appStringResource(StringKey.TRANSACTIONS_COL_ACTIONS)
+    val editLabel           = appStringResource(StringKey.TRANSACTIONS_EDIT)
 
     val searchTransactions = transactions.filter { transaction ->
         val query = searchQuery.trim()
@@ -383,7 +369,7 @@ private fun DesktopTransactionsTable(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = stringResource(Res.string.transactions_title),
+            text = appStringResource(StringKey.TRANSACTIONS_TITLE),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )

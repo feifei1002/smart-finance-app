@@ -24,35 +24,8 @@ import smart_finance_app.shared.generated.resources.mastercard
 import smart_finance_app.shared.generated.resources.star
 import smart_finance_app.shared.generated.resources.unionpay
 import smart_finance_app.shared.generated.resources.visa
-import smart_finance_app.shared.generated.resources.common_back
-import smart_finance_app.shared.generated.resources.payment_title
-import smart_finance_app.shared.generated.resources.payment_subtitle
-import smart_finance_app.shared.generated.resources.payment_loading
-import smart_finance_app.shared.generated.resources.payment_current_plan
-import smart_finance_app.shared.generated.resources.payment_no_card_title
-import smart_finance_app.shared.generated.resources.payment_no_card_body
-import smart_finance_app.shared.generated.resources.payment_no_card_found
-import smart_finance_app.shared.generated.resources.payment_update_button
-import smart_finance_app.shared.generated.resources.payment_updating_button
-import smart_finance_app.shared.generated.resources.payment_change_plan
-import smart_finance_app.shared.generated.resources.payment_subscribe_prompt
-import smart_finance_app.shared.generated.resources.payment_view_plans
-import smart_finance_app.shared.generated.resources.payment_card_ending
-import smart_finance_app.shared.generated.resources.payment_card_expires
-import smart_finance_app.shared.generated.resources.payment_history_title
-import smart_finance_app.shared.generated.resources.payment_history_empty
-import smart_finance_app.shared.generated.resources.payment_invoice_fallback
-import smart_finance_app.shared.generated.resources.payment_invoice_unknown_status
-import smart_finance_app.shared.generated.resources.payment_billing_info_title
-import smart_finance_app.shared.generated.resources.payment_billing_name
-import smart_finance_app.shared.generated.resources.payment_billing_email
-import smart_finance_app.shared.generated.resources.payment_billing_address
-import smart_finance_app.shared.generated.resources.payment_billing_not_provided
-import smart_finance_app.shared.generated.resources.payment_billing_update
-import smart_finance_app.shared.generated.resources.payment_cancel_paid_prompt
-import smart_finance_app.shared.generated.resources.payment_cancel_free_prompt
-import smart_finance_app.shared.generated.resources.payment_cancel_button
-import smart_finance_app.shared.generated.resources.payment_cancel_opening
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 @Composable
 fun PaymentScreen(
@@ -97,19 +70,19 @@ fun PaymentScreen(
                     horizontalArrangement = Arrangement.Start
                 ) {
                     TextButton(onClick = onBack) {
-                        Text(stringResource(Res.string.common_back))
+                        Text(appStringResource(StringKey.COMMON_BACK))
                     }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = stringResource(Res.string.payment_title),
+                        text = appStringResource(StringKey.PAYMENT_TITLE),
                         style = if (compact) MaterialTheme.typography.headlineSmall
                         else MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = stringResource(Res.string.payment_subtitle),
+                        text = appStringResource(StringKey.PAYMENT_SUBTITLE),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -165,7 +138,7 @@ private fun LoadingPaymentCard() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             CircularProgressIndicator(modifier = Modifier.size(22.dp))
-            Text(stringResource(Res.string.payment_loading))
+            Text(appStringResource(StringKey.PAYMENT_LOADING))
         }
     }
 }
@@ -197,7 +170,7 @@ private fun PaymentDetailsCard(
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = stringResource(Res.string.payment_current_plan),
+                    text = appStringResource(StringKey.PAYMENT_CURRENT_PLAN),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -215,7 +188,7 @@ private fun PaymentDetailsCard(
                 NoCardContent()
             } else if (card == null) {
                 Text(
-                    text = stringResource(Res.string.payment_no_card_found),
+                    text = appStringResource(StringKey.PAYMENT_NO_CARD_FOUND),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
@@ -230,8 +203,8 @@ private fun PaymentDetailsCard(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        if (isOpeningPortal) stringResource(Res.string.payment_updating_button)
-                        else stringResource(Res.string.payment_update_button)
+                        if (isOpeningPortal) appStringResource(StringKey.PAYMENT_UPDATING_BUTTON)
+                        else appStringResource(StringKey.PAYMENT_UPDATE_BUTTON)
                     )
                 }
                 OutlinedButton(
@@ -239,12 +212,12 @@ private fun PaymentDetailsCard(
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(stringResource(Res.string.payment_change_plan))
+                    Text(appStringResource(StringKey.PAYMENT_CHANGE_PLAN))
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = stringResource(Res.string.payment_subscribe_prompt),
+                        text = appStringResource(StringKey.PAYMENT_SUBSCRIBE_PROMPT),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -253,7 +226,7 @@ private fun PaymentDetailsCard(
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(stringResource(Res.string.payment_view_plans))
+                        Text(appStringResource(StringKey.PAYMENT_VIEW_PLANS))
                     }
                 }
             }
@@ -265,12 +238,12 @@ private fun PaymentDetailsCard(
 private fun NoCardContent() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = stringResource(Res.string.payment_no_card_title),
+            text = appStringResource(StringKey.PAYMENT_NO_CARD_TITLE),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
         Text(
-            text = stringResource(Res.string.payment_no_card_body),
+            text = appStringResource(StringKey.PAYMENT_NO_CARD_BODY),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -278,8 +251,8 @@ private fun NoCardContent() {
 
 @Composable
 private fun SavedCardContent(card: PaymentCardResponse) {
-    val endingLabel  = stringResource(Res.string.payment_card_ending)
-    val expiresLabel = stringResource(Res.string.payment_card_expires)
+    val endingLabel  = appStringResource(StringKey.PAYMENT_CARD_ENDING)
+    val expiresLabel = appStringResource(StringKey.PAYMENT_CARD_EXPIRES)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -340,7 +313,7 @@ private fun BillingHistorySection(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = stringResource(Res.string.payment_history_title),
+                text = appStringResource(StringKey.PAYMENT_HISTORY_TITLE),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -348,7 +321,7 @@ private fun BillingHistorySection(
                 isLoading -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 errorMessage != null -> Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
                 invoices.isEmpty() -> Text(
-                    text = stringResource(Res.string.payment_history_empty),
+                    text = appStringResource(StringKey.PAYMENT_HISTORY_EMPTY),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -367,7 +340,7 @@ private fun BillingInformationSection(
     errorMessage: String?,
     onUpdateBillingInformation: () -> Unit
 ) {
-    val notProvided = stringResource(Res.string.payment_billing_not_provided)
+    val notProvided = appStringResource(StringKey.PAYMENT_BILLING_NOT_PROVIDED)
     val address = listOfNotNull(
         billingInformation?.line1,
         billingInformation?.line2,
@@ -388,7 +361,7 @@ private fun BillingInformationSection(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = stringResource(Res.string.payment_billing_info_title),
+                text = appStringResource(StringKey.PAYMENT_BILLING_INFO_TITLE),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -397,15 +370,15 @@ private fun BillingInformationSection(
                 errorMessage != null -> Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
                 else -> {
                     BillingInfoRow(
-                        label = stringResource(Res.string.payment_billing_name),
+                        label = appStringResource(StringKey.PAYMENT_BILLING_NAME),
                         value = billingInformation?.name ?: fallbackFullName.ifBlank { notProvided }
                     )
                     BillingInfoRow(
-                        label = stringResource(Res.string.payment_billing_email),
+                        label = appStringResource(StringKey.PAYMENT_BILLING_EMAIL),
                         value = billingInformation?.email ?: fallbackEmail.ifBlank { notProvided }
                     )
                     BillingInfoRow(
-                        label = stringResource(Res.string.payment_billing_address),
+                        label = appStringResource(StringKey.PAYMENT_BILLING_ADDRESS),
                         value = address.ifBlank { notProvided }
                     )
                 }
@@ -415,7 +388,7 @@ private fun BillingInformationSection(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text(stringResource(Res.string.payment_billing_update))
+                Text(appStringResource(StringKey.PAYMENT_BILLING_UPDATE))
             }
         }
     }
@@ -439,8 +412,8 @@ private fun BillingInfoRow(label: String, value: String) {
 
 @Composable
 private fun InvoiceRow(invoice: BillingInvoiceResponse) {
-    val fallbackLabel  = stringResource(Res.string.payment_invoice_fallback)
-    val unknownStatus  = stringResource(Res.string.payment_invoice_unknown_status)
+    val fallbackLabel  = appStringResource(StringKey.PAYMENT_INVOICE_FALLBACK)
+    val unknownStatus  = appStringResource(StringKey.PAYMENT_INVOICE_UNKNOWN_STATUS)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -491,8 +464,8 @@ private fun CancelPlanSection(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = if (isPaidPlan) stringResource(Res.string.payment_cancel_paid_prompt)
-                else stringResource(Res.string.payment_cancel_free_prompt),
+                text = if (isPaidPlan) appStringResource(StringKey.PAYMENT_CANCEL_PAID_PROMPT)
+                else appStringResource(StringKey.PAYMENT_CANCEL_FREE_PROMPT),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             OutlinedButton(
@@ -502,8 +475,8 @@ private fun CancelPlanSection(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    if (isOpeningPortal) stringResource(Res.string.payment_cancel_opening)
-                    else stringResource(Res.string.payment_cancel_button)
+                    if (isOpeningPortal) appStringResource(StringKey.PAYMENT_CANCEL_OPENING)
+                    else appStringResource(StringKey.PAYMENT_CANCEL_BUTTON)
                 )
             }
         }

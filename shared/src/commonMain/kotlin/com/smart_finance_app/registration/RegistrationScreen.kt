@@ -21,17 +21,8 @@ import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.visibility
 import smart_finance_app.shared.generated.resources.visibility_off
-import smart_finance_app.shared.generated.resources.register_title
-import smart_finance_app.shared.generated.resources.register_full_name
-import smart_finance_app.shared.generated.resources.register_email
-import smart_finance_app.shared.generated.resources.register_password
-import smart_finance_app.shared.generated.resources.register_confirm_password
-import smart_finance_app.shared.generated.resources.register_button
-import smart_finance_app.shared.generated.resources.register_button_loading
-import smart_finance_app.shared.generated.resources.register_already_have_account
-import smart_finance_app.shared.generated.resources.register_sign_in
-import smart_finance_app.shared.generated.resources.register_show_password
-import smart_finance_app.shared.generated.resources.register_hide_password
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 data class RegistrationForm(
     val fullName: String,
@@ -75,8 +66,8 @@ fun RegistrationScreen(
     val buttonFocus       = remember { FocusRequester() }
     val focusManager      = LocalFocusManager.current
 
-    val showPasswordLabel = stringResource(Res.string.register_show_password)
-    val hidePasswordLabel = stringResource(Res.string.register_hide_password)
+    val showPasswordLabel = appStringResource(StringKey.REGISTER_SHOW_PASSWORD)
+    val hidePasswordLabel = appStringResource(StringKey.REGISTER_HIDE_PASSWORD)
 
     val valid = fullName.isNotBlank() &&
             email.contains("@") &&
@@ -109,14 +100,14 @@ fun RegistrationScreen(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                stringResource(Res.string.register_title),
+                appStringResource(StringKey.REGISTER_TITLE),
                 style = MaterialTheme.typography.headlineMedium
             )
 
             OutlinedTextField(
                 value = fullName,
                 onValueChange = { fullName = it },
-                label = { Text(stringResource(Res.string.register_full_name)) },
+                label = { Text(appStringResource(StringKey.REGISTER_FULL_NAME)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(nameFocus)
@@ -128,7 +119,7 @@ fun RegistrationScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text(stringResource(Res.string.register_email)) },
+                label = { Text(appStringResource(StringKey.REGISTER_EMAIL)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(emailFocus)
@@ -144,7 +135,7 @@ fun RegistrationScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text(stringResource(Res.string.register_password)) },
+                label = { Text(appStringResource(StringKey.REGISTER_PASSWORD)) },
                 visualTransformation = if (showPassword) VisualTransformation.None
                 else PasswordVisualTransformation(),
                 trailingIcon = {
@@ -170,7 +161,7 @@ fun RegistrationScreen(
             OutlinedTextField(
                 value = confirmation,
                 onValueChange = { confirmation = it },
-                label = { Text(stringResource(Res.string.register_confirm_password)) },
+                label = { Text(appStringResource(StringKey.REGISTER_CONFIRM_PASSWORD)) },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -209,8 +200,8 @@ fun RegistrationScreen(
                     }
             ) {
                 Text(
-                    if (isLoading) stringResource(Res.string.register_button_loading)
-                    else stringResource(Res.string.register_button)
+                    if (isLoading) appStringResource(StringKey.REGISTER_BUTTON_LOADING)
+                    else appStringResource(StringKey.REGISTER_BUTTON)
                 )
             }
 
@@ -220,14 +211,14 @@ fun RegistrationScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(Res.string.register_already_have_account),
+                    text = appStringResource(StringKey.REGISTER_ALREADY_HAVE_ACCOUNT),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 TextButton(
                     onClick = onSignIn,
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Text(stringResource(Res.string.register_sign_in))
+                    Text(appStringResource(StringKey.REGISTER_SIGN_IN))
                 }
             }
         }

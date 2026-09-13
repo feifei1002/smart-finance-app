@@ -25,19 +25,8 @@ import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.add
 import smart_finance_app.shared.generated.resources.cancel
-import smart_finance_app.shared.generated.resources.accounts_title
-import smart_finance_app.shared.generated.resources.accounts_subtitle
-import smart_finance_app.shared.generated.resources.accounts_your_accounts
-import smart_finance_app.shared.generated.resources.accounts_empty
-import smart_finance_app.shared.generated.resources.accounts_connect_bank
-import smart_finance_app.shared.generated.resources.accounts_connect_search_hint
-import smart_finance_app.shared.generated.resources.accounts_status_connected
-import smart_finance_app.shared.generated.resources.accounts_status_disconnected
-import smart_finance_app.shared.generated.resources.accounts_consent_title
-import smart_finance_app.shared.generated.resources.accounts_consent_body_1
-import smart_finance_app.shared.generated.resources.accounts_consent_body_2
-import smart_finance_app.shared.generated.resources.accounts_consent_cancel
-import smart_finance_app.shared.generated.resources.accounts_consent_continue
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 data class ConnectedAccount(
     val bankName: String,
@@ -72,13 +61,13 @@ fun AccountsScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = stringResource(Res.string.accounts_title),
+            text =appStringResource(StringKey.ACCOUNTS_TITLE),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
 
         Text(
-            text = stringResource(Res.string.accounts_subtitle),
+            text = appStringResource(StringKey.ACCOUNTS_SUBTITLE),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -88,14 +77,14 @@ fun AccountsScreen(
         ConnectBankCard(onConnectBank = { showConsentDialog = true })
 
         Text(
-            text = stringResource(Res.string.accounts_your_accounts),
+            text = appStringResource(StringKey.ACCOUNTS_YOUR_ACCOUNTS),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
 
         if (accounts.isEmpty()) {
             Text(
-                text = stringResource(Res.string.accounts_empty),
+                text = appStringResource(StringKey.ACCOUNTS_EMPTY),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -136,7 +125,7 @@ private fun BankConsentDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(Res.string.accounts_consent_title),
+                        text = appStringResource(StringKey.ACCOUNTS_CONSENT_TITLE),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -147,7 +136,7 @@ private fun BankConsentDialog(
                     ) {
                         Icon(
                             painter = painterResource(Res.drawable.cancel),
-                            contentDescription = stringResource(Res.string.accounts_consent_cancel),
+                            contentDescription = appStringResource(StringKey.ACCOUNTS_CONSENT_CANCEL),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
@@ -165,7 +154,7 @@ private fun BankConsentDialog(
                             color = MaterialTheme.colorScheme.primary
                         ) {}
                         Text(
-                            text = stringResource(Res.string.accounts_consent_body_1),
+                            text = appStringResource(StringKey.ACCOUNTS_CONSENT_BODY_1),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -181,7 +170,7 @@ private fun BankConsentDialog(
                             color = MaterialTheme.colorScheme.primary
                         ) {}
                         Text(
-                            text = stringResource(Res.string.accounts_consent_body_2),
+                            text = appStringResource(StringKey.ACCOUNTS_CONSENT_BODY_2),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -200,7 +189,7 @@ private fun BankConsentDialog(
                         modifier = Modifier.weight(1f).height(44.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(stringResource(Res.string.accounts_consent_cancel))
+                        Text(appStringResource(StringKey.ACCOUNTS_CONSENT_CANCEL))
                     }
 
                     Button(
@@ -208,7 +197,7 @@ private fun BankConsentDialog(
                         modifier = Modifier.weight(1f).height(44.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(stringResource(Res.string.accounts_consent_continue))
+                        Text(appStringResource(StringKey.ACCOUNTS_CONSENT_CONTINUE))
                     }
                 }
             }
@@ -247,7 +236,7 @@ private fun ConnectBankCard(onConnectBank: () -> Unit) {
                 ) {
                     Icon(
                         painter = painterResource(Res.drawable.add),
-                        contentDescription = stringResource(Res.string.accounts_connect_bank),
+                        contentDescription = appStringResource(StringKey.ACCOUNTS_CONNECT_BANK),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp)
                     )
@@ -255,14 +244,14 @@ private fun ConnectBankCard(onConnectBank: () -> Unit) {
             }
 
             Text(
-                text = stringResource(Res.string.accounts_connect_bank),
+                text = appStringResource(StringKey.ACCOUNTS_CONNECT_BANK),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary
             )
 
             Text(
-                text = stringResource(Res.string.accounts_connect_search_hint),
+                text = appStringResource(StringKey.ACCOUNTS_CONNECT_SEARCH_HINT),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -331,9 +320,9 @@ private fun AccountCard(account: ConnectedAccount) {
             ) {
                 Text(
                     text = if (account.isConnected) {
-                        stringResource(Res.string.accounts_status_connected)
+                        appStringResource(StringKey.ACCOUNTS_STATUS_CONNECTED)
                     } else {
-                        stringResource(Res.string.accounts_status_disconnected)
+                        appStringResource(StringKey.ACCOUNTS_STATUS_DISCONNECTED)
                     },
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelSmall,

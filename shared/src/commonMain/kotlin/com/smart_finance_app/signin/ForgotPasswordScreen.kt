@@ -18,19 +18,11 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.arrow_back
-import smart_finance_app.shared.generated.resources.common_back
 import smart_finance_app.shared.generated.resources.lock
 import smart_finance_app.shared.generated.resources.mail
 import smart_finance_app.shared.generated.resources.verified_user
-import smart_finance_app.shared.generated.resources.forgot_password_title
-import smart_finance_app.shared.generated.resources.forgot_password_subtitle
-import smart_finance_app.shared.generated.resources.forgot_password_email_label
-import smart_finance_app.shared.generated.resources.forgot_password_email_placeholder
-import smart_finance_app.shared.generated.resources.forgot_password_send_button
-import smart_finance_app.shared.generated.resources.forgot_password_back
-import smart_finance_app.shared.generated.resources.forgot_password_security_title
-import smart_finance_app.shared.generated.resources.forgot_password_security_subtitle
-import smart_finance_app.shared.generated.resources.forgot_password_invalid_email
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 @Composable
 fun ForgotPasswordScreen(
@@ -48,7 +40,7 @@ fun ForgotPasswordScreen(
     val canSubmit    = emailTrimmed.isNotBlank() && !isLoading
 
     // Resolve outside submit() so it's accessible in a non-composable lambda
-    val invalidEmailMsg = stringResource(Res.string.forgot_password_invalid_email)
+    val invalidEmailMsg = appStringResource(StringKey.FORGOT_PASSWORD_INVALID_EMAIL)
 
     fun submit() {
         if (!validEmail) {
@@ -134,7 +126,7 @@ private fun ResetPasswordContent(
             ) {
                 Icon(
                     painter = painterResource(Res.drawable.arrow_back),
-                    contentDescription = stringResource(Res.string.common_back)
+                    contentDescription = appStringResource(StringKey.COMMON_BACK)
                 )
             }
         }
@@ -159,13 +151,13 @@ private fun ResetPasswordContent(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = stringResource(Res.string.forgot_password_title),
+                text = appStringResource(StringKey.FORGOT_PASSWORD_TITLE),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             Text(
-                text = stringResource(Res.string.forgot_password_subtitle),
+                text = appStringResource(StringKey.FORGOT_PASSWORD_SUBTITLE),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -178,7 +170,7 @@ private fun ResetPasswordContent(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = stringResource(Res.string.forgot_password_email_label),
+                text = appStringResource(StringKey.FORGOT_PASSWORD_EMAIL_LABEL),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold
             )
@@ -195,7 +187,7 @@ private fun ResetPasswordContent(
                         modifier = Modifier.size(24.dp)
                     )
                 },
-                placeholder = { Text(stringResource(Res.string.forgot_password_email_placeholder)) },
+                placeholder = { Text(appStringResource(StringKey.FORGOT_PASSWORD_EMAIL_PLACEHOLDER)) },
                 isError = validationError != null,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
@@ -239,12 +231,12 @@ private fun ResetPasswordContent(
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
-                Text(stringResource(Res.string.forgot_password_send_button))
+                Text(appStringResource(StringKey.FORGOT_PASSWORD_SEND_BUTTON))
             }
         }
 
         TextButton(onClick = onBackToSignIn) {
-            Text(stringResource(Res.string.forgot_password_back))
+            Text(appStringResource(StringKey.FORGOT_PASSWORD_BACK))
         }
 
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
@@ -264,12 +256,12 @@ private fun ResetPasswordContent(
             }
             Column {
                 Text(
-                    text = stringResource(Res.string.forgot_password_security_title),
+                    text = appStringResource(StringKey.FORGOT_PASSWORD_SECURITY_TITLE),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = stringResource(Res.string.forgot_password_security_subtitle),
+                    text = appStringResource(StringKey.FORGOT_PASSWORD_SECURITY_SUBTITLE),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

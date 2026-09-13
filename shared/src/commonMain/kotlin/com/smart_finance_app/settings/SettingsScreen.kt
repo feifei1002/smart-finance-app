@@ -72,20 +72,8 @@ import smart_finance_app.shared.generated.resources.language
 import smart_finance_app.shared.generated.resources.light_mode
 import smart_finance_app.shared.generated.resources.logout
 import smart_finance_app.shared.generated.resources.person
-import smart_finance_app.shared.generated.resources.settings_title
-import smart_finance_app.shared.generated.resources.settings_profile
-import smart_finance_app.shared.generated.resources.settings_language
-import smart_finance_app.shared.generated.resources.settings_currency
-import smart_finance_app.shared.generated.resources.settings_appearance
-import smart_finance_app.shared.generated.resources.settings_manage_subscription
-import smart_finance_app.shared.generated.resources.settings_sign_out
-import smart_finance_app.shared.generated.resources.settings_sign_out_confirm_title
-import smart_finance_app.shared.generated.resources.settings_sign_out_confirm_message
-import smart_finance_app.shared.generated.resources.settings_sign_out_confirm_button
-import smart_finance_app.shared.generated.resources.settings_cancel
-import smart_finance_app.shared.generated.resources.settings_language_dialog_title
-import smart_finance_app.shared.generated.resources.settings_currency_dialog_title
-import smart_finance_app.shared.generated.resources.common_back
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.settings.UpdateLanguageResult
 import kotlinx.coroutines.launch
@@ -151,7 +139,7 @@ fun SettingsScreen(
     // ── Language dialog ───────────────────────────────────────────────────────
     if (showLanguageDialog) {
         LanguageDialog(
-            title = stringResource(Res.string.settings_language_dialog_title),
+            title = appStringResource(StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE),
             languages = LocaleController.supportedLanguages,
             selectedCode = LocaleController.currentLanguageCode,
             onSelected = { language ->
@@ -178,7 +166,7 @@ fun SettingsScreen(
     // ── Currency dialog ───────────────────────────────────────────────────────
     if (showCurrencyDialog) {
         SettingOptionDialog(
-            title = stringResource(Res.string.settings_currency_dialog_title),
+            title = appStringResource(StringKey.SETTINGS_CURRENCY_DIALOG_TITLE),
             options = listOf("GBP", "USD", "EUR", "CAD", "TWD"),
             selectedOption = selectedCurrency,
             onSelected = {
@@ -193,16 +181,16 @@ fun SettingsScreen(
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
-            title = { Text(stringResource(Res.string.settings_sign_out_confirm_title)) },
-            text = { Text(stringResource(Res.string.settings_sign_out_confirm_message)) },
+            title = { Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_TITLE)) },
+            text = { Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_MESSAGE)) },
             confirmButton = {
                 Button(onClick = onSignOut) {
-                    Text(stringResource(Res.string.settings_sign_out_confirm_button))
+                    Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_BUTTON))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text(stringResource(Res.string.settings_cancel))
+                    Text(appStringResource(StringKey.SETTINGS_CANCEL))
                 }
             }
         )
@@ -359,7 +347,7 @@ private fun SettingsMainContent(
 
                 if (compact) {
                     Text(
-                        text = stringResource(Res.string.settings_title),
+                        text = appStringResource(StringKey.SETTINGS_TITLE),
                         modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
@@ -367,7 +355,7 @@ private fun SettingsMainContent(
                 } else {
                     Column {
                         Text(
-                            text = stringResource(Res.string.settings_title),
+                            text = appStringResource(StringKey.SETTINGS_TITLE),
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -384,7 +372,7 @@ private fun SettingsMainContent(
                             ProfileHeader(userName, userEmail)
                             SettingsActionRow(
                                 icon = Res.drawable.person,
-                                title = stringResource(Res.string.settings_profile),
+                                title = appStringResource(StringKey.SETTINGS_PROFILE),
                                 value = null,
                                 onClick = onUpdateProfile
                             )
@@ -406,7 +394,7 @@ private fun SettingsMainContent(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text(stringResource(Res.string.settings_profile))
+                                Text(appStringResource(StringKey.SETTINGS_PROFILE))
                             }
                         }
                     }
@@ -425,7 +413,7 @@ private fun SettingsMainContent(
 
                         SettingsActionRow(
                             icon = Res.drawable.language,
-                            title = stringResource(Res.string.settings_language),
+                            title = appStringResource(StringKey.SETTINGS_LANGUAGE),
                             value = selectedLanguage,
                             onClick = onLanguageClick
                         )
@@ -434,7 +422,7 @@ private fun SettingsMainContent(
 
                         SettingsActionRow(
                             icon = Res.drawable.currency,
-                            title = stringResource(Res.string.settings_currency),
+                            title = appStringResource(StringKey.SETTINGS_CURRENCY),
                             value = selectedCurrency,
                             onClick = onCurrencyClick
                         )
@@ -460,7 +448,7 @@ private fun SettingsMainContent(
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(10.dp))
-                        Text(stringResource(Res.string.settings_manage_subscription))
+                        Text(appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION))
                     }
 
                     Spacer(Modifier.height(16.dp))
@@ -478,7 +466,7 @@ private fun SettingsMainContent(
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            text = stringResource(Res.string.settings_sign_out),
+                            text = appStringResource(StringKey.SETTINGS_SIGN_OUT),
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -611,7 +599,7 @@ private fun AppearanceRow(
             modifier = Modifier.size(20.dp)
         )
         Text(
-            text = stringResource(Res.string.settings_appearance),
+            text = appStringResource(StringKey.SETTINGS_APPEARANCE),
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
@@ -714,7 +702,7 @@ private fun LanguageDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.settings_cancel))
+                Text(appStringResource(StringKey.SETTINGS_CANCEL))
             }
         }
     )
@@ -753,7 +741,7 @@ private fun SettingOptionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(Res.string.settings_cancel))
+                Text(appStringResource(StringKey.SETTINGS_CANCEL))
             }
         }
     )
@@ -774,7 +762,7 @@ private fun PlaceholderSettingsSubScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             TextButton(onClick = onBack) {
-                Text(stringResource(Res.string.common_back))
+                Text(appStringResource(StringKey.COMMON_BACK))
             }
             Text(
                 text = title,
