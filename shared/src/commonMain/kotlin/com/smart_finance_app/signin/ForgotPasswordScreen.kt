@@ -1,36 +1,12 @@
 package com.smart_finance_app.signin
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,28 +15,46 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.arrow_back
+import smart_finance_app.shared.generated.resources.common_back
 import smart_finance_app.shared.generated.resources.lock
 import smart_finance_app.shared.generated.resources.mail
 import smart_finance_app.shared.generated.resources.verified_user
+import smart_finance_app.shared.generated.resources.forgot_password_title
+import smart_finance_app.shared.generated.resources.forgot_password_subtitle
+import smart_finance_app.shared.generated.resources.forgot_password_email_label
+import smart_finance_app.shared.generated.resources.forgot_password_email_placeholder
+import smart_finance_app.shared.generated.resources.forgot_password_send_button
+import smart_finance_app.shared.generated.resources.forgot_password_back
+import smart_finance_app.shared.generated.resources.forgot_password_security_title
+import smart_finance_app.shared.generated.resources.forgot_password_security_subtitle
+import smart_finance_app.shared.generated.resources.forgot_password_invalid_email
 
 @Composable
-fun ForgotPasswordScreen(isLoading: Boolean, errorMessage: String?, successMessage: String?,
-                            onSubmit: (String) -> Unit, onBackToSignIn: () -> Unit) {
+fun ForgotPasswordScreen(
+    isLoading: Boolean,
+    errorMessage: String?,
+    successMessage: String?,
+    onSubmit: (String) -> Unit,
+    onBackToSignIn: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var validationError by remember { mutableStateOf<String?>(null) }
 
     val emailTrimmed = email.trim()
-    val validEmail = emailTrimmed.contains("@") && emailTrimmed.contains(".")
-    val canSubmit = emailTrimmed.isNotBlank() && !isLoading
+    val validEmail   = emailTrimmed.contains("@") && emailTrimmed.contains(".")
+    val canSubmit    = emailTrimmed.isNotBlank() && !isLoading
+
+    // Resolve outside submit() so it's accessible in a non-composable lambda
+    val invalidEmailMsg = stringResource(Res.string.forgot_password_invalid_email)
 
     fun submit() {
         if (!validEmail) {
-            validationError = "Please enter a valid email address."
+            validationError = invalidEmailMsg
             return
         }
-
         validationError = null
         onSubmit(emailTrimmed)
     }
@@ -77,10 +71,7 @@ fun ForgotPasswordScreen(isLoading: Boolean, errorMessage: String?, successMessa
             if (compact) {
                 ResetPasswordContent(
                     email = email,
-                    onEmailChange = {
-                        email = it
-                        validationError = null
-                    },
+                    onEmailChange = { email = it; validationError = null },
                     isLoading = isLoading,
                     canSubmit = canSubmit,
                     validationError = validationError,
@@ -99,10 +90,7 @@ fun ForgotPasswordScreen(isLoading: Boolean, errorMessage: String?, successMessa
                 ) {
                     ResetPasswordContent(
                         email = email,
-                        onEmailChange = {
-                            email = it
-                            validationError = null
-                        },
+                        onEmailChange = { email = it; validationError = null },
                         isLoading = isLoading,
                         canSubmit = canSubmit,
                         validationError = validationError,
@@ -119,10 +107,18 @@ fun ForgotPasswordScreen(isLoading: Boolean, errorMessage: String?, successMessa
 }
 
 @Composable
-private fun ResetPasswordContent(email: String, onEmailChange: (String) -> Unit, isLoading: Boolean,
-                                 canSubmit: Boolean, validationError: String?, errorMessage: String?,
-                                 successMessage: String?, onSubmit: () -> Unit,
-                                 onBackToSignIn: () -> Unit, modifier: Modifier = Modifier) {
+private fun ResetPasswordContent(
+    email: String,
+    onEmailChange: (String) -> Unit,
+    isLoading: Boolean,
+    canSubmit: Boolean,
+    validationError: String?,
+    errorMessage: String?,
+    successMessage: String?,
+    onSubmit: () -> Unit,
+    onBackToSignIn: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -138,7 +134,7 @@ private fun ResetPasswordContent(email: String, onEmailChange: (String) -> Unit,
             ) {
                 Icon(
                     painter = painterResource(Res.drawable.arrow_back),
-                    contentDescription = "Back"
+                    contentDescription = stringResource(Res.string.common_back)
                 )
             }
         }
@@ -163,14 +159,13 @@ private fun ResetPasswordContent(email: String, onEmailChange: (String) -> Unit,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Reset your password",
+                text = stringResource(Res.string.forgot_password_title),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-
             Text(
-                text = "Please enter the email linked to your account and we’ll send you a secure reset link.",
+                text = stringResource(Res.string.forgot_password_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -183,11 +178,10 @@ private fun ResetPasswordContent(email: String, onEmailChange: (String) -> Unit,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "Email address",
+                text = stringResource(Res.string.forgot_password_email_label),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold
             )
-
             OutlinedTextField(
                 value = email,
                 onValueChange = onEmailChange,
@@ -201,17 +195,14 @@ private fun ResetPasswordContent(email: String, onEmailChange: (String) -> Unit,
                         modifier = Modifier.size(24.dp)
                     )
                 },
-                placeholder = { Text("Enter your email") },
+                placeholder = { Text(stringResource(Res.string.forgot_password_email_placeholder)) },
                 isError = validationError != null,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Done
                 ),
-                keyboardActions = KeyboardActions(
-                    onDone = { onSubmit() }
-                )
+                keyboardActions = KeyboardActions(onDone = { onSubmit() })
             )
-
             validationError?.let {
                 Text(
                     text = it,
@@ -246,17 +237,14 @@ private fun ResetPasswordContent(email: String, onEmailChange: (String) -> Unit,
             shape = RoundedCornerShape(8.dp)
         ) {
             if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp
-                )
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
-                Text("Send reset link")
+                Text(stringResource(Res.string.forgot_password_send_button))
             }
         }
 
         TextButton(onClick = onBackToSignIn) {
-            Text("Back to sign in")
+            Text(stringResource(Res.string.forgot_password_back))
         }
 
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
@@ -274,15 +262,14 @@ private fun ResetPasswordContent(email: String, onEmailChange: (String) -> Unit,
                     modifier = Modifier.size(48.dp)
                 )
             }
-
             Column {
                 Text(
-                    text = "Your security is our priority",
+                    text = stringResource(Res.string.forgot_password_security_title),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Reset links are single-use and expire after 15 minutes.",
+                    text = stringResource(Res.string.forgot_password_security_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

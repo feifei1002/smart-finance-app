@@ -23,9 +23,21 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.visibility
 import smart_finance_app.shared.generated.resources.visibility_off
+import smart_finance_app.shared.generated.resources.signin_title
+import smart_finance_app.shared.generated.resources.signin_subtitle
+import smart_finance_app.shared.generated.resources.signin_email
+import smart_finance_app.shared.generated.resources.signin_password
+import smart_finance_app.shared.generated.resources.signin_forgot_password
+import smart_finance_app.shared.generated.resources.signin_button
+import smart_finance_app.shared.generated.resources.signin_button_loading
+import smart_finance_app.shared.generated.resources.signin_no_account
+import smart_finance_app.shared.generated.resources.signin_create_account
+import smart_finance_app.shared.generated.resources.register_show_password
+import smart_finance_app.shared.generated.resources.register_hide_password
 
 data class SignInForm(val email: String, val password: String)
 
@@ -41,19 +53,20 @@ fun SignInScreen(
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
 
-    val emailFocus = remember { FocusRequester() }
+    val emailFocus    = remember { FocusRequester() }
     val passwordFocus = remember { FocusRequester() }
-    val buttonFocus = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
+    val buttonFocus   = remember { FocusRequester() }
+    val focusManager  = LocalFocusManager.current
+
+    val showPasswordLabel = stringResource(Res.string.register_show_password)
+    val hidePasswordLabel = stringResource(Res.string.register_hide_password)
 
     val valid = email.trim().contains("@") && password.isNotBlank()
 
     val submitForm: () -> Unit = {
         if (valid && !isLoading) {
             focusManager.clearFocus()
-            onSignIn(
-                SignInForm(email = email.trim(), password = password)
-            )
+            onSignIn(SignInForm(email = email.trim(), password = password))
         }
     }
 
@@ -62,32 +75,27 @@ fun SignInScreen(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 440.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 440.dp)
                 .onPreviewKeyEvent { event ->
-                    if(event.type == KeyEventType.KeyDown &&
-                        event.key == Key.Tab
-                        ) {
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Tab) {
                         focusManager.moveFocus(
-                            if(event.isShiftPressed) {
-                                FocusDirection.Previous
-                            } else {
-                                FocusDirection.Next
-                            }
+                            if (event.isShiftPressed) FocusDirection.Previous
+                            else FocusDirection.Next
                         )
                         true
-                    } else {
-                        false
-                    }
+                    } else false
                 },
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "Welcome back",
+                text = stringResource(Res.string.signin_title),
                 style = MaterialTheme.typography.headlineMedium
             )
 
             Text(
-                text = "Please sign in to access your financial dashboard.",
+                text = stringResource(Res.string.signin_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -95,67 +103,54 @@ fun SignInScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Email") },
+                label = { Text(stringResource(Res.string.signin_email)) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(emailFocus)
-                    .focusProperties{ next = passwordFocus },
+                    .focusProperties { next = passwordFocus },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Next
                 ),
-                keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus()}
-                )
+                keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() })
             )
 
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
+                label = { Text(stringResource(Res.string.signin_password)) },
                 singleLine = true,
-                visualTransformation = if (showPassword) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
+                visualTransformation = if (showPassword) VisualTransformation.None
+                else PasswordVisualTransformation(),
                 trailingIcon = {
-                    IconButton(onClick = { showPassword = !showPassword }
-                    ) {
+                    IconButton(onClick = { showPassword = !showPassword }) {
                         Icon(
                             painter = painterResource(
-                                if (showPassword) {
-                                    Res.drawable.visibility_off
-                                } else {
-                                    Res.drawable.visibility
-                                }
+                                if (showPassword) Res.drawable.visibility_off
+                                else Res.drawable.visibility
                             ),
-                            contentDescription = if (showPassword) {
-                                "Hide password"
-                            } else {
-                                "Show password"
-                            }
+                            contentDescription = if (showPassword) hidePasswordLabel
+                            else showPasswordLabel
                         )
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(passwordFocus)
-                    .focusProperties{
-                            previous = emailFocus
-                            next = buttonFocus
-                    }.onPreviewKeyEvent {event ->
-                        if (event.type == KeyEventType.KeyDown &&
-                            event.key == Key.Enter
-                            ) {
+                    .focusProperties {
+                        previous = emailFocus
+                        next = buttonFocus
+                    }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
                             submitForm()
                             true
-                        } else {
-                            false
-                        }
+                        } else false
                     },
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password, imeAction = ImeAction.Done
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
                 ),
                 keyboardActions = KeyboardActions(onDone = { submitForm() })
             )
@@ -168,7 +163,7 @@ fun SignInScreen(
                     onClick = onForgotPassword,
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text("Forgot password?")
+                    Text(stringResource(Res.string.signin_forgot_password))
                 }
             }
 
@@ -183,11 +178,12 @@ fun SignInScreen(
             Button(
                 enabled = valid && !isLoading,
                 onClick = submitForm,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(buttonFocus)
+                modifier = Modifier.fillMaxWidth().focusRequester(buttonFocus)
             ) {
-                Text(if (isLoading) "Signing in..." else "Sign in")
+                Text(
+                    if (isLoading) stringResource(Res.string.signin_button_loading)
+                    else stringResource(Res.string.signin_button)
+                )
             }
 
             Row(
@@ -195,16 +191,14 @@ fun SignInScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Don't have an account?")
-
+                Text(stringResource(Res.string.signin_no_account))
                 TextButton(
                     onClick = onCreateAccount,
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Text("Create an account")
+                    Text(stringResource(Res.string.signin_create_account))
                 }
             }
         }
     }
-
 }

@@ -19,7 +19,9 @@ data class SignInResponse(
     val userId: String,
     val name: String,
     val email: String,
-    val consentAccepted: Boolean)
+    val consentAccepted: Boolean,
+    val language: String
+    )
 
 fun Route.signInRoutes(createAccessToken: (UUID) -> String,
                        createRefreshToken: (UUID) -> String) {
@@ -35,7 +37,7 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
         val user = Database.dataSource.connection.use { connection ->
             connection.prepareStatement(
                 """
-                    SELECT id, full_name, email, password_hash, consent_accepted_at IS NOT NULL AS consent_accepted
+                    SELECT id, full_name, email, password_hash, language, consent_accepted_at IS NOT NULL AS consent_accepted
                     FROM users WHERE email = ?
                 """.trimIndent()
             ).use { statement ->
@@ -48,7 +50,8 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
                         name = result.getString("full_name"),
                         email = result.getString("email"),
                         passwordHash = result.getString("password_hash"),
-                        consentAccepted = result.getBoolean("consent_accepted")
+                        consentAccepted = result.getBoolean("consent_accepted"),
+                        language = result.getString("language")
                     )
                 }
             }
@@ -76,10 +79,11 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
                 userId = user.id.toString(),
                 name = user.name,
                 email = user.email,
-                consentAccepted = user.consentAccepted
+                consentAccepted = user.consentAccepted,
+                language = user.language
             )
         )
     }
 }
 
-private data class SignInUser(val id: UUID, val email: String,val name: String, val passwordHash: String, val consentAccepted: Boolean)
+private data class SignInUser(val id: UUID, val email: String,val name: String, val passwordHash: String, val consentAccepted: Boolean,val language: String)

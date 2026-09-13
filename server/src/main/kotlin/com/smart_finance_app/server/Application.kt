@@ -30,6 +30,7 @@ fun main() {
 
 fun Application.module() {
     Database.connect()
+    Database.migrate()
 
     monitor.subscribe(ApplicationStopped) {
         Database.close()
@@ -137,6 +138,7 @@ fun Application.module() {
         }
 
         subscriptionRoutes()
+        userPreferencesRoutes()
     }
 }
 

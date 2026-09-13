@@ -34,6 +34,7 @@ import io.ktor.client.HttpClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
+import com.smart_finance_app.settings.UserPreferencesApi
 
 @Composable
 fun MainNavigation(
@@ -44,6 +45,7 @@ fun MainNavigation(
     httpClient: HttpClient,
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
+    userPreferencesApi: UserPreferencesApi,
     onSignOut: () -> Unit
 ) {
     var selected by remember { mutableStateOf(AppNavigation.Dashboard) }
@@ -92,6 +94,7 @@ fun MainNavigation(
                 httpClient = httpClient,
                 dashboardApi = dashboardApi,
                 budgetApi = budgetApi,
+                userPreferencesApi       = userPreferencesApi,
                 compact = compact,
                 onSignOut                = onSignOut,
                 onNavigateToAccounts     = { selected = AppNavigation.Accounts },
@@ -111,6 +114,7 @@ private fun NavigationContent(
     httpClient: HttpClient,
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
+    userPreferencesApi: UserPreferencesApi,
     compact: Boolean,
     onSignOut: () -> Unit,
     onNavigateToAccounts: () -> Unit,
@@ -502,6 +506,7 @@ private fun NavigationContent(
                 userEmail = userEmail,
                 authToken = authToken,
                 subscriptionApi = subscriptionApi,
+                userPreferencesApi = userPreferencesApi,
                 onSignOut = onSignOut
             )
         }

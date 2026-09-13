@@ -1,6 +1,5 @@
 package com.smart_finance_app.server
 
-
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import javax.sql.DataSource
@@ -32,6 +31,30 @@ object Database {
                 statement.executeQuery().use { result ->
                     check(result.next() && result.getInt(1) == 1)
                 }
+            }
+        }
+    }
+
+    fun migrate() {
+        dataSource.connection.use { connection ->
+            try {
+                connection.createStatement().use { stmt ->
+                    // Add language column to users if it doesn't exist yet.
+                    // DEFAULT 'en' ensures all existing users get English automatically.
+                    stmt.execute(
+                        """
+                        ALTER TABLE users
+                        ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'
+                            CHECK (language IN ('en', 'es', 'fr', 'nl', 'de', 'it', 'pl', 'zh-TW'))
+                        """.trimIndent()
+                    )
+                }
+                connection.commit()
+                println("✅ Database migration complete")
+            } catch (e: Exception) {
+                connection.rollback()
+                println("❌ Database migration failed: ${e.message}")
+                throw e
             }
         }
     }

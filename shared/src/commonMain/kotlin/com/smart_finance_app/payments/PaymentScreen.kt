@@ -2,29 +2,11 @@ package com.smart_finance_app.payments
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.american_express
 import smart_finance_app.shared.generated.resources.credit_card
@@ -41,6 +24,35 @@ import smart_finance_app.shared.generated.resources.mastercard
 import smart_finance_app.shared.generated.resources.star
 import smart_finance_app.shared.generated.resources.unionpay
 import smart_finance_app.shared.generated.resources.visa
+import smart_finance_app.shared.generated.resources.common_back
+import smart_finance_app.shared.generated.resources.payment_title
+import smart_finance_app.shared.generated.resources.payment_subtitle
+import smart_finance_app.shared.generated.resources.payment_loading
+import smart_finance_app.shared.generated.resources.payment_current_plan
+import smart_finance_app.shared.generated.resources.payment_no_card_title
+import smart_finance_app.shared.generated.resources.payment_no_card_body
+import smart_finance_app.shared.generated.resources.payment_no_card_found
+import smart_finance_app.shared.generated.resources.payment_update_button
+import smart_finance_app.shared.generated.resources.payment_updating_button
+import smart_finance_app.shared.generated.resources.payment_change_plan
+import smart_finance_app.shared.generated.resources.payment_subscribe_prompt
+import smart_finance_app.shared.generated.resources.payment_view_plans
+import smart_finance_app.shared.generated.resources.payment_card_ending
+import smart_finance_app.shared.generated.resources.payment_card_expires
+import smart_finance_app.shared.generated.resources.payment_history_title
+import smart_finance_app.shared.generated.resources.payment_history_empty
+import smart_finance_app.shared.generated.resources.payment_invoice_fallback
+import smart_finance_app.shared.generated.resources.payment_invoice_unknown_status
+import smart_finance_app.shared.generated.resources.payment_billing_info_title
+import smart_finance_app.shared.generated.resources.payment_billing_name
+import smart_finance_app.shared.generated.resources.payment_billing_email
+import smart_finance_app.shared.generated.resources.payment_billing_address
+import smart_finance_app.shared.generated.resources.payment_billing_not_provided
+import smart_finance_app.shared.generated.resources.payment_billing_update
+import smart_finance_app.shared.generated.resources.payment_cancel_paid_prompt
+import smart_finance_app.shared.generated.resources.payment_cancel_free_prompt
+import smart_finance_app.shared.generated.resources.payment_cancel_button
+import smart_finance_app.shared.generated.resources.payment_cancel_opening
 
 @Composable
 fun PaymentScreen(
@@ -61,7 +73,6 @@ fun PaymentScreen(
     onBack: () -> Unit
 ) {
     val status = paymentDetails?.subscriptionStatus ?: "free"
-
     val isPaidPlan = status.equals("basic", ignoreCase = true) ||
             status.equals("pro", ignoreCase = true)
 
@@ -86,23 +97,19 @@ fun PaymentScreen(
                     horizontalArrangement = Arrangement.Start
                 ) {
                     TextButton(onClick = onBack) {
-                        Text("Back")
+                        Text(stringResource(Res.string.common_back))
                     }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Payments & Billing",
-                        style = if (compact) {
-                            MaterialTheme.typography.headlineSmall
-                        } else {
-                            MaterialTheme.typography.headlineMedium
-                        },
+                        text = stringResource(Res.string.payment_title),
+                        style = if (compact) MaterialTheme.typography.headlineSmall
+                        else MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
-
                     Text(
-                        text = "View your plan and manage your payment card.",
+                        text = stringResource(Res.string.payment_subtitle),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -117,13 +124,11 @@ fun PaymentScreen(
                         onChangePaymentCard = onChangePaymentCard,
                         onViewPlans = onViewPlans
                     )
-
                     BillingHistorySection(
                         invoices = invoices,
                         isLoading = invoicesLoading,
                         errorMessage = invoicesError
                     )
-
                     BillingInformationSection(
                         billingInformation = billingAddress,
                         fallbackFullName = fullName,
@@ -132,7 +137,6 @@ fun PaymentScreen(
                         errorMessage = billingAddressError,
                         onUpdateBillingInformation = onChangePaymentCard
                     )
-
                     CancelPlanSection(
                         isPaidPlan = isPaidPlan,
                         isOpeningPortal = isOpeningPortal,
@@ -141,10 +145,7 @@ fun PaymentScreen(
                 }
 
                 errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Text(text = it, color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -164,7 +165,7 @@ private fun LoadingPaymentCard() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             CircularProgressIndicator(modifier = Modifier.size(22.dp))
-            Text("Loading payment details...")
+            Text(stringResource(Res.string.payment_loading))
         }
     }
 }
@@ -195,15 +196,12 @@ private fun PaymentDetailsCard(
             val starCount = if (isPaidPlan) 2 else 1
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-
                 Text(
-                    text = "Current plan",
+                    text = stringResource(Res.string.payment_current_plan),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-
                 PlanStars(starCount)
-
                 Text(
                     text = status.replaceFirstChar { it.uppercase() },
                     style = MaterialTheme.typography.headlineSmall,
@@ -217,7 +215,7 @@ private fun PaymentDetailsCard(
                 NoCardContent()
             } else if (card == null) {
                 Text(
-                    text = "No payment card was found for this subscription.",
+                    text = stringResource(Res.string.payment_no_card_found),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
@@ -228,47 +226,34 @@ private fun PaymentDetailsCard(
                 Button(
                     enabled = isPaidPlan && !isOpeningPortal,
                     onClick = onChangePaymentCard,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        if (isOpeningPortal) {
-                            "Opening payment settings..."
-                        } else {
-                            "Update payment"
-                        }
+                        if (isOpeningPortal) stringResource(Res.string.payment_updating_button)
+                        else stringResource(Res.string.payment_update_button)
                     )
                 }
-                
                 OutlinedButton(
                     onClick = onViewPlans,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Change plan")
+                    Text(stringResource(Res.string.payment_change_plan))
                 }
             } else {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Subscribe to a paid plan to add a payment card.",
+                        text = stringResource(Res.string.payment_subscribe_prompt),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
                     OutlinedButton(
                         onClick = onViewPlans,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("View plan options")
+                        Text(stringResource(Res.string.payment_view_plans))
                     }
                 }
             }
@@ -280,13 +265,12 @@ private fun PaymentDetailsCard(
 private fun NoCardContent() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "No payment card",
+            text = stringResource(Res.string.payment_no_card_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
-
         Text(
-            text = "You are currently on the Free plan, so no payment card is being used.",
+            text = stringResource(Res.string.payment_no_card_body),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -294,6 +278,9 @@ private fun NoCardContent() {
 
 @Composable
 private fun SavedCardContent(card: PaymentCardResponse) {
+    val endingLabel  = stringResource(Res.string.payment_card_ending)
+    val expiresLabel = stringResource(Res.string.payment_card_expires)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -302,20 +289,16 @@ private fun SavedCardContent(card: PaymentCardResponse) {
         Image(
             painter = painterResource(cardBrandDrawable(card.brand)),
             contentDescription = "${card.brand} card logo",
-            modifier = Modifier
-                .size(width = 56.dp, height = 34.dp)
-                .clip(RoundedCornerShape(8.dp))
+            modifier = Modifier.size(width = 56.dp, height = 34.dp).clip(RoundedCornerShape(8.dp))
         )
-
         Column {
             Text(
-                text = "${ cardBrandLabel(card.brand)} ending in ${card.last4}",
+                text = "${cardBrandLabel(card.brand)} $endingLabel ${card.last4}",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
-
             Text(
-                text = "Expires ${card.expMonth.toString().padStart(2, '0')}/${card.expYear}",
+                text = "$expiresLabel ${card.expMonth.toString().padStart(2, '0')}/${card.expYear}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -340,34 +323,6 @@ private fun PlanStars(starCount: Int) {
     }
 }
 
-private fun cardBrandDrawable(brand: String): DrawableResource {
-    return when (brand.lowercase()) {
-        "visa" -> Res.drawable.visa
-        "mastercard" -> Res.drawable.mastercard
-        "amex", "american express" -> Res.drawable.american_express
-        "jcb" -> Res.drawable.jcb
-        "unionpay" -> Res.drawable.unionpay
-        else -> Res.drawable.credit_card
-    }
-}
-private fun cardBrandLabel(brand: String): String {
-    return when (brand.lowercase()) {
-        "visa" -> "VISA"
-        "mastercard" -> "Mastercard"
-        "amex", "american express" -> "American Express"
-        "discover" -> "Discover"
-        "jcb" -> "JCB"
-        "diners", "diners club" -> "Diners Club"
-        "unionpay", "union pay" -> "UnionPay"
-        else -> brand
-            .split(" ", "-", "_")
-            .filter { it.isNotBlank() }
-            .joinToString(" ") { word ->
-                word.replaceFirstChar { char -> char.uppercase() }
-            }
-    }
-}
-
 @Composable
 private fun BillingHistorySection(
     invoices: List<BillingInvoiceResponse>,
@@ -382,42 +337,22 @@ private fun BillingHistorySection(
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Transaction history",
+                text = stringResource(Res.string.payment_history_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-
             when {
-                isLoading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
-
-                errorMessage != null -> {
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                invoices.isEmpty() -> {
-                    Text(
-                        text = "No billing transactions available yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                else -> {
-                    invoices.forEach { invoice ->
-                        InvoiceRow(invoice)
-                    }
-                }
+                isLoading -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                errorMessage != null -> Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
+                invoices.isEmpty() -> Text(
+                    text = stringResource(Res.string.payment_history_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                else -> invoices.forEach { InvoiceRow(it) }
             }
         }
     }
@@ -432,6 +367,7 @@ private fun BillingInformationSection(
     errorMessage: String?,
     onUpdateBillingInformation: () -> Unit
 ) {
+    val notProvided = stringResource(Res.string.payment_billing_not_provided)
     val address = listOfNotNull(
         billingInformation?.line1,
         billingInformation?.line2,
@@ -452,43 +388,34 @@ private fun BillingInformationSection(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Billing information",
+                text = stringResource(Res.string.payment_billing_info_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-
             when {
                 isLoading -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
-
-                errorMessage != null -> Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error
-                )
-
+                errorMessage != null -> Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
                 else -> {
                     BillingInfoRow(
-                        label = "Name",
-                        value = billingInformation?.name ?: fallbackFullName.ifBlank { "Not provided" }
+                        label = stringResource(Res.string.payment_billing_name),
+                        value = billingInformation?.name ?: fallbackFullName.ifBlank { notProvided }
                     )
-
                     BillingInfoRow(
-                        label = "Email",
-                        value = billingInformation?.email ?: fallbackEmail.ifBlank { "Not provided" }
+                        label = stringResource(Res.string.payment_billing_email),
+                        value = billingInformation?.email ?: fallbackEmail.ifBlank { notProvided }
                     )
-
                     BillingInfoRow(
-                        label = "Address",
-                        value = address.ifBlank { "Not provided" }
+                        label = stringResource(Res.string.payment_billing_address),
+                        value = address.ifBlank { notProvided }
                     )
                 }
             }
-
             OutlinedButton(
                 onClick = onUpdateBillingInformation,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("Update billing information")
+                Text(stringResource(Res.string.payment_billing_update))
             }
         }
     }
@@ -496,15 +423,12 @@ private fun BillingInformationSection(
 
 @Composable
 private fun BillingInfoRow(label: String, value: String) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
@@ -515,6 +439,9 @@ private fun BillingInfoRow(label: String, value: String) {
 
 @Composable
 private fun InvoiceRow(invoice: BillingInvoiceResponse) {
+    val fallbackLabel  = stringResource(Res.string.payment_invoice_fallback)
+    val unknownStatus  = stringResource(Res.string.payment_invoice_unknown_status)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -522,29 +449,24 @@ private fun InvoiceRow(invoice: BillingInvoiceResponse) {
     ) {
         Column {
             Text(
-                text = invoice.number ?: "Invoice",
+                text = invoice.number ?: fallbackLabel,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
-
             Text(
                 text = invoice.createdAt.take(10),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-
-        Column(
-            horizontalAlignment = Alignment.End
-        ) {
+        Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = "${invoice.currency} ${invoice.amountPaid}",
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
-
             Text(
-                text = invoice.status ?: "Unknown",
+                text = invoice.status ?: unknownStatus,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -569,14 +491,10 @@ private fun CancelPlanSection(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = if (isPaidPlan) {
-                    "You can cancel your paid plan through the secure billing portal."
-                } else {
-                    "You are currently on the free plan."
-                },
+                text = if (isPaidPlan) stringResource(Res.string.payment_cancel_paid_prompt)
+                else stringResource(Res.string.payment_cancel_free_prompt),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
             OutlinedButton(
                 enabled = isPaidPlan && !isOpeningPortal,
                 onClick = onCancelPlan,
@@ -584,13 +502,36 @@ private fun CancelPlanSection(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    if (isOpeningPortal) {
-                        "Opening billing portal..."
-                    } else {
-                        "Cancel plan"
-                    }
+                    if (isOpeningPortal) stringResource(Res.string.payment_cancel_opening)
+                    else stringResource(Res.string.payment_cancel_button)
                 )
             }
         }
+    }
+}
+
+private fun cardBrandDrawable(brand: String): DrawableResource {
+    return when (brand.lowercase()) {
+        "visa"                        -> Res.drawable.visa
+        "mastercard"                  -> Res.drawable.mastercard
+        "amex", "american express"    -> Res.drawable.american_express
+        "jcb"                         -> Res.drawable.jcb
+        "unionpay"                    -> Res.drawable.unionpay
+        else                          -> Res.drawable.credit_card
+    }
+}
+
+private fun cardBrandLabel(brand: String): String {
+    return when (brand.lowercase()) {
+        "visa"                        -> "VISA"
+        "mastercard"                  -> "Mastercard"
+        "amex", "american express"    -> "American Express"
+        "discover"                    -> "Discover"
+        "jcb"                         -> "JCB"
+        "diners", "diners club"       -> "Diners Club"
+        "unionpay", "union pay"       -> "UnionPay"
+        else -> brand.split(" ", "-", "_")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
     }
 }
