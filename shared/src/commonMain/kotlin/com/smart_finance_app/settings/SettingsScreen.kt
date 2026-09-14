@@ -150,7 +150,7 @@ fun SettingsScreen(
                 scope.launch {
                     val result = userPreferencesApi.updateLanguage(authToken, language.code)
                     if (result is UpdateLanguageResult.Failure) {
-                        println("⚠️ Failed to persist language preference: ${result.message}")
+                        println("Failed to persist language preference: ${result.message}")
                     }
                 }
                 showLanguageDialog = false
