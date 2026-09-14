@@ -139,6 +139,8 @@ fun Application.module() {
 
         subscriptionRoutes()
         userPreferencesRoutes()
+
+        profileRoutes()
     }
 }
 

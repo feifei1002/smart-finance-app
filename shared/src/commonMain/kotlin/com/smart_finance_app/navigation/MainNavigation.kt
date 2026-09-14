@@ -28,6 +28,7 @@ import com.smart_finance_app.transactions.TransactionsScreen
 import com.smart_finance_app.budget.BudgetScreen
 import com.smart_finance_app.dashboard.DashboardApi
 import com.smart_finance_app.payments.SubscriptionApi
+import com.smart_finance_app.profile.ProfileApi
 import com.smart_finance_app.settings.SettingsScreen
 import com.smart_finance_app.transactions.TransactionSyncResult
 import io.ktor.client.HttpClient
@@ -46,6 +47,7 @@ fun MainNavigation(
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
     userPreferencesApi: UserPreferencesApi,
+    onProfileUpdated: (String, String) -> Unit,
     onSignOut: () -> Unit
 ) {
     var selected by remember { mutableStateOf(AppNavigation.Dashboard) }
@@ -95,6 +97,7 @@ fun MainNavigation(
                 dashboardApi = dashboardApi,
                 budgetApi = budgetApi,
                 userPreferencesApi       = userPreferencesApi,
+                onProfileUpdated = onProfileUpdated,
                 compact = compact,
                 onSignOut                = onSignOut,
                 onNavigateToAccounts     = { selected = AppNavigation.Accounts },
@@ -115,6 +118,7 @@ private fun NavigationContent(
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
     userPreferencesApi: UserPreferencesApi,
+    onProfileUpdated: (String, String) -> Unit,
     compact: Boolean,
     onSignOut: () -> Unit,
     onNavigateToAccounts: () -> Unit,
@@ -122,6 +126,7 @@ private fun NavigationContent(
 ) {
     val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
     val subscriptionApi = remember(apiBaseUrl, httpClient) { SubscriptionApi(apiBaseUrl, httpClient) }
+    val profileApi = remember(apiBaseUrl, httpClient) { ProfileApi(apiBaseUrl, httpClient) }
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var transactionsLoading by remember { mutableStateOf(false) }
     var transactionsError by remember { mutableStateOf<String?>(null) }
@@ -507,6 +512,8 @@ private fun NavigationContent(
                 authToken = authToken,
                 subscriptionApi = subscriptionApi,
                 userPreferencesApi = userPreferencesApi,
+                profileApi = profileApi,
+                onProfileUpdated = onProfileUpdated,
                 onSignOut = onSignOut
             )
         }

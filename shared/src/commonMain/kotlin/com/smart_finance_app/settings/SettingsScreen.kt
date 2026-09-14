@@ -76,10 +76,21 @@ import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.settings.UpdateLanguageResult
+import com.smart_finance_app.payments.PlanScreen
+import com.smart_finance_app.payments.SubscriptionApi
+import com.smart_finance_app.payments.SubscriptionStatusResult
+import com.smart_finance_app.profile.EditProfileScreen
+import com.smart_finance_app.profile.ProfileApi
+import com.smart_finance_app.profile.UpdatePasswordScreen
 import kotlinx.coroutines.launch
 
 private enum class SettingsPanel {
     Main, EditProfile, Payments, SubscriptionPlan
+    Main,
+    EditProfile,
+    UpdatePassword,
+    Payments,
+    SubscriptionPlan
 }
 
 @Composable
@@ -89,6 +100,8 @@ fun SettingsScreen(
     authToken: String,
     subscriptionApi: SubscriptionApi,
     userPreferencesApi: UserPreferencesApi,
+    profileApi: ProfileApi,
+    onProfileUpdated: (String, String) -> Unit,
     onSignOut: () -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
@@ -250,10 +263,25 @@ fun SettingsScreen(
         }
 
         SettingsPanel.EditProfile -> {
-            PlaceholderSettingsSubScreen(
-                title = "Update profile",
-                description = "Profile editing screen coming soon.",
+            EditProfileScreen(
+                userName = userName,
+                userEmail = userEmail,
+                authToken = authToken,
+                profileApi = profileApi,
+                onProfileUpdated = onProfileUpdated,
+                onUpdatePassword = {
+                    panel = SettingsPanel.UpdatePassword
+                },
                 onBack = { panel = SettingsPanel.Main }
+            )
+        }
+
+        SettingsPanel.UpdatePassword -> {
+            UpdatePasswordScreen(
+                authToken = authToken,
+                profileApi = profileApi,
+                onBack = { panel = SettingsPanel.EditProfile },
+                onPasswordUpdated = onSignOut
             )
         }
 
@@ -447,6 +475,7 @@ private fun SettingsMainContent(
                             contentDescription = null,
                             modifier = Modifier.size(20.dp)
                         )
+
                         Spacer(Modifier.width(10.dp))
                         Text(appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION))
                     }
