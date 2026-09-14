@@ -45,6 +45,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.smart_finance_app.Language
 import com.smart_finance_app.LocaleController
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 import com.smart_finance_app.payments.BillingAddressResponse
 import com.smart_finance_app.payments.BillingAddressResult
 import com.smart_finance_app.payments.BillingInvoiceResponse
@@ -57,10 +59,12 @@ import com.smart_finance_app.payments.PaymentScreen
 import com.smart_finance_app.payments.PlanScreen
 import com.smart_finance_app.payments.SubscriptionApi
 import com.smart_finance_app.payments.SubscriptionStatusResult
+import com.smart_finance_app.profile.EditProfileScreen
+import com.smart_finance_app.profile.ProfileApi
+import com.smart_finance_app.profile.UpdatePasswordScreen
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.appearance
 import smart_finance_app.shared.generated.resources.chevron_right
@@ -72,20 +76,9 @@ import smart_finance_app.shared.generated.resources.language
 import smart_finance_app.shared.generated.resources.light_mode
 import smart_finance_app.shared.generated.resources.logout
 import smart_finance_app.shared.generated.resources.person
-import com.smart_finance_app.StringKey
-import com.smart_finance_app.appStringResource
-import com.smart_finance_app.settings.UserPreferencesApi
-import com.smart_finance_app.settings.UpdateLanguageResult
-import com.smart_finance_app.payments.PlanScreen
-import com.smart_finance_app.payments.SubscriptionApi
-import com.smart_finance_app.payments.SubscriptionStatusResult
-import com.smart_finance_app.profile.EditProfileScreen
-import com.smart_finance_app.profile.ProfileApi
-import com.smart_finance_app.profile.UpdatePasswordScreen
-import kotlinx.coroutines.launch
 
+// ── Fix 1: removed duplicate enum entries from the merge conflict ─────────────
 private enum class SettingsPanel {
-    Main, EditProfile, Payments, SubscriptionPlan
     Main,
     EditProfile,
     UpdatePassword,
@@ -131,8 +124,6 @@ fun SettingsScreen(
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
 
-    // The active language is driven by LocaleController, not local state.
-    // selectedLanguage is only used as a display label in the row.
     val selectedLanguage = LocaleController.supportedLanguages
         .find { it.code == LocaleController.currentLanguageCode }
         ?.displayName ?: "English"
@@ -149,34 +140,25 @@ fun SettingsScreen(
         }
     }
 
-    // ── Language dialog ───────────────────────────────────────────────────────
     if (showLanguageDialog) {
         LanguageDialog(
             title = appStringResource(StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE),
             languages = LocaleController.supportedLanguages,
             selectedCode = LocaleController.currentLanguageCode,
             onSelected = { language ->
-                // 1. Update the UI immediately — no waiting for the server
                 LocaleController.setLanguage(language.code)
-
-                // 2. Persist to the server in the background
                 scope.launch {
                     val result = userPreferencesApi.updateLanguage(authToken, language.code)
                     if (result is UpdateLanguageResult.Failure) {
-                        // The language change still sticks locally for this session.
-                        // You could surface this error if you want, but for MVP
-                        // silently failing is acceptable since the user can try again.
                         println("⚠️ Failed to persist language preference: ${result.message}")
                     }
                 }
-
                 showLanguageDialog = false
             },
             onDismiss = { showLanguageDialog = false }
         )
     }
 
-    // ── Currency dialog ───────────────────────────────────────────────────────
     if (showCurrencyDialog) {
         SettingOptionDialog(
             title = appStringResource(StringKey.SETTINGS_CURRENCY_DIALOG_TITLE),
@@ -190,7 +172,6 @@ fun SettingsScreen(
         )
     }
 
-    // ── Sign-out confirmation dialog ──────────────────────────────────────────
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
@@ -269,13 +250,12 @@ fun SettingsScreen(
                 authToken = authToken,
                 profileApi = profileApi,
                 onProfileUpdated = onProfileUpdated,
-                onUpdatePassword = {
-                    panel = SettingsPanel.UpdatePassword
-                },
+                onUpdatePassword = { panel = SettingsPanel.UpdatePassword },
                 onBack = { panel = SettingsPanel.Main }
             )
         }
 
+        // ── Fix 2: UpdatePassword was missing from the when block ─────────────
         SettingsPanel.UpdatePassword -> {
             UpdatePasswordScreen(
                 authToken = authToken,
@@ -475,7 +455,6 @@ private fun SettingsMainContent(
                             contentDescription = null,
                             modifier = Modifier.size(20.dp)
                         )
-
                         Spacer(Modifier.width(10.dp))
                         Text(appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION))
                     }
@@ -485,7 +464,7 @@ private fun SettingsMainContent(
                     OutlinedButton(
                         onClick = onSignOutClick,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(
                             painter = painterResource(Res.drawable.logout),
@@ -696,9 +675,6 @@ private fun SettingsDivider() {
     ) {}
 }
 
-// ── New: dedicated language picker dialog ─────────────────────────────────────
-// Uses Language objects from LocaleController so display names are always in
-// their own language (e.g. "Deutsch" never changes regardless of app locale).
 @Composable
 private fun LanguageDialog(
     title: String,
@@ -737,7 +713,6 @@ private fun LanguageDialog(
     )
 }
 
-// ── Generic option dialog (used for currency) ─────────────────────────────────
 @Composable
 private fun SettingOptionDialog(
     title: String,
@@ -774,43 +749,6 @@ private fun SettingOptionDialog(
             }
         }
     )
-}
-
-@Composable
-private fun PlaceholderSettingsSubScreen(
-    title: String,
-    description: String,
-    onBack: () -> Unit
-) {
-    Box(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 640.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-            TextButton(onClick = onBack) {
-                Text(appStringResource(StringKey.COMMON_BACK))
-            }
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Text(
-                    text = description,
-                    modifier = Modifier.padding(24.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
 }
 
 private fun String.initials(): String {
