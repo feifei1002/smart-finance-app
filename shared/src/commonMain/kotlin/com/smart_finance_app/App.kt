@@ -441,7 +441,7 @@ fun App(
                     dashboardApi = dashboardApi,
                     budgetApi = budgetApi,
                     userPreferencesApi = userPreferencesApi,
-                    onProfileUpdated = { newName, newEmail ->   
+                    onProfileUpdated = { newName, newEmail ->
                         session = session?.copy(
                             name = newName,
                             email = newEmail
@@ -457,7 +457,7 @@ fun App(
 
                             tokenStorage.clearRefreshToken()
                             session = null
-                            LocaleController.setLanguage("en")
+
                             screen = Screen.SignIn
                         }
                     }

@@ -412,7 +412,7 @@ private fun SettingsMainContent(
                     SettingsGroup {
                         SettingsActionRow(
                             icon = Res.drawable.credit_card,
-                            title = "Payments & Billing",
+                            title = appStringResource(StringKey.PAYMENT_TITLE),
                             value = null,
                             onClick = onSubscriptionPaymentsClick
                         )
