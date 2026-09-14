@@ -31,6 +31,7 @@ import com.smart_finance_app.payments.SubscriptionApi
 import com.smart_finance_app.profile.ProfileApi
 import com.smart_finance_app.settings.SettingsScreen
 import com.smart_finance_app.transactions.TransactionSyncResult
+import com.smart_finance_app.transactions.UpdateTransactionCategoryResult
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -136,9 +137,21 @@ private fun NavigationContent(
     var dashboardRecentTransactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var lastSyncedToken by remember { mutableStateOf<String?>(null) }
     var bankConnectionRefreshRequest by remember { mutableStateOf(0) }
+    var categoryUpdateError by remember { mutableStateOf<String?>(null) }
+    var updatingCategoryTransactionId by remember { mutableStateOf<String?>(null) }
 
     val transactionsPageSize = if (compact) 25 else 6
     val scope = rememberCoroutineScope()
+
+    fun updateTransactionCategoryLocally(transactionId: String, category: String) {
+        transactions = transactions.map {
+            if (it.id == transactionId) it.copy(category = category) else it
+        }
+
+        dashboardRecentTransactions = dashboardRecentTransactions.map {
+            if (it.id == transactionId) it.copy(category = category) else it
+        }
+    }
 
     // Fetch transactions by page
     suspend fun loadTransactionsPage(page: Int, append: Boolean) {
@@ -364,6 +377,30 @@ private fun NavigationContent(
                         )
                     }
                 },
+
+                isUpdatingCategory = updatingCategoryTransactionId != null,
+                categoryUpdateError = categoryUpdateError,
+                onDismissCategoryUpdateError = {
+                    categoryUpdateError = null
+                },
+                onUpdateCategory = { transactionId, category ->
+                    scope.launch {
+                        updatingCategoryTransactionId = transactionId
+                        categoryUpdateError = null
+
+                        when (val result = transactionsApi.updateTransactionCategory(authToken, transactionId, category)) {
+                            is UpdateTransactionCategoryResult.Success -> {
+                                updateTransactionCategoryLocally(transactionId, category)
+                            }
+
+                            is UpdateTransactionCategoryResult.Failure -> {
+                                categoryUpdateError = result.message
+                            }
+                        }
+
+                        updatingCategoryTransactionId = null
+                    }
+                }
             )
         }
 

@@ -90,6 +90,16 @@ data class PaginatedTransactionsResponse(
 )
 
 @Serializable
+data class UpdateTransactionCategoryRequest(
+    val category: String
+)
+@Serializable
+data class UpdateTransactionCategoryResponse(
+    val id: String,
+    val category: String
+)
+
+@Serializable
 data class BankProviderVariantResponse(
     val id: String,
     val label: String,
@@ -430,6 +440,10 @@ fun Route.bankingRoutes() {
             call.respond(BankConnectionStatusResponse(status))
         }
 
+        /* Bulk ML recategorization for existing imported transactions.
+         This should only update transactions whose category_source is auto.
+         Manually edited categories must be preserved.
+         */
         post("/api/banking/transactions/recategorize") {
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.userIdOrNull()
@@ -440,6 +454,38 @@ fun Route.bankingRoutes() {
 
             val updatedCount = recategorizeTransactionsForUser(userId)
             call.respond(mapOf("updatedCount" to updatedCount))
+        }
+
+        put("/api/banking/transactions/{id}/category") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@put call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val transactionId = call.parameters["id"]
+                ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid transaction id"))
+
+            val request = runCatching { call.receive<UpdateTransactionCategoryRequest>() }
+                .getOrElse {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request"))
+                    return@put
+                }
+
+            val category = request.category.trim()
+
+            if (category !in allowedTransactionCategories) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid category"))
+                return@put
+            }
+
+            val updated = updateTransactionCategoryForUser(userId, transactionId, category)
+
+            if (!updated) {
+                call.respond(HttpStatusCode.NotFound, ErrorResponse("Transaction not found"))
+                return@put
+            }
+
+            call.respond(UpdateTransactionCategoryResponse(transactionId.toString(), category))
         }
     }
 
@@ -1677,7 +1723,7 @@ private suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
             SELECT id, provider_transaction_id, transaction_timestamp, description,
                    amount, currency, transaction_type, merchant_name
             FROM transactions
-            WHERE user_id = ?
+            WHERE user_id = ? AND COALESCE(category_source, 'auto' <> '
             """.trimIndent()
         ).use { statement ->
             statement.setObject(1, userId)
@@ -1714,8 +1760,8 @@ private suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
                 val updated = connection.prepareStatement(
                     """
                     UPDATE transactions
-                    SET category = ?
-                    WHERE id = ?
+                    SET category = ?, category_source = 'auto'
+                    WHERE id = ? AND COALESCE(category_source, 'auto') <> 'manual'
                     """.trimIndent()
                 ).use { statement ->
                     statement.setString(1, category)
@@ -1760,6 +1806,46 @@ suspend fun inferTransactionCategory(transaction: TransactionResponse): String {
     }
 
     return CategoryServiceClient.classify(cleanDesc)
+}
+
+private val allowedTransactionCategories = setOf(
+    "Food & Dining",
+    "Shopping & Personal",
+    "Bills & Housing",
+    "Entertainment & Subscriptions",
+    "Transportation",
+    "Transfers",
+    "Income",
+    "Others"
+)
+
+private fun updateTransactionCategoryForUser(
+    userId: UUID,
+    transactionId: UUID,
+    category: String
+): Boolean {
+    return Database.dataSource.connection.use { connection ->
+        try {
+            val updated = connection.prepareStatement(
+                """
+                UPDATE transactions
+                SET category = ?, category_source = 'manual'
+                WHERE id = ? AND user_id = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, category)
+                statement.setObject(2, transactionId)
+                statement.setObject(3, userId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            updated > 0
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
 }
 
 /**
