@@ -30,7 +30,7 @@ fun main() {
 
 fun Application.module() {
     Database.connect()
-    Database.migrate()
+
 
     monitor.subscribe(ApplicationStopped) {
         Database.close()
@@ -61,6 +61,7 @@ fun Application.module() {
         allowMethod(HttpMethod.Options)
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Delete)
+        allowMethod(HttpMethod.Patch)
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
     }

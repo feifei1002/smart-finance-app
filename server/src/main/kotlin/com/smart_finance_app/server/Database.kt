@@ -35,29 +35,7 @@ object Database {
         }
     }
 
-    fun migrate() {
-        dataSource.connection.use { connection ->
-            try {
-                connection.createStatement().use { stmt ->
-                    // Add language column to users if it doesn't exist yet.
-                    // DEFAULT 'en' ensures all existing users get English automatically.
-                    stmt.execute(
-                        """
-                        ALTER TABLE users
-                        ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'en'
-                            CHECK (language IN ('en', 'es', 'fr', 'nl', 'de', 'it', 'pl', 'zh-TW'))
-                        """.trimIndent()
-                    )
-                }
-                connection.commit()
-                println("✅ Database migration complete")
-            } catch (e: Exception) {
-                connection.rollback()
-                println("❌ Database migration failed: ${e.message}")
-                throw e
-            }
-        }
-    }
+
 
     fun close() {
         if (::hikari.isInitialized) {

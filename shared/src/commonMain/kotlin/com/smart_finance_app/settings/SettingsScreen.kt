@@ -76,6 +76,10 @@ import smart_finance_app.shared.generated.resources.language
 import smart_finance_app.shared.generated.resources.light_mode
 import smart_finance_app.shared.generated.resources.logout
 import smart_finance_app.shared.generated.resources.person
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
 
 // ── Fix 1: removed duplicate enum entries from the merge conflict ─────────────
 private enum class SettingsPanel {
@@ -123,6 +127,8 @@ fun SettingsScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var languageSaveError by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val selectedLanguage = LocaleController.supportedLanguages
         .find { it.code == LocaleController.currentLanguageCode }
@@ -147,10 +153,16 @@ fun SettingsScreen(
             selectedCode = LocaleController.currentLanguageCode,
             onSelected = { language ->
                 LocaleController.setLanguage(language.code)
+                showLanguageDialog = false
+
                 scope.launch {
                     val result = userPreferencesApi.updateLanguage(authToken, language.code)
                     if (result is UpdateLanguageResult.Failure) {
-                        println("Failed to persist language preference: ${result.message}")
+                        // Roll back so next login doesn't restore stale language
+                        LocaleController.setLanguage(LocaleController.currentLanguageCode)
+                        snackbarHostState.showSnackbar(
+                            message = "Failed to save language preference. Please try again.",
+                            duration = SnackbarDuration.Short)
                     }
                 }
                 showLanguageDialog = false
@@ -224,7 +236,9 @@ fun SettingsScreen(
             billingAddressLoading = false
         }
     }
-
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { _ ->
     when (panel) {
         SettingsPanel.Main -> {
             SettingsMainContent(
@@ -318,7 +332,7 @@ fun SettingsScreen(
             )
         }
     }
-}
+}}
 
 @Composable
 private fun SettingsMainContent(
