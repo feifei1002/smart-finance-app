@@ -35,6 +35,10 @@ import io.ktor.client.HttpClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
+import com.smart_finance_app.settings.UserPreferencesApi
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.AppStrings
+import com.smart_finance_app.LocaleController
 
 @Composable
 fun MainNavigation(
@@ -45,6 +49,7 @@ fun MainNavigation(
     httpClient: HttpClient,
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
+    userPreferencesApi: UserPreferencesApi,
     onProfileUpdated: (String, String) -> Unit,
     onSignOut: () -> Unit
 ) {
@@ -53,6 +58,18 @@ fun MainNavigation(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
         val destinations = if (compact) mobileNavigations else AppNavigation.entries
+
+        // Resolve nav labels here — inside @Composable scope, outside the lambda
+        val lang = LocaleController.currentLanguageCode
+        val navLabels = mapOf(
+            AppNavigation.Dashboard    to AppStrings.get(lang, StringKey.NAV_DASHBOARD),
+            AppNavigation.Transactions to AppStrings.get(lang, StringKey.NAV_TRANSACTIONS),
+            AppNavigation.Accounts     to AppStrings.get(lang, StringKey.NAV_ACCOUNTS),
+            AppNavigation.Budgets      to AppStrings.get(lang, StringKey.NAV_BUDGETS),
+            AppNavigation.Reports      to AppStrings.get(lang, StringKey.NAV_REPORTS),
+            AppNavigation.Goals        to AppStrings.get(lang, StringKey.NAV_GOALS),
+            AppNavigation.Settings     to AppStrings.get(lang, StringKey.NAV_SETTINGS),
+        )
 
         LaunchedEffect(compact) {
             if (selected !in destinations) {
@@ -63,23 +80,18 @@ fun MainNavigation(
         NavigationSuiteScaffold(
             navigationSuiteItems = {
                 destinations.forEach { destination ->
+                    val navLabel = navLabels[destination] ?: destination.label
                     item(
                         selected = selected == destination,
                         onClick = { selected = destination },
                         icon = {
                             Icon(
                                 painter = painterResource(destination.icon),
-                                contentDescription = destination.label
+                                contentDescription = navLabel
                             )
                         },
                         label = {
-                            Text(
-                                if (compact && destination == AppNavigation.Dashboard) {
-                                    "Home"
-                                } else {
-                                    destination.label
-                                }
-                            )
+                            Text(navLabel)
                         }
                     )
                 }
@@ -90,19 +102,19 @@ fun MainNavigation(
                 apiBaseUrl               = apiBaseUrl,
                 authToken                = authToken,
                 userName                 = userName,
-                userEmail = userEmail,
-                httpClient = httpClient,
-                dashboardApi = dashboardApi,
-                budgetApi = budgetApi,
-                onProfileUpdated = onProfileUpdated,
-                compact = compact,
+                userEmail                = userEmail,
+                httpClient               = httpClient,
+                dashboardApi             = dashboardApi,
+                budgetApi                = budgetApi,
+                userPreferencesApi       = userPreferencesApi,
+                onProfileUpdated         = onProfileUpdated,
+                compact                  = compact,
                 onSignOut                = onSignOut,
                 onNavigateToAccounts     = { selected = AppNavigation.Accounts },
                 onNavigateToTransactions = { selected = AppNavigation.Transactions }
             )
         }
-    }
-}
+    }}
 
 @Composable
 private fun NavigationContent(
@@ -114,6 +126,7 @@ private fun NavigationContent(
     httpClient: HttpClient,
     dashboardApi: DashboardApi,
     budgetApi: BudgetApi,
+    userPreferencesApi: UserPreferencesApi,
     onProfileUpdated: (String, String) -> Unit,
     compact: Boolean,
     onSignOut: () -> Unit,
@@ -507,6 +520,7 @@ private fun NavigationContent(
                 userEmail = userEmail,
                 authToken = authToken,
                 subscriptionApi = subscriptionApi,
+                userPreferencesApi = userPreferencesApi,
                 profileApi = profileApi,
                 onProfileUpdated = onProfileUpdated,
                 onSignOut = onSignOut

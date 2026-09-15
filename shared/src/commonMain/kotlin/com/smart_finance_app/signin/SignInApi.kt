@@ -19,7 +19,8 @@ data class AuthSession(
     val userId: String,
     val name: String,
     val email: String,
-    val consentAccepted: Boolean
+    val consentAccepted: Boolean,
+    val language: String = "en"
 )
 
 @Serializable

@@ -40,6 +40,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppStrings
+import com.smart_finance_app.LocaleController
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
@@ -62,46 +66,44 @@ fun UpdatePasswordScreen(
 
     var showCurrentPassword by remember { mutableStateOf(false) }
     var showNewPassword by remember { mutableStateOf(false) }
-    var showConfirmPassword by remember{ mutableStateOf(false) }
+    var showConfirmPassword by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
     var isSaving by remember { mutableStateOf(false) }
     var validationError by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var successMessage by remember { mutableStateOf<String?>(null) }
+
+    // Resolve validation strings outside the non-composable submit() function
+    val lang = LocaleController.currentLanguageCode
+    val errorCurrentRequired = AppStrings.get(lang, StringKey.UPDATE_PASSWORD_ERROR_CURRENT_REQUIRED)
+    val errorLength          = AppStrings.get(lang, StringKey.UPDATE_PASSWORD_ERROR_LENGTH)
+    val errorMismatch        = AppStrings.get(lang, StringKey.UPDATE_PASSWORD_ERROR_MISMATCH)
 
     fun submit() {
         if (isSaving) return
-
         validationError = when {
-            currentPassword.isBlank() -> "Current password is required."
-            newPassword.length < 8 -> "New password must be at least 8 characters."
-            newPassword != confirmPassword -> "Passwords do not match."
+            currentPassword.isBlank() -> errorCurrentRequired
+            newPassword.length < 8   -> errorLength
+            newPassword != confirmPassword -> errorMismatch
             else -> null
         }
-
         if (validationError != null) return
 
         scope.launch {
             isSaving = true
             errorMessage = null
-            successMessage = null
-
             try {
-                when (
-                    val result = profileApi.changePassword(
-                        token = authToken,
-                        currentPassword = currentPassword,
-                        newPassword = newPassword
-                    )
-                ) {
+                when (val result = profileApi.changePassword(
+                    token = authToken,
+                    currentPassword = currentPassword,
+                    newPassword = newPassword
+                )) {
                     ChangePasswordResult.Success -> {
                         currentPassword = ""
                         newPassword = ""
                         confirmPassword = ""
                         showSuccessDialog = true
                     }
-
                     is ChangePasswordResult.Failure -> {
                         errorMessage = result.message
                     }
@@ -115,20 +117,14 @@ fun UpdatePasswordScreen(
     if (showSuccessDialog) {
         AlertDialog(
             onDismissRequest = {},
-            title = {
-                Text("Password updated")
-            },
-            text = {
-                Text("Password updated successfully. Please sign in again.")
-            },
+            title = { Text(appStringResource(StringKey.UPDATE_PASSWORD_SUCCESS_TITLE)) },
+            text = { Text(appStringResource(StringKey.UPDATE_PASSWORD_SUCCESS_BODY)) },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showSuccessDialog = false
-                        onPasswordUpdated()
-                    }
-                ) {
-                    Text("OK")
+                Button(onClick = {
+                    showSuccessDialog = false
+                    onPasswordUpdated()
+                }) {
+                    Text(appStringResource(StringKey.UPDATE_PASSWORD_OK))
                 }
             }
         )
@@ -160,7 +156,7 @@ fun UpdatePasswordScreen(
                         onClick = onBack,
                         modifier = Modifier.align(Alignment.Start)
                     ) {
-                        Text("Back")
+                        Text(appStringResource(StringKey.UPDATE_PASSWORD_BACK))
                     }
 
                     Surface(
@@ -182,18 +178,15 @@ fun UpdatePasswordScreen(
                     }
 
                     Text(
-                        text = "Update Password",
-                        style = if (compact) {
-                            MaterialTheme.typography.headlineSmall
-                        } else {
-                            MaterialTheme.typography.headlineMedium
-                        },
+                        text = appStringResource(StringKey.UPDATE_PASSWORD_TITLE),
+                        style = if (compact) MaterialTheme.typography.headlineSmall
+                        else MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
 
                     Text(
-                        text = "Update your current password here.",
+                        text = appStringResource(StringKey.UPDATE_PASSWORD_SUBTITLE),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -209,9 +202,8 @@ fun UpdatePasswordScreen(
                                 currentPassword = it
                                 validationError = null
                                 errorMessage = null
-                                successMessage = null
                             },
-                            label = "Current password",
+                            label = appStringResource(StringKey.UPDATE_PASSWORD_CURRENT),
                             visible = showCurrentPassword,
                             onVisibilityChange = { showCurrentPassword = !showCurrentPassword },
                             imeAction = ImeAction.Next
@@ -223,9 +215,8 @@ fun UpdatePasswordScreen(
                                 newPassword = it
                                 validationError = null
                                 errorMessage = null
-                                successMessage = null
                             },
-                            label = "New password",
+                            label = appStringResource(StringKey.UPDATE_PASSWORD_NEW),
                             visible = showNewPassword,
                             onVisibilityChange = { showNewPassword = !showNewPassword },
                             imeAction = ImeAction.Next
@@ -237,9 +228,8 @@ fun UpdatePasswordScreen(
                                 confirmPassword = it
                                 validationError = null
                                 errorMessage = null
-                                successMessage = null
                             },
-                            label = "Confirm new password",
+                            label = appStringResource(StringKey.UPDATE_PASSWORD_CONFIRM),
                             visible = showConfirmPassword,
                             onVisibilityChange = { showConfirmPassword = !showConfirmPassword },
                             imeAction = ImeAction.Done,
@@ -252,7 +242,7 @@ fun UpdatePasswordScreen(
                             text = it,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
-                            )
+                        )
                     }
 
                     errorMessage?.let {
@@ -261,12 +251,6 @@ fun UpdatePasswordScreen(
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall
                         )
-                    }
-
-                    successMessage?.let {
-                        Text(text = it,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodySmall)
                     }
 
                     Button(
@@ -286,7 +270,7 @@ fun UpdatePasswordScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text("Update password")
+                            Text(appStringResource(StringKey.UPDATE_PASSWORD_BUTTON))
                         }
                     }
 
@@ -297,7 +281,7 @@ fun UpdatePasswordScreen(
                             .height(52.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Cancel")
+                        Text(appStringResource(StringKey.UPDATE_PASSWORD_CANCEL))
                     }
                 }
             }
@@ -315,24 +299,25 @@ private fun PasswordField(
     imeAction: ImeAction,
     onDone: () -> Unit = {}
 ) {
+    val showLabel  = appStringResource(StringKey.REGISTER_SHOW_PASSWORD)
+    val hideLabel  = appStringResource(StringKey.REGISTER_HIDE_PASSWORD)
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
-        visualTransformation = if (visible) {
-            VisualTransformation.None
-        } else {
-            PasswordVisualTransformation()
-        },
+        visualTransformation = if (visible) VisualTransformation.None
+        else PasswordVisualTransformation(),
         trailingIcon = {
             IconButton(onClick = onVisibilityChange) {
                 Icon(
                     painter = painterResource(
-                        if (visible) Res.drawable.visibility_off else Res.drawable.visibility
+                        if (visible) Res.drawable.visibility_off
+                        else Res.drawable.visibility
                     ),
-                    contentDescription = if (visible) "Hide password" else "Show password"
+                    contentDescription = if (visible) hideLabel else showLabel
                 )
             }
         },
@@ -340,8 +325,6 @@ private fun PasswordField(
             keyboardType = KeyboardType.Password,
             imeAction = imeAction
         ),
-        keyboardActions = KeyboardActions(
-            onDone = { onDone() }
-        )
+        keyboardActions = KeyboardActions(onDone = { onDone() })
     )
 }

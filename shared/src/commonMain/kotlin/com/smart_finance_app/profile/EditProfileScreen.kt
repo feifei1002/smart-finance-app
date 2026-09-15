@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
@@ -70,45 +72,33 @@ fun EditProfileScreen(
     val emailChanged = email.trim().lowercase() != userEmail.trim().lowercase()
     val canSave = hasChanges && fullName.trim().isNotBlank() && emailIsValid && !isSaving
 
+    val successText = appStringResource(StringKey.EDIT_PROFILE_SUCCESS)
+
     fun saveProfile(currentPassword: String?, isEmailPasswordDialog: Boolean = false) {
         scope.launch {
             isSaving = true
             errorMessage = null
             successMessage = null
-
-            if (isEmailPasswordDialog) {
-                emailPasswordError = null
-            }
+            if (isEmailPasswordDialog) emailPasswordError = null
 
             try {
-                when (
-                    val result = profileApi.updateProfile(
-                        token = authToken,
-                        fullName = fullName.trim(),
-                        email = email.trim(),
-                        currentPassword = currentPassword
-                    )
-                ) {
+                when (val result = profileApi.updateProfile(
+                    token = authToken,
+                    fullName = fullName.trim(),
+                    email = email.trim(),
+                    currentPassword = currentPassword
+                )) {
                     is UpdateProfileResult.Success -> {
-                        onProfileUpdated(
-                            result.profile.fullName,
-                            result.profile.email
-                        )
-
+                        onProfileUpdated(result.profile.fullName, result.profile.email)
                         showEmailPasswordDialog = false
                         emailPassword = ""
                         emailPasswordError = null
-
-                        successMessage = "Profile updated successfully"
+                        successMessage = successText
                         onBack()
                     }
-
                     is UpdateProfileResult.Failure -> {
-                        if (isEmailPasswordDialog) {
-                            emailPasswordError = result.message
-                        } else {
-                            errorMessage = result.message
-                        }
+                        if (isEmailPasswordDialog) emailPasswordError = result.message
+                        else errorMessage = result.message
                     }
                 }
             } finally {
@@ -126,49 +116,32 @@ fun EditProfileScreen(
                     emailPasswordError = null
                 }
             },
-            title = {
-                Text("Confirm password")
-            },
+            title = { Text(appStringResource(StringKey.EDIT_PROFILE_CONFIRM_PASSWORD_TITLE)) },
             text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "To update your email, please enter your current password.",
+                        text = appStringResource(StringKey.EDIT_PROFILE_CONFIRM_PASSWORD_BODY),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
                     OutlinedTextField(
                         value = emailPassword,
-                        onValueChange = {
-                            emailPassword = it
-                            emailPasswordError = null
-                        },
-                        label = { Text("Current password") },
+                        onValueChange = { emailPassword = it; emailPasswordError = null },
+                        label = { Text(appStringResource(StringKey.EDIT_PROFILE_CURRENT_PASSWORD)) },
                         singleLine = true,
-                        visualTransformation = if (showEmailPassword) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
+                        visualTransformation = if (showEmailPassword) VisualTransformation.None
+                        else PasswordVisualTransformation(),
                         trailingIcon = {
-                            IconButton(
-                                onClick = { showEmailPassword = !showEmailPassword }
-                            ) {
+                            IconButton(onClick = { showEmailPassword = !showEmailPassword }) {
                                 Icon(
                                     painter = painterResource(
-                                        if (showEmailPassword) {
-                                            Res.drawable.visibility_off
-                                        } else {
-                                            Res.drawable.visibility
-                                        }
+                                        if (showEmailPassword) Res.drawable.visibility_off
+                                        else Res.drawable.visibility
                                     ),
-                                    contentDescription = if (showEmailPassword) {
-                                        "Hide password"
-                                    } else {
-                                        "Show password"
-                                    }
+                                    contentDescription = if (showEmailPassword)
+                                        appStringResource(StringKey.REGISTER_HIDE_PASSWORD)
+                                    else
+                                        appStringResource(StringKey.REGISTER_SHOW_PASSWORD)
                                 )
                             }
                         }
@@ -185,14 +158,9 @@ fun EditProfileScreen(
             confirmButton = {
                 Button(
                     enabled = emailPassword.isNotBlank() && !isSaving,
-                    onClick = {
-                        saveProfile(
-                            currentPassword = emailPassword,
-                            isEmailPasswordDialog = true
-                        )
-                    }
+                    onClick = { saveProfile(currentPassword = emailPassword, isEmailPasswordDialog = true) }
                 ) {
-                    Text("Confirm")
+                    Text(appStringResource(StringKey.EDIT_PROFILE_CONFIRM))
                 }
             },
             dismissButton = {
@@ -204,7 +172,7 @@ fun EditProfileScreen(
                         emailPasswordError = null
                     }
                 ) {
-                    Text("Cancel")
+                    Text(appStringResource(StringKey.EDIT_PROFILE_CANCEL))
                 }
             }
         )
@@ -231,23 +199,20 @@ fun EditProfileScreen(
                     horizontalArrangement = Arrangement.Start
                 ) {
                     TextButton(onClick = onBack) {
-                        Text("Back")
+                        Text(appStringResource(StringKey.EDIT_PROFILE_BACK))
                     }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Edit Profile",
-                        style = if (compact) {
-                            MaterialTheme.typography.headlineSmall
-                        } else {
-                            MaterialTheme.typography.headlineMedium
-                        },
+                        text = appStringResource(StringKey.EDIT_PROFILE_TITLE),
+                        style = if (compact) MaterialTheme.typography.headlineSmall
+                        else MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        text = "Edit your profile here.",
+                        text = appStringResource(StringKey.EDIT_PROFILE_SUBTITLE),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
@@ -258,7 +223,7 @@ fun EditProfileScreen(
                             errorMessage = null
                             successMessage = null
                         },
-                        label = { Text("Full name") },
+                        label = { Text(appStringResource(StringKey.EDIT_PROFILE_FULL_NAME)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -270,12 +235,12 @@ fun EditProfileScreen(
                             errorMessage = null
                             successMessage = null
                         },
-                        label = { Text("Email address") },
+                        label = { Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL)) },
                         singleLine = true,
                         isError = email.isNotBlank() && !emailIsValid,
                         supportingText = {
                             if (email.isNotBlank() && !emailIsValid) {
-                                Text("Please enter a valid email address")
+                                Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL_INVALID))
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -288,12 +253,11 @@ fun EditProfileScreen(
                     ) {
                         Icon(
                             painter = painterResource(Res.drawable.lock),
-                            contentDescription = "Update password",
+                            contentDescription = null,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(10.dp))
-
-                        Text("Update password")
+                        Text(appStringResource(StringKey.EDIT_PROFILE_UPDATE_PASSWORD))
                     }
 
                     errorMessage?.let {
@@ -309,28 +273,28 @@ fun EditProfileScreen(
                             text = it,
                             color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.bodySmall
-                            )
+                        )
                     }
 
                     Button(
                         enabled = canSave,
                         onClick = {
-                            if (emailChanged) {
-                                showEmailPasswordDialog = true
-                            } else {
-                                saveProfile(currentPassword = null)
-                            }
+                            if (emailChanged) showEmailPasswordDialog = true
+                            else saveProfile(currentPassword = null)
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (isSaving) "Saving..." else "Save changes")
+                        Text(
+                            if (isSaving) appStringResource(StringKey.EDIT_PROFILE_SAVING)
+                            else appStringResource(StringKey.EDIT_PROFILE_SAVE)
+                        )
                     }
 
                     OutlinedButton(
                         onClick = onBack,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Cancel")
+                        Text(appStringResource(StringKey.EDIT_PROFILE_CANCEL))
                     }
                 }
             }

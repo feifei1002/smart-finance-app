@@ -39,6 +39,13 @@ import io.ktor.http.encodedPath
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import com.smart_finance_app.LocaleController
+import com.smart_finance_app.settings.UserPreferencesApi
+
+
+val LocalAppLanguage = compositionLocalOf { "en" }
 
 // Tracks which screen is currently shown
 private enum class Screen {
@@ -58,6 +65,10 @@ fun App(
     isPasswordResetRoute: Boolean = false,
     passwordResetToken: String? = null
 ) {
+    val languageCode = LocaleController.currentLanguageCode
+    CompositionLocalProvider(
+        LocalAppLanguage provides languageCode
+    ) {
     MaterialTheme {
 
         val registrationApi = remember(apiBaseUrl, httpClient) { RegistrationApi(apiBaseUrl, httpClient) }
@@ -73,6 +84,8 @@ fun App(
         val consentApi = remember(apiBaseUrl, httpClient) { ConsentApi(apiBaseUrl, httpClient) }
 
         val budgetApi = remember(apiBaseUrl, httpClient) { BudgetApi(apiBaseUrl, httpClient) }
+
+        val userPreferencesApi = remember(apiBaseUrl, httpClient) { UserPreferencesApi(apiBaseUrl, httpClient) }
 
         DisposableEffect(httpClient) {
             onDispose {
@@ -197,6 +210,7 @@ fun App(
             val refreshedSession = refreshCurrentSession()
 
             if (refreshedSession != null) {
+                LocaleController.setLanguage(refreshedSession.language)
                 screen = if (refreshedSession.consentAccepted) {
                     Screen.Main
                 } else {
@@ -247,6 +261,7 @@ fun App(
                                     is RegistrationResult.Success -> {
                                         session = result.session
                                         tokenStorage.saveRefreshToken(result.session.refreshToken)
+                                        LocaleController.setLanguage("en")
                                         screen = Screen.Consent
                                     }
                                     is RegistrationResult.Failure -> registrationError = result.message
@@ -275,6 +290,7 @@ fun App(
                                     is SignInResult.Success -> {
                                         session = result.session
                                         tokenStorage.saveRefreshToken(result.session.refreshToken)
+                                        LocaleController.setLanguage(result.session.language)
 
                                         screen = if (result.session.consentAccepted) {
                                             Screen.Main
@@ -335,7 +351,7 @@ fun App(
                     }
                 )
             }
-            
+
             Screen.ResetPassword -> {
                 ResetPasswordScreen(
                     isLoading = resetPasswordLoading,
@@ -424,10 +440,11 @@ fun App(
                     httpClient = httpClient,
                     dashboardApi = dashboardApi,
                     budgetApi = budgetApi,
-                    onProfileUpdated = { fullName, email ->
+                    userPreferencesApi = userPreferencesApi,
+                    onProfileUpdated = { newName, newEmail ->
                         session = session?.copy(
-                            name = fullName,
-                            email = email
+                            name = newName,
+                            email = newEmail
                         )
                     },
                     onSignOut = {
@@ -440,6 +457,7 @@ fun App(
 
                             tokenStorage.clearRefreshToken()
                             session = null
+
                             screen = Screen.SignIn
                         }
                     }
@@ -447,7 +465,7 @@ fun App(
             }
         }
     }
-}
+}}
 
 @Preview
 @Composable

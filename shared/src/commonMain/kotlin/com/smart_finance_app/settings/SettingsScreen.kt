@@ -43,6 +43,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.Language
+import com.smart_finance_app.LocaleController
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 import com.smart_finance_app.payments.BillingAddressResponse
 import com.smart_finance_app.payments.BillingAddressResult
 import com.smart_finance_app.payments.BillingInvoiceResponse
@@ -52,6 +56,13 @@ import com.smart_finance_app.payments.CustomerPortalResult
 import com.smart_finance_app.payments.PaymentDetailsResponse
 import com.smart_finance_app.payments.PaymentDetailsResult
 import com.smart_finance_app.payments.PaymentScreen
+import com.smart_finance_app.payments.PlanScreen
+import com.smart_finance_app.payments.SubscriptionApi
+import com.smart_finance_app.payments.SubscriptionStatusResult
+import com.smart_finance_app.profile.EditProfileScreen
+import com.smart_finance_app.profile.ProfileApi
+import com.smart_finance_app.profile.UpdatePasswordScreen
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
@@ -65,14 +76,13 @@ import smart_finance_app.shared.generated.resources.language
 import smart_finance_app.shared.generated.resources.light_mode
 import smart_finance_app.shared.generated.resources.logout
 import smart_finance_app.shared.generated.resources.person
-import com.smart_finance_app.payments.PlanScreen
-import com.smart_finance_app.payments.SubscriptionApi
-import com.smart_finance_app.payments.SubscriptionStatusResult
-import com.smart_finance_app.profile.EditProfileScreen
-import com.smart_finance_app.profile.ProfileApi
-import com.smart_finance_app.profile.UpdatePasswordScreen
-import kotlinx.coroutines.launch
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import com.smart_finance_app.AppStrings
 
+// ── Fix 1: removed duplicate enum entries from the merge conflict ─────────────
 private enum class SettingsPanel {
     Main,
     EditProfile,
@@ -87,6 +97,7 @@ fun SettingsScreen(
     userEmail: String,
     authToken: String,
     subscriptionApi: SubscriptionApi,
+    userPreferencesApi: UserPreferencesApi,
     profileApi: ProfileApi,
     onProfileUpdated: (String, String) -> Unit,
     onSignOut: () -> Unit
@@ -112,38 +123,50 @@ fun SettingsScreen(
 
     var openingPaymentPortal by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(SettingsPanel.Main) }
-    var selectedLanguage by remember { mutableStateOf("English") }
     var selectedCurrency by remember { mutableStateOf("GBP") }
     var selectedAppearance by remember { mutableStateOf("Light") }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var languageSaveError by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val selectedLanguage = LocaleController.supportedLanguages
+        .find { it.code == LocaleController.currentLanguageCode }
+        ?.displayName ?: "English"
 
     LaunchedEffect(authToken, panel) {
         if (authToken.isNotBlank() && panel == SettingsPanel.SubscriptionPlan) {
             subscriptionLoading = true
             subscriptionError = null
-
             when (val result = subscriptionApi.getStatus(authToken)) {
-                is SubscriptionStatusResult.Success -> {
-                    subscriptionStatus = result.status
-                }
-
-                is SubscriptionStatusResult.Failure -> {
-                    subscriptionError = result.message
-                }
+                is SubscriptionStatusResult.Success -> subscriptionStatus = result.status
+                is SubscriptionStatusResult.Failure -> subscriptionError = result.message
             }
             subscriptionLoading = false
         }
     }
 
     if (showLanguageDialog) {
-        SettingOptionDialog(
-            title = "Language",
-            options = listOf("English", "Mandarin"),
-            selectedOption = selectedLanguage,
-            onSelected = {
-                selectedLanguage = it
+        LanguageDialog(
+            title = appStringResource(StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE),
+            languages = LocaleController.supportedLanguages,
+            selectedCode = LocaleController.currentLanguageCode,
+            onSelected = { language ->
+                showLanguageDialog = false
+                val errorMsg = AppStrings.get(LocaleController.currentLanguageCode, StringKey.SETTINGS_LANGUAGE_SAVE_FAILED)
+
+                scope.launch {
+                    val result = userPreferencesApi.updateLanguage(authToken, language.code)
+                    if (result is UpdateLanguageResult.Success) {
+                        LocaleController.setLanguage(language.code)
+                    } else {
+                        snackbarHostState.showSnackbar(
+                            message = errorMsg,
+                            duration = SnackbarDuration.Short
+                        )
+                    }
+                }
                 showLanguageDialog = false
             },
             onDismiss = { showLanguageDialog = false }
@@ -152,7 +175,7 @@ fun SettingsScreen(
 
     if (showCurrencyDialog) {
         SettingOptionDialog(
-            title = "Preferred currency",
+            title = appStringResource(StringKey.SETTINGS_CURRENCY_DIALOG_TITLE),
             options = listOf("GBP", "USD", "EUR", "CAD", "TWD"),
             selectedOption = selectedCurrency,
             onSelected = {
@@ -166,16 +189,16 @@ fun SettingsScreen(
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
-            title = { Text("Sign out") },
-            text = { Text(text = "Do you want to sign out?") },
+            title = { Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_TITLE)) },
+            text = { Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_MESSAGE)) },
             confirmButton = {
                 Button(onClick = onSignOut) {
-                    Text("Sign out")
+                    Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_BUTTON))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text("Cancel")
+                    Text(appStringResource(StringKey.SETTINGS_CANCEL))
                 }
             }
         )
@@ -185,18 +208,13 @@ fun SettingsScreen(
         if (authToken.isNotBlank() && panel == SettingsPanel.Payments) {
             paymentsLoading = true
             paymentsError = null
-
             when (val result = subscriptionApi.getPaymentDetails(authToken)) {
                 is PaymentDetailsResult.Success -> {
                     paymentDetails = result.details
                     subscriptionStatus = result.details.subscriptionStatus
                 }
-
-                is PaymentDetailsResult.Failure -> {
-                    paymentsError = result.message
-                }
+                is PaymentDetailsResult.Failure -> paymentsError = result.message
             }
-
             paymentsLoading = false
         }
     }
@@ -205,26 +223,24 @@ fun SettingsScreen(
         if (authToken.isNotBlank() && panel == SettingsPanel.Payments) {
             invoicesLoading = true
             invoicesError = null
-
             when (val result = subscriptionApi.getInvoices(authToken)) {
                 is BillingInvoicesResult.Success -> invoices = result.invoices
                 is BillingInvoicesResult.Failure -> invoicesError = result.message
             }
-
             invoicesLoading = false
 
             billingAddressLoading = true
             billingAddressError = null
-
             when (val result = subscriptionApi.getBillingAddress(authToken)) {
                 is BillingAddressResult.Success -> billingAddress = result.address
                 is BillingAddressResult.Failure -> billingAddressError = result.message
             }
-
             billingAddressLoading = false
         }
     }
-
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { _ ->
     when (panel) {
         SettingsPanel.Main -> {
             SettingsMainContent(
@@ -250,13 +266,12 @@ fun SettingsScreen(
                 authToken = authToken,
                 profileApi = profileApi,
                 onProfileUpdated = onProfileUpdated,
-                onUpdatePassword = {
-                    panel = SettingsPanel.UpdatePassword
-                },
+                onUpdatePassword = { panel = SettingsPanel.UpdatePassword },
                 onBack = { panel = SettingsPanel.Main }
             )
         }
 
+        // ── Fix 2: UpdatePassword was missing from the when block ─────────────
         SettingsPanel.UpdatePassword -> {
             UpdatePasswordScreen(
                 authToken = authToken,
@@ -284,23 +299,14 @@ fun SettingsScreen(
                     scope.launch {
                         openingPaymentPortal = true
                         paymentsError = null
-
                         when (val result = subscriptionApi.createCustomerPortalSession(authToken)) {
-                            is CustomerPortalResult.Success -> {
-                                uriHandler.openUri(result.portalUrl)
-                            }
-
-                            is CustomerPortalResult.Failure -> {
-                                paymentsError = result.message
-                            }
+                            is CustomerPortalResult.Success -> uriHandler.openUri(result.portalUrl)
+                            is CustomerPortalResult.Failure -> paymentsError = result.message
                         }
-
                         openingPaymentPortal = false
                     }
                 },
-                onViewPlans = {
-                    panel = SettingsPanel.SubscriptionPlan
-                },
+                onViewPlans = { panel = SettingsPanel.SubscriptionPlan },
                 onBack = { panel = SettingsPanel.Main }
             )
         }
@@ -314,12 +320,10 @@ fun SettingsScreen(
                     scope.launch {
                         subscriptionLoading = true
                         subscriptionError = null
-
                         when (val result = subscriptionApi.createCheckoutSession(authToken)) {
                             is CheckoutResult.Success -> uriHandler.openUri(result.checkoutUrl)
                             is CheckoutResult.Failure -> subscriptionError = result.message
                         }
-
                         subscriptionLoading = false
                     }
                 },
@@ -330,7 +334,7 @@ fun SettingsScreen(
             )
         }
     }
-}
+}}
 
 @Composable
 private fun SettingsMainContent(
@@ -367,7 +371,7 @@ private fun SettingsMainContent(
 
                 if (compact) {
                     Text(
-                        text = "Settings",
+                        text = appStringResource(StringKey.SETTINGS_TITLE),
                         modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
@@ -375,7 +379,7 @@ private fun SettingsMainContent(
                 } else {
                     Column {
                         Text(
-                            text = "Settings",
+                            text = appStringResource(StringKey.SETTINGS_TITLE),
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -392,7 +396,7 @@ private fun SettingsMainContent(
                             ProfileHeader(userName, userEmail)
                             SettingsActionRow(
                                 icon = Res.drawable.person,
-                                title = "Update profile",
+                                title = appStringResource(StringKey.SETTINGS_PROFILE),
                                 value = null,
                                 onClick = onUpdateProfile
                             )
@@ -404,7 +408,6 @@ private fun SettingsMainContent(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             ProfileHeader(userName, userEmail)
-
                             OutlinedButton(
                                 onClick = onUpdateProfile,
                                 shape = RoundedCornerShape(8.dp)
@@ -415,7 +418,7 @@ private fun SettingsMainContent(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("Update profile")
+                                Text(appStringResource(StringKey.SETTINGS_PROFILE))
                             }
                         }
                     }
@@ -425,7 +428,7 @@ private fun SettingsMainContent(
                     SettingsGroup {
                         SettingsActionRow(
                             icon = Res.drawable.credit_card,
-                            title = "Payments & Billing",
+                            title = appStringResource(StringKey.PAYMENT_TITLE),
                             value = null,
                             onClick = onSubscriptionPaymentsClick
                         )
@@ -434,7 +437,7 @@ private fun SettingsMainContent(
 
                         SettingsActionRow(
                             icon = Res.drawable.language,
-                            title = "Language",
+                            title = appStringResource(StringKey.SETTINGS_LANGUAGE),
                             value = selectedLanguage,
                             onClick = onLanguageClick
                         )
@@ -443,7 +446,7 @@ private fun SettingsMainContent(
 
                         SettingsActionRow(
                             icon = Res.drawable.currency,
-                            title = "Preferred currency",
+                            title = appStringResource(StringKey.SETTINGS_CURRENCY),
                             value = selectedCurrency,
                             onClick = onCurrencyClick
                         )
@@ -465,13 +468,11 @@ private fun SettingsMainContent(
                     ) {
                         Icon(
                             painter = painterResource(Res.drawable.crown),
-                            contentDescription = "Subscription",
+                            contentDescription = null,
                             modifier = Modifier.size(20.dp)
                         )
-
                         Spacer(Modifier.width(10.dp))
-
-                        Text("Manage subscription")
+                        Text(appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION))
                     }
 
                     Spacer(Modifier.height(16.dp))
@@ -479,18 +480,17 @@ private fun SettingsMainContent(
                     OutlinedButton(
                         onClick = onSignOutClick,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(
                             painter = painterResource(Res.drawable.logout),
-                            contentDescription = "Sign out",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(10.dp))
-
                         Text(
-                            text = "Sign out",
+                            text = appStringResource(StringKey.SETTINGS_SIGN_OUT),
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -521,7 +521,6 @@ private fun ProfileHeader(userName: String, userEmail: String) {
                 )
             }
         }
-
         Column {
             Text(
                 text = userName,
@@ -547,10 +546,7 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
         shadowElevation = 2.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            content = content
-        )
+        Column(modifier = Modifier.padding(20.dp), content = content)
     }
 }
 
@@ -586,14 +582,12 @@ private fun SettingsActionRow(
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp)
         )
-
         Text(
             text = title,
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold
         )
-
         value?.let {
             Text(
                 text = it,
@@ -602,7 +596,6 @@ private fun SettingsActionRow(
                 maxLines = 1
             )
         }
-
         Icon(
             painter = painterResource(Res.drawable.chevron_right),
             contentDescription = null,
@@ -629,15 +622,13 @@ private fun AppearanceRow(
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp)
         )
-
         Text(
-            text = "Appearance",
+            text = appStringResource(StringKey.SETTINGS_APPEARANCE),
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1
         )
-
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             AppearanceIconButton(
                 icon = Res.drawable.light_mode,
@@ -645,7 +636,6 @@ private fun AppearanceRow(
                 contentDescription = "Light mode",
                 onClick = { onAppearanceSelected("Light") }
             )
-
             AppearanceIconButton(
                 icon = Res.drawable.dark_mode,
                 selected = selectedAppearance == "Dark",
@@ -653,7 +643,6 @@ private fun AppearanceRow(
                 onClick = { onAppearanceSelected("Dark") }
             )
         }
-
         Icon(
             painter = painterResource(Res.drawable.chevron_right),
             contentDescription = null,
@@ -674,24 +663,15 @@ private fun AppearanceIconButton(
         modifier = Modifier.size(width = 36.dp, height = 30.dp),
         shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            },
-            contentColor = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            }
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = if (selected) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.outlineVariant
-            }
+            color = if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant
         ),
         contentPadding = PaddingValues(0.dp)
     ) {
@@ -706,11 +686,47 @@ private fun AppearanceIconButton(
 @Composable
 private fun SettingsDivider() {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(1.dp),
+        modifier = Modifier.fillMaxWidth().height(1.dp),
         color = MaterialTheme.colorScheme.outlineVariant
     ) {}
+}
+
+@Composable
+private fun LanguageDialog(
+    title: String,
+    languages: List<Language>,
+    selectedCode: String,
+    onSelected: (Language) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                languages.forEach { lang ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelected(lang) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = lang.code == selectedCode,
+                            onClick = { onSelected(lang) }
+                        )
+                        Text(lang.displayName)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(appStringResource(StringKey.SETTINGS_CANCEL))
+            }
+        }
+    )
 }
 
 @Composable
@@ -745,7 +761,7 @@ private fun SettingOptionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close")
+                Text(appStringResource(StringKey.SETTINGS_CANCEL))
             }
         }
     )

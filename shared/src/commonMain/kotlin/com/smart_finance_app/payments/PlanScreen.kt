@@ -13,9 +13,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.star
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 @Composable
 fun PlanScreen(
@@ -27,8 +30,37 @@ fun PlanScreen(
 ) {
     val isPaidPlan = subscriptionStatus.equals("pro", ignoreCase = true) ||
             subscriptionStatus.equals("basic", ignoreCase = true)
-
     val isFreePlan = !isPaidPlan
+
+    // Resolve all strings at the top so they're ready for PlanCard params
+    val freeTitleStr       = appStringResource(StringKey.PLAN_FREE_TITLE)
+    val freePriceStr       = appStringResource(StringKey.PLAN_FREE_PRICE)
+    val freeDetailTopStr   = appStringResource(StringKey.PLAN_FREE_PRICE_DETAIL_TOP)
+    val freeDetailBotStr   = appStringResource(StringKey.PLAN_FREE_PRICE_DETAIL_BOTTOM)
+    val freeButtonStr      = if (isFreePlan) appStringResource(StringKey.PLAN_FREE_BUTTON_CURRENT)
+    else appStringResource(StringKey.PLAN_FREE_BUTTON)
+    val basicTitleStr      = appStringResource(StringKey.PLAN_BASIC_TITLE)
+    val basicSubtitleStr   = appStringResource(StringKey.PLAN_BASIC_SUBTITLE)
+    val basicPriceStr      = appStringResource(StringKey.PLAN_BASIC_PRICE)
+    val basicDetailTopStr  = appStringResource(StringKey.PLAN_BASIC_PRICE_DETAIL_TOP)
+    val basicDetailBotStr  = appStringResource(StringKey.PLAN_BASIC_PRICE_DETAIL_BOTTOM)
+    val basicButtonStr     = if (isPaidPlan) appStringResource(StringKey.PLAN_BASIC_BUTTON_CURRENT)
+    else appStringResource(StringKey.PLAN_BASIC_BUTTON)
+
+    // Feature lists — these are marketing copy specific to the Free/Basic plans.
+    // They are intentionally kept as plain strings here since they describe fixed
+    // product tiers and are not user-interface navigation labels.
+    // You can move them to strings.xml in a future iteration if needed.
+    val freeFeatures = listOf(
+        "Up to two linked accounts",
+        "Access to full visualisation charts in the Home Page",
+        "Access to most of the UK and EU banks"
+    )
+    val basicFeatures = listOf(
+        "Unlimited linked accounts",
+        "Access to full visualisation charts in the Home Page",
+        "Access to most of the UK and EU banks"
+    )
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -46,57 +78,48 @@ fun PlanScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                // Back Button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Start
                 ) {
                     TextButton(onClick = onBack) {
-                        Text("Back")
+                        Text(appStringResource(StringKey.PLAN_BACK))
                     }
                 }
 
                 Text(
-                    text = "Choose your plan",
+                    text = appStringResource(StringKey.PLAN_TITLE),
                     modifier = Modifier.fillMaxWidth(),
-                    style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium,
+                    style = if (compact) MaterialTheme.typography.headlineSmall
+                    else MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
 
                 PlanCard(
-                    title = "Free",
-                    subtitle = "",
-                    price = "£0",
-                    priceDetailTop = "GBP / forever",
-                    priceDetailBottom = "no hidden fees",
-                    buttonText = if (isFreePlan) "Current Plan" else "Free Plan",
-                    enabled = false,
-                    starCount = 1,
-                    features = listOf(
-                        "Up to two linked accounts",
-                        "Access to full visualisation charts in the Home Page",
-                        "Access to most of the UK and EU banks"
-                    )
+                    title          = freeTitleStr,
+                    subtitle       = "",
+                    price          = freePriceStr,
+                    priceDetailTop = freeDetailTopStr,
+                    priceDetailBottom = freeDetailBotStr,
+                    buttonText     = freeButtonStr,
+                    enabled        = false,
+                    starCount      = 1,
+                    features       = freeFeatures
                 )
 
                 PlanCard(
-                    title = "Basic",
-                    subtitle = "Unlock full financial insights",
-                    price = "£5",
-                    priceDetailTop = "GBP / month",
-                    priceDetailBottom = "billed monthly",
-                    buttonText = if (isPaidPlan) "Current Plan" else "Subscribe to Basic",
-                    enabled = !isPaidPlan && !isLoading,
-                    onClick = onSubscribeToBasic,
-                    starCount = 2,
-                    features = listOf(
-                        "Unlimited linked accounts",
-                        "Access to full visualisation charts in the Home Page",
-                        "Access to most of the UK and EU banks"
-                    )
+                    title          = basicTitleStr,
+                    subtitle       = basicSubtitleStr,
+                    price          = basicPriceStr,
+                    priceDetailTop = basicDetailTopStr,
+                    priceDetailBottom = basicDetailBotStr,
+                    buttonText     = basicButtonStr,
+                    enabled        = !isPaidPlan && !isLoading,
+                    onClick        = onSubscribeToBasic,
+                    starCount      = 2,
+                    features       = basicFeatures
                 )
 
-                // Extra padding at bottom for smooth scrolling
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
@@ -124,17 +147,11 @@ fun PlanCard(
         shadowElevation = 2.dp,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            // Top Section
+        Column(modifier = Modifier.fillMaxWidth()) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Renders the specified number of stars side by side
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -142,7 +159,7 @@ fun PlanCard(
                     repeat(starCount) {
                         Icon(
                             painter = painterResource(Res.drawable.star),
-                            contentDescription = "Plan Icon",
+                            contentDescription = null,
                             modifier = Modifier.size(36.dp),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
@@ -165,7 +182,6 @@ fun PlanCard(
                     }
                 }
 
-                // Price and details Row
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -176,7 +192,6 @@ fun PlanCard(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-
                     if (priceDetailTop != null || priceDetailBottom != null) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             if (priceDetailTop != null) {
@@ -202,20 +217,14 @@ fun PlanCard(
                 OutlinedButton(
                     enabled = enabled,
                     onClick = onClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.onSurface
                     )
                 ) {
-                    Text(
-                        text = buttonText,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp
-                    )
+                    Text(text = buttonText, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 }
             }
 
@@ -224,16 +233,11 @@ fun PlanCard(
                 thickness = 1.dp
             )
 
-            // Bottom Section (Features List)
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                features.forEach { feature ->
-                    FeatureRow(text = feature)
-                }
+                features.forEach { feature -> FeatureRow(text = feature) }
             }
         }
     }
@@ -248,11 +252,9 @@ fun FeatureRow(text: String) {
     ) {
         Icon(
             painter = painterResource(Res.drawable.check),
-            contentDescription = "Included feature",
+            contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            modifier = Modifier
-                .size(20.dp)
-                .padding(top = 2.dp)
+            modifier = Modifier.size(20.dp).padding(top = 2.dp)
         )
         Text(
             text = text,

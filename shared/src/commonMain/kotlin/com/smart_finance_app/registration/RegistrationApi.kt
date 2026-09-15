@@ -24,7 +24,8 @@ data class RegisterResponse(
     val userId: String,
     val name: String,
     val email: String,
-    val consentAccepted: Boolean
+    val consentAccepted: Boolean,
+    val language: String = "en"
 )
 
 @Serializable
@@ -57,7 +58,8 @@ class RegistrationApi(private val baseUrl: String, private val client: HttpClien
                             userId = body.userId,
                             name = body.name,
                             email = body.email,
-                            consentAccepted = body.consentAccepted
+                            consentAccepted = body.consentAccepted,
+                            language = body.language
                         )
                     )
                 }

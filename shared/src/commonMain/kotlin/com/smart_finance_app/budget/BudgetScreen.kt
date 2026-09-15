@@ -27,27 +27,29 @@ import kotlin.time.Clock
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.minus
 import kotlinx.datetime.number
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.close
 import smart_finance_app.shared.generated.resources.delete
 import smart_finance_app.shared.generated.resources.edit
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
 val budgetCategories = TransactionCategories.all.filter { it != TransactionCategories.INCOME }
 
 private val categoryColors = mapOf(
-    TransactionCategories.FOOD_DINING to Color(0xFF22C55E), // Food & Dining - green
-    TransactionCategories.SHOPPING_PERSONAL to Color(0xFFEC4899), // Shopping & Personal - pink
-    TransactionCategories.BILLS_HOUSING to Color(0xFF2563EB), // Bills & Housing - strong blue
-    TransactionCategories.ENTERTAINMENT_SUBSCRIPTIONS to Color(0xFFF97316), // Entertainment & Subscriptions - orange
-    TransactionCategories.TRANSPORTATION to Color(0xFF06B6D4), // Transportation - cyan
-    TransactionCategories.TRANSFERS to Color(0xFF8B5CF6), // Transfers - violet
-    TransactionCategories.OTHERS to Color(0xFFEF4444) // Others - red
+    TransactionCategories.FOOD_DINING to Color(0xFF22C55E),
+    TransactionCategories.SHOPPING_PERSONAL to Color(0xFFEC4899),
+    TransactionCategories.BILLS_HOUSING to Color(0xFF2563EB),
+    TransactionCategories.ENTERTAINMENT_SUBSCRIPTIONS to Color(0xFFF97316),
+    TransactionCategories.TRANSPORTATION to Color(0xFF06B6D4),
+    TransactionCategories.TRANSFERS to Color(0xFF8B5CF6),
+    TransactionCategories.OTHERS to Color(0xFFEF4444)
 )
 
-// Helper formatting function to avoid floating point layout bugs
 private fun Double.formatCurrency(): String {
     val totalCents = kotlin.math.round(this * 100).toLong()
     val whole = totalCents / 100
@@ -67,15 +69,12 @@ fun computeBudgetsWithSpending(
     budgets: List<BudgetData>,
     transactions: List<TransactionData>
 ): List<BudgetWithSpending> {
-    // 1. Force UTC or standard date parsing so Web and Mobile behave identically
     val now = Clock.System.now()
         .toLocalDateTime(kotlinx.datetime.TimeZone.UTC)
 
     return budgets.map { budget ->
         val relevant = transactions.filter { tx ->
-            // Only count money going out. Income/credits should not count as budget spending.
             if (tx.amount >= 0) return@filter false
-            // 2. Safely extract date parts regardless of ISO string lengths (e.g. "2026-07-28...")
             val dateOnly = tx.timestamp.split("T").firstOrNull() ?: tx.timestamp
             val parts = dateOnly.split("-")
             if (parts.size < 3) return@filter false
@@ -84,7 +83,6 @@ fun computeBudgetsWithSpending(
             val txMonth = parts[1].toIntOrNull() ?: return@filter false
             val txDay   = parts[2].take(2).toIntOrNull() ?: return@filter false
 
-            // 3. Case-insensitive period checking ("monthly", "Monthly", "MONTHLY")
             val periodNormalized = budget.period.trim().lowercase()
 
             val inPeriod = when (periodNormalized) {
@@ -97,12 +95,10 @@ fun computeBudgetsWithSpending(
                     val txDate = kotlinx.datetime.LocalDate(txYear, txMonth, txDay)
                     txDate >= weekStart && txDate <= now.date
                 }
-                // Fallback: If unknown period string, don't discard
                 else -> true
             }
 
             if (!inPeriod) return@filter false
-
             TransactionCategories.normalize(tx.category) == budget.category
         }
 
@@ -157,14 +153,13 @@ fun BudgetScreen(
     ) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Budgets",
+                text = appStringResource(StringKey.BUDGETS_TITLE),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -183,11 +178,13 @@ fun BudgetScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            errorMsg ?: "An error occurred",
+                            errorMsg ?: "",
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center
                         )
-                        Button(onClick = { scope.launch { loadBudgets() } }) { Text("Retry") }
+                        Button(onClick = { scope.launch { loadBudgets() } }) {
+                            Text(appStringResource(StringKey.COMMON_RETRY))
+                        }
                     }
                 }
             }
@@ -231,7 +228,10 @@ fun BudgetScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("+ Add Budget", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                appStringResource(StringKey.BUDGETS_ADD),
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
@@ -240,7 +240,6 @@ fun BudgetScreen(
         }
     }
 
-    // Add / Edit dialog
     if (showDialog) {
         val usedCategories = remember(budgets, editBudget) {
             budgets.filter { editBudget == null || it.id != editBudget?.id }.map { it.category }
@@ -271,9 +270,7 @@ fun BudgetScreen(
                             dialogError = null
                             loadBudgets()
                         }
-                        is BudgetResult.Failure -> {
-                            dialogError = result.message
-                        }
+                        is BudgetResult.Failure -> dialogError = result.message
                     }
                 }
             }
@@ -294,12 +291,6 @@ private fun EmptyBudgetCard(onAddClick: () -> Unit) {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                "Budget Progress",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -331,10 +322,16 @@ private fun EmptyBudgetCard(onAddClick: () -> Unit) {
                         )
                     }
                     Text(
-                        "Add a budget",
+                        text = appStringResource(StringKey.BUDGETS_EMPTY_TITLE),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = appStringResource(StringKey.BUDGETS_EMPTY_SUBTITLE),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -360,6 +357,12 @@ fun BudgetCard(
         else         -> item.color
     }
     val remaining = item.budget.amount - item.spent
+
+    // Read strings outside the string interpolations below
+    val spentLabel     = appStringResource(StringKey.BUDGETS_SPENT)
+    val ofLabel        = appStringResource(StringKey.BUDGETS_OF)
+    val remainingLabel = appStringResource(StringKey.BUDGETS_REMAINING)
+    val overByLabel    = appStringResource(StringKey.BUDGETS_OVER_BY)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -402,7 +405,7 @@ fun BudgetCard(
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
                         Text(
-                            "Edit",
+                            appStringResource(StringKey.BUDGETS_DIALOG_SAVE),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -425,13 +428,14 @@ fun BudgetCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "$symbol${item.spent.formatCurrency()} spent",
+                    text = "$symbol${item.spent.formatCurrency()} $spentLabel",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isOverBudget) Color(0xFFDC2626) else MaterialTheme.colorScheme.onSurface,
+                    color = if (isOverBudget) Color(0xFFDC2626)
+                    else MaterialTheme.colorScheme.onSurface,
                     fontWeight = if (isOverBudget) FontWeight.Bold else FontWeight.Normal
                 )
                 Text(
-                    text = "of $symbol${item.budget.amount.formatCurrency()}",
+                    text = "$ofLabel $symbol${item.budget.amount.formatCurrency()}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -446,21 +450,24 @@ fun BudgetCard(
 
             if (isOverBudget) {
                 Text(
-                    text = "Over budget by $symbol${(item.spent - item.budget.amount).formatCurrency()}",
+                    text = "$overByLabel $symbol${(item.spent - item.budget.amount).formatCurrency()}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFDC2626),
                     fontWeight = FontWeight.Medium
                 )
             } else {
                 Text(
-                    text = "$symbol${remaining.formatCurrency()} remaining",
+                    text = "$symbol${remaining.formatCurrency()} $remainingLabel",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isWarning) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isWarning) Color(0xFFF59E0B)
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
 }
+
+// ── Compact budget progress row (used in dashboard) ───────────────────────────
 
 @Composable
 fun CompactBudgetProgressRow(
@@ -482,12 +489,7 @@ fun CompactBudgetProgressRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Box(
-                    Modifier
-                        .size(8.dp)
-                        .background(item.color, CircleShape)
-                )
-
+                Box(Modifier.size(8.dp).background(item.color, CircleShape))
                 Text(
                     text = item.budget.category,
                     style = MaterialTheme.typography.bodySmall,
@@ -502,31 +504,22 @@ fun CompactBudgetProgressRow(
                 Text(
                     text = "$symbol${item.spent.formatCurrency()} / $symbol${item.budget.amount.formatCurrency()}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isOver) {
-                        Color(0xFFDC2626)
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
+                    color = if (isOver) Color(0xFFDC2626)
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                IconButton(
-                    onClick = onEdit,
-                    modifier = Modifier.size(24.dp)
-                ) {
+                IconButton(onClick = onEdit, modifier = Modifier.size(24.dp)) {
                     Icon(
                         imageVector = vectorResource(Res.drawable.edit),
-                        contentDescription = "Edit",
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
 
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(24.dp)
-                ) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                     Icon(
                         imageVector = vectorResource(Res.drawable.delete),
-                        contentDescription = "Delete",
+                        contentDescription = null,
                         tint = Color(0xFFDC2626)
                     )
                 }
@@ -535,9 +528,7 @@ fun CompactBudgetProgressRow(
 
         LinearProgressIndicator(
             progress = { progress },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp),
+            modifier = Modifier.fillMaxWidth().height(6.dp),
             color = if (isOver) Color(0xFFDC2626) else item.color,
             trackColor = item.color.copy(alpha = 0.2f)
         )
@@ -545,6 +536,7 @@ fun CompactBudgetProgressRow(
 }
 
 // ── Add / Edit budget dialog ──────────────────────────────────────────────────
+
 @Composable
 fun AddBudgetDialog(
     existing: BudgetData?,
@@ -556,9 +548,9 @@ fun AddBudgetDialog(
 ) {
     val isEdit = existing != null
 
-    // Pick first unused category if creating a new budget
     val defaultCategory = remember(usedCategories, existing) {
-        existing?.category ?: (budgetCategories.firstOrNull { it !in usedCategories } ?: budgetCategories.first())
+        existing?.category
+            ?: (budgetCategories.firstOrNull { it !in usedCategories } ?: budgetCategories.first())
     }
 
     var selectedCategory by remember { mutableStateOf(defaultCategory) }
@@ -566,6 +558,11 @@ fun AddBudgetDialog(
     var selectedPeriod by remember { mutableStateOf(existing?.period ?: "monthly") }
     var categoryExpanded by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf<String?>(null) }
+
+    val amountErrorMsg   = appStringResource(StringKey.BUDGETS_DIALOG_AMOUNT_ERROR)
+    val categorySetLabel = appStringResource(StringKey.BUDGETS_DIALOG_CATEGORY_SET)
+    val monthlyLabel     = appStringResource(StringKey.BUDGETS_DIALOG_PERIOD_MONTHLY)
+    val weeklyLabel      = appStringResource(StringKey.BUDGETS_DIALOG_PERIOD_WEEKLY)
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -579,24 +576,22 @@ fun AddBudgetDialog(
                 modifier = Modifier.padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Header Row with Title and Close ('X') Icon
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isEdit) "Edit Budget" else "Add Budget",
+                        text = if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_EDIT_TITLE)
+                        else appStringResource(StringKey.BUDGETS_DIALOG_ADD_TITLE),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(32.dp)
-                    ) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.close),
-                            contentDescription = "Close dialog",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
@@ -614,7 +609,7 @@ fun AddBudgetDialog(
                 // Category selector
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        "Category",
+                        appStringResource(StringKey.BUDGETS_DIALOG_CATEGORY),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -671,7 +666,7 @@ fun AddBudgetDialog(
                                             )
                                             if (alreadyUsed) {
                                                 Text(
-                                                    " (set)",
+                                                    categorySetLabel,
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -692,7 +687,7 @@ fun AddBudgetDialog(
                 // Period selection
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        "Period",
+                        appStringResource(StringKey.BUDGETS_DIALOG_PERIOD),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -700,7 +695,11 @@ fun AddBudgetDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf("monthly", "weekly").forEach { period ->
+                        // Map internal keys to display labels
+                        listOf(
+                            "monthly" to monthlyLabel,
+                            "weekly"  to weeklyLabel
+                        ).forEach { (period, label) ->
                             val selected = selectedPeriod == period
                             OutlinedButton(
                                 onClick = { selectedPeriod = period },
@@ -718,7 +717,7 @@ fun AddBudgetDialog(
                                 )
                             ) {
                                 Text(
-                                    text = period.replaceFirstChar { it.uppercase() },
+                                    text = label,
                                     color = if (selected) MaterialTheme.colorScheme.primary
                                     else MaterialTheme.colorScheme.onSurface,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
@@ -731,7 +730,7 @@ fun AddBudgetDialog(
                 // Amount text field
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        "Limit",
+                        appStringResource(StringKey.BUDGETS_DIALOG_LIMIT),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -757,18 +756,21 @@ fun AddBudgetDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel")
+                        Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
                     }
                     Button(onClick = {
                         val cleanedAmountText = amountText.trim().replace(",", ".")
                         val amount = cleanedAmountText.toDoubleOrNull()
                         if (amount == null || amount <= 0) {
-                            amountError = "Please enter a valid amount"
+                            amountError = amountErrorMsg
                             return@Button
                         }
                         onConfirm(selectedCategory, amount, selectedPeriod)
                     }) {
-                        Text(if (isEdit) "Save" else "Add Budget")
+                        Text(
+                            if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
+                            else appStringResource(StringKey.BUDGETS_DIALOG_ADD_BUTTON)
+                        )
                     }
                 }
             }
