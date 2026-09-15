@@ -80,6 +80,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
+import com.smart_finance_app.AppStrings
 
 // ── Fix 1: removed duplicate enum entries from the merge conflict ─────────────
 private enum class SettingsPanel {
@@ -152,17 +153,18 @@ fun SettingsScreen(
             languages = LocaleController.supportedLanguages,
             selectedCode = LocaleController.currentLanguageCode,
             onSelected = { language ->
-                LocaleController.setLanguage(language.code)
                 showLanguageDialog = false
+                val errorMsg = AppStrings.get(LocaleController.currentLanguageCode, StringKey.SETTINGS_LANGUAGE_SAVE_FAILED)
 
                 scope.launch {
                     val result = userPreferencesApi.updateLanguage(authToken, language.code)
-                    if (result is UpdateLanguageResult.Failure) {
-                        // Roll back so next login doesn't restore stale language
-                        LocaleController.setLanguage(LocaleController.currentLanguageCode)
+                    if (result is UpdateLanguageResult.Success) {
+                        LocaleController.setLanguage(language.code)
+                    } else {
                         snackbarHostState.showSnackbar(
-                            message = "Failed to save language preference. Please try again.",
-                            duration = SnackbarDuration.Short)
+                            message = errorMsg,
+                            duration = SnackbarDuration.Short
+                        )
                     }
                 }
                 showLanguageDialog = false

@@ -17,6 +17,7 @@ object AppStrings {
     }
 
     private val en = mapOf(
+        StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "Failed to save language preference. Please try again.",
         StringKey.NAV_DASHBOARD to "Dashboard",
         StringKey.NAV_TRANSACTIONS to "Transactions",
         StringKey.NAV_ACCOUNTS to "Accounts",
@@ -320,6 +321,7 @@ object AppStrings {
     )
 
     private val es = mapOf(
+        StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "No se pudo guardar el idioma. Por favor, inténtalo de nuevo.",
         StringKey.NAV_DASHBOARD to "Inicio",
         StringKey.NAV_TRANSACTIONS to "Transacciones",
         StringKey.NAV_ACCOUNTS to "Cuentas",
@@ -623,6 +625,7 @@ object AppStrings {
     )
 
     private val fr = mapOf(
+        StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "Impossible d'enregistrer la langue. Veuillez réessayer.",
         StringKey.NAV_DASHBOARD to "Tableau de bord",
         StringKey.NAV_TRANSACTIONS to "Transactions",
         StringKey.NAV_ACCOUNTS to "Comptes",
@@ -926,6 +929,7 @@ object AppStrings {
     )
 
     private val nl = mapOf(
+        StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "Taalvoorkeur kon niet worden opgeslagen. Probeer het opnieuw.",
         StringKey.NAV_DASHBOARD to "Dashboard",
         StringKey.NAV_TRANSACTIONS to "Transacties",
         StringKey.NAV_ACCOUNTS to "Rekeningen",
@@ -1223,6 +1227,7 @@ object AppStrings {
     )
 
     private val de = mapOf(
+        StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "Sprache konnte nicht gespeichert werden. Bitte versuche es erneut.",
         StringKey.NAV_DASHBOARD to "Dashboard",
         StringKey.NAV_TRANSACTIONS to "Transaktionen",
         StringKey.NAV_ACCOUNTS to "Konten",
@@ -1520,6 +1525,7 @@ object AppStrings {
     )
 
     private val it = mapOf(
+        StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "Impossibile salvare la lingua. Riprova.",
         StringKey.NAV_DASHBOARD to "Dashboard",
         StringKey.NAV_TRANSACTIONS to "Transazioni",
         StringKey.NAV_ACCOUNTS to "Conti",
@@ -1817,6 +1823,7 @@ object AppStrings {
     )
 
     private val pl = mapOf(
+        StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "Nie udało się zapisać języka. Spróbuj ponownie.",
         StringKey.NAV_DASHBOARD to "Panel główny",
         StringKey.NAV_TRANSACTIONS to "Transakcje",
         StringKey.NAV_ACCOUNTS to "Konta",
@@ -2114,6 +2121,7 @@ object AppStrings {
     )
 
     private val zhTW = mapOf(
+        StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "無法儲存語言偏好設定，請再試一次。",
         StringKey.NAV_DASHBOARD to "主頁",
         StringKey.NAV_TRANSACTIONS to "交易記錄",
         StringKey.NAV_ACCOUNTS to "帳戶",
