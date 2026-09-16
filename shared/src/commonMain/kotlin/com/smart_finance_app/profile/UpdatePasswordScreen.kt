@@ -105,7 +105,10 @@ fun UpdatePasswordScreen(
                         showSuccessDialog = true
                     }
                     is ChangePasswordResult.Failure -> {
-                        errorMessage = result.message
+                        errorMessage = AppStrings.get(
+                            LocaleController.currentLanguageCode,
+                            result.message
+                        )
                     }
                 }
             } finally {

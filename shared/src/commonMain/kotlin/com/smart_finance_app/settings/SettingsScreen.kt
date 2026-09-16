@@ -128,8 +128,7 @@ fun SettingsScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
-    var languageSaveError by remember { mutableStateOf<String?>(null) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackBarHostState = remember { SnackbarHostState() }
 
     val selectedLanguage = LocaleController.supportedLanguages
         .find { it.code == LocaleController.currentLanguageCode }
@@ -141,7 +140,10 @@ fun SettingsScreen(
             subscriptionError = null
             when (val result = subscriptionApi.getStatus(authToken)) {
                 is SubscriptionStatusResult.Success -> subscriptionStatus = result.status
-                is SubscriptionStatusResult.Failure -> subscriptionError = result.message
+                is SubscriptionStatusResult.Failure -> subscriptionError = AppStrings.get(
+                    LocaleController.currentLanguageCode,
+                    result.message
+                )
             }
             subscriptionLoading = false
         }
@@ -154,17 +156,21 @@ fun SettingsScreen(
             selectedCode = LocaleController.currentLanguageCode,
             onSelected = { language ->
                 showLanguageDialog = false
-                val errorMsg = AppStrings.get(LocaleController.currentLanguageCode, StringKey.SETTINGS_LANGUAGE_SAVE_FAILED)
-
                 scope.launch {
-                    val result = userPreferencesApi.updateLanguage(authToken, language.code)
-                    if (result is UpdateLanguageResult.Success) {
-                        LocaleController.setLanguage(language.code)
-                    } else {
-                        snackbarHostState.showSnackbar(
-                            message = errorMsg,
-                            duration = SnackbarDuration.Short
-                        )
+                    when (val result = userPreferencesApi.updateLanguage(authToken, language.code)) {
+                        is UpdateLanguageResult.Success -> {
+                            LocaleController.setLanguage(language.code)
+                        }
+
+                        is UpdateLanguageResult.Failure -> {
+                            snackBarHostState.showSnackbar(
+                                message = AppStrings.get(
+                                    LocaleController.currentLanguageCode,
+                                    result.message
+                                ),
+                                duration = SnackbarDuration.Short
+                            )
+                        }
                     }
                 }
                 showLanguageDialog = false
@@ -213,7 +219,10 @@ fun SettingsScreen(
                     paymentDetails = result.details
                     subscriptionStatus = result.details.subscriptionStatus
                 }
-                is PaymentDetailsResult.Failure -> paymentsError = result.message
+                is PaymentDetailsResult.Failure -> paymentsError = AppStrings.get(
+                    LocaleController.currentLanguageCode,
+                    result.message
+                )
             }
             paymentsLoading = false
         }
@@ -225,7 +234,10 @@ fun SettingsScreen(
             invoicesError = null
             when (val result = subscriptionApi.getInvoices(authToken)) {
                 is BillingInvoicesResult.Success -> invoices = result.invoices
-                is BillingInvoicesResult.Failure -> invoicesError = result.message
+                is BillingInvoicesResult.Failure -> invoicesError = AppStrings.get(
+                    LocaleController.currentLanguageCode,
+                    result.message
+                )
             }
             invoicesLoading = false
 
@@ -233,13 +245,16 @@ fun SettingsScreen(
             billingAddressError = null
             when (val result = subscriptionApi.getBillingAddress(authToken)) {
                 is BillingAddressResult.Success -> billingAddress = result.address
-                is BillingAddressResult.Failure -> billingAddressError = result.message
+                is BillingAddressResult.Failure -> billingAddressError = AppStrings.get(
+                    LocaleController.currentLanguageCode,
+                    result.message
+                )
             }
             billingAddressLoading = false
         }
     }
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackBarHostState) }
     ) { _ ->
     when (panel) {
         SettingsPanel.Main -> {
@@ -301,7 +316,10 @@ fun SettingsScreen(
                         paymentsError = null
                         when (val result = subscriptionApi.createCustomerPortalSession(authToken)) {
                             is CustomerPortalResult.Success -> uriHandler.openUri(result.portalUrl)
-                            is CustomerPortalResult.Failure -> paymentsError = result.message
+                            is CustomerPortalResult.Failure -> paymentsError = AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                result.message
+                            )
                         }
                         openingPaymentPortal = false
                     }
@@ -322,7 +340,10 @@ fun SettingsScreen(
                         subscriptionError = null
                         when (val result = subscriptionApi.createCheckoutSession(authToken)) {
                             is CheckoutResult.Success -> uriHandler.openUri(result.checkoutUrl)
-                            is CheckoutResult.Failure -> subscriptionError = result.message
+                            is CheckoutResult.Failure -> subscriptionError = AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                result.message
+                            )
                         }
                         subscriptionLoading = false
                     }

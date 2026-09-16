@@ -125,7 +125,7 @@ private fun getSessionUser(userId: UUID): SessionUser? {
                     fullName = result.getString("full_name"),
                     email = result.getString("email"),
                     consentAccepted = result.getBoolean("consent_accepted"),
-                    language = result.getString("language")   // ← new
+                    language = result.getString("language") ?: "en"  // ← new
                 )
             }
         }

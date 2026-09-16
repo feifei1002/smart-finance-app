@@ -1,5 +1,6 @@
 package com.smart_finance_app.signin
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
@@ -28,7 +29,7 @@ private data class ErrorResponse(val message: String)
 
 sealed interface SignInResult {
     data class Success(val session: AuthSession): SignInResult
-    data class Failure(val message: String): SignInResult
+    data class Failure(val message: StringKey): SignInResult
 }
 
 class SignInApi(baseUrl: String, private val client: HttpClient) {
@@ -54,19 +55,19 @@ class SignInApi(baseUrl: String, private val client: HttpClient) {
                 }
 
                 HttpStatusCode.BadRequest, HttpStatusCode.Unauthorized -> {
-                    SignInResult.Failure(response.errorMessage("Invalid email or password"))
+                    SignInResult.Failure(StringKey.AUTH_ERROR_INVALID_CREDENTIALS)
                 }
 
                 HttpStatusCode.TooManyRequests -> {
-                    SignInResult.Failure(response.errorMessage("Too many failed attempts. Please try again later."))
+                    SignInResult.Failure(StringKey.AUTH_ERROR_TOO_MANY_ATTEMPTS)
                 }
                 
                 else -> {
-                    SignInResult.Failure(response.errorMessage("Sign in failed (${response.status.value})"))
+                    SignInResult.Failure(StringKey.COMMON_ERROR_UNKNOWN)
                 }
             }
         } catch (_: Exception) {
-            SignInResult.Failure("Cannot connect to the server")
+            SignInResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 

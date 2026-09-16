@@ -1,7 +1,7 @@
 package com.smart_finance_app.settings
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.patch
 import io.ktor.client.request.setBody
@@ -18,7 +18,7 @@ private data class UpdateLanguageResponse(val language: String)
 
 sealed interface UpdateLanguageResult {
     data object Success : UpdateLanguageResult
-    data class Failure(val message: String) : UpdateLanguageResult
+    data class Failure(val message: StringKey) : UpdateLanguageResult
 }
 
 class UserPreferencesApi(baseUrl: String, private val client: HttpClient) {
@@ -33,12 +33,12 @@ class UserPreferencesApi(baseUrl: String, private val client: HttpClient) {
             }
             when (response.status) {
                 HttpStatusCode.OK           -> UpdateLanguageResult.Success
-                HttpStatusCode.Unauthorized -> UpdateLanguageResult.Failure("Session expired. Please sign in again.")
-                HttpStatusCode.BadRequest   -> UpdateLanguageResult.Failure("Invalid language code.")
-                else                        -> UpdateLanguageResult.Failure("Failed to save language preference (${response.status.value})")
+                HttpStatusCode.Unauthorized -> UpdateLanguageResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                HttpStatusCode.BadRequest   -> UpdateLanguageResult.Failure(StringKey.SETTINGS_LANGUAGE_SAVE_FAILED)
+                else                        -> UpdateLanguageResult.Failure(StringKey.SETTINGS_LANGUAGE_SAVE_FAILED)
             }
         } catch (_: Exception) {
-            UpdateLanguageResult.Failure("Cannot connect to the server.")
+            UpdateLanguageResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

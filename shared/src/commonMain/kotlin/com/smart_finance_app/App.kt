@@ -263,7 +263,10 @@ fun App(
                                         LocaleController.setLanguage("en")
                                         screen = Screen.Consent
                                     }
-                                    is RegistrationResult.Failure -> registrationError = result.message
+                                    is RegistrationResult.Failure -> registrationError = AppStrings.get(
+                                        LocaleController.currentLanguageCode,
+                                        result.message
+                                    )
                                 }
                             } finally {
                                 registrationLoading = false
@@ -297,7 +300,10 @@ fun App(
                                             Screen.Consent
                                         }
                                     }
-                                    is SignInResult.Failure -> signInError = result.message
+                                    is SignInResult.Failure -> signInError = AppStrings.get(
+                                        LocaleController.currentLanguageCode,
+                                        result.message
+                                    )
                                 }
                             } finally {
                                 signInLoading = false
@@ -335,7 +341,10 @@ fun App(
                                     }
 
                                     is PasswordResetRequestResult.Failure -> {
-                                        forgotPasswordError = result.message
+                                        forgotPasswordError = AppStrings.get(
+                                            LocaleController.currentLanguageCode,
+                                            result.message
+                                        )
                                     }
                                 }
                             } finally {
@@ -380,13 +389,13 @@ fun App(
                                 }
 
                                 is PasswordResetConfirmResult.Failure -> {
-                                    if (
-                                        result.message.contains("expired", ignoreCase = true) ||
-                                        result.message.contains("invalid", ignoreCase = true)
-                                    ) {
+                                    if (result.message == StringKey.RESET_PASSWORD_ERROR_INVALID_OR_EXPIRED) {
                                         resetPasswordTokenInvalid = true
                                     } else {
-                                        resetPasswordError = result.message
+                                        resetPasswordError = AppStrings.get(
+                                            LocaleController.currentLanguageCode,
+                                            result.message
+                                        )
                                     }
                                 }
                             }
@@ -418,7 +427,10 @@ fun App(
                                 }
 
                                 is ConsentResult.Failure -> {
-                                    consentError = result.message
+                                    consentError = AppStrings.get(
+                                        LocaleController.currentLanguageCode,
+                                        result.message
+                                    )
                                 }
                             }
                         }

@@ -343,7 +343,7 @@ private fun BankRow(
                         )
                     } else {
                         Text(
-                            text = bank.name.first().uppercase(),
+                            text = bank.name.trim().firstOrNull()?.uppercase() ?: "?",
                             fontWeight = FontWeight.Bold
                         )
                     }

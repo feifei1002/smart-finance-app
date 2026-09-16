@@ -18,6 +18,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.smart_finance_app.AppStrings
+import com.smart_finance_app.LocaleController
 import com.smart_finance_app.dashboard.TransactionData
 import com.smart_finance_app.dashboard.getCurrencySymbol
 import com.smart_finance_app.transactions.TransactionCategories
@@ -27,7 +29,6 @@ import kotlin.time.Clock
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.minus
 import kotlinx.datetime.number
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.close
@@ -139,7 +140,10 @@ fun BudgetScreen(
         errorMsg  = null
         when (val result = api.getBudgets(authToken)) {
             is BudgetResult.Success -> budgets = result.data
-            is BudgetResult.Failure -> errorMsg = result.message
+            is BudgetResult.Failure -> errorMsg = AppStrings.get(
+                LocaleController.currentLanguageCode,
+                result.message
+            )
         }
         isLoading = false
     }
@@ -214,7 +218,10 @@ fun BudgetScreen(
                                             errorMsg = null
                                             loadBudgets()
                                         }
-                                        is BudgetResult.Failure -> errorMsg = res.message
+                                        is BudgetResult.Failure -> errorMsg = AppStrings.get(
+                                            LocaleController.currentLanguageCode,
+                                            res.message
+                                        )
                                     }
                                 }
                             }
@@ -271,7 +278,10 @@ fun BudgetScreen(
                             dialogError = null
                             loadBudgets()
                         }
-                        is BudgetResult.Failure -> dialogError = result.message
+                        is BudgetResult.Failure -> dialogError = AppStrings.get(
+                            LocaleController.currentLanguageCode,
+                            result.message
+                        )
                     }
                 }
             }

@@ -21,7 +21,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.add
 import smart_finance_app.shared.generated.resources.cancel
@@ -293,7 +292,7 @@ private fun AccountCard(account: ConnectedAccount) {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = account.bankName.first().uppercase(),
+                        text = account.bankName.trim().firstOrNull()?.uppercase() ?: "?",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary

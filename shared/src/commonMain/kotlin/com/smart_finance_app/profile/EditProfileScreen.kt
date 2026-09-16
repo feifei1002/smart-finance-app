@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppStrings
+import com.smart_finance_app.LocaleController
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import kotlinx.coroutines.launch
@@ -97,8 +99,12 @@ fun EditProfileScreen(
                         onBack()
                     }
                     is UpdateProfileResult.Failure -> {
-                        if (isEmailPasswordDialog) emailPasswordError = result.message
-                        else errorMessage = result.message
+                        val localizedMessage = AppStrings.get(
+                            LocaleController.currentLanguageCode,
+                            result.message
+                        )
+                        if (isEmailPasswordDialog) emailPasswordError = localizedMessage
+                        else errorMessage = localizedMessage
                     }
                 }
             } finally {

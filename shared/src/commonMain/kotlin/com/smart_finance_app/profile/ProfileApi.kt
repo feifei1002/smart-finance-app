@@ -1,5 +1,6 @@
 package com.smart_finance_app.profile
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -37,17 +38,17 @@ private data class ErrorResponse(
 
 sealed interface ProfileResult {
     data class Success(val profile: ProfileResponse) : ProfileResult
-    data class Failure(val message: String) : ProfileResult
+    data class Failure(val message: StringKey) : ProfileResult
 }
 
 sealed interface UpdateProfileResult {
     data class Success(val profile: ProfileResponse) : UpdateProfileResult
-    data class Failure(val message: String) : UpdateProfileResult
+    data class Failure(val message: StringKey) : UpdateProfileResult
 }
 
 sealed interface ChangePasswordResult {
     data object Success : ChangePasswordResult
-    data class Failure(val message: String) : ChangePasswordResult
+    data class Failure(val message: StringKey) : ChangePasswordResult
 }
 
 class ProfileApi(baseUrl: String, private val client: HttpClient) {
@@ -77,23 +78,32 @@ class ProfileApi(baseUrl: String, private val client: HttpClient) {
                     UpdateProfileResult.Success(response.body<ProfileResponse>())
                 }
 
-                HttpStatusCode.BadRequest,
-                HttpStatusCode.Conflict,
-                HttpStatusCode.Forbidden,
+                HttpStatusCode.BadRequest -> {
+                    UpdateProfileResult.Failure(StringKey.EDIT_PROFILE_ERROR_UPDATE_FAILED)
+                }
+
+                HttpStatusCode.Conflict -> {
+                    UpdateProfileResult.Failure(StringKey.EDIT_PROFILE_ERROR_EMAIL_EXISTS)
+                }
+
+                HttpStatusCode.Forbidden -> {
+                    UpdateProfileResult.Failure(StringKey.EDIT_PROFILE_ERROR_WRONG_PASSWORD)
+                }
+
                 HttpStatusCode.TooManyRequests -> {
-                    UpdateProfileResult.Failure(response.errorMessage("Could not update profile."))
+                    UpdateProfileResult.Failure(StringKey.EDIT_PROFILE_ERROR_TOO_MANY_ATTEMPTS)
                 }
 
                 HttpStatusCode.Unauthorized -> {
-                    UpdateProfileResult.Failure("Your session expired. Please sign in again.")
+                    UpdateProfileResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 }
 
                 else -> {
-                    UpdateProfileResult.Failure("Could not update profile. Status: ${response.status.value}")
+                    UpdateProfileResult.Failure(StringKey.EDIT_PROFILE_ERROR_UPDATE_FAILED)
                 }
             }
         } catch (_: Exception) {
-            UpdateProfileResult.Failure("Cannot connect to the server.")
+            UpdateProfileResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -119,32 +129,28 @@ class ProfileApi(baseUrl: String, private val client: HttpClient) {
                     ChangePasswordResult.Success
                 }
 
-                HttpStatusCode.BadRequest,
-                HttpStatusCode.Forbidden,
+                HttpStatusCode.BadRequest -> {
+                    ChangePasswordResult.Failure(StringKey.EDIT_PROFILE_ERROR_PASSWORD_UPDATE_FAILED)
+                }
+
+                HttpStatusCode.Forbidden -> {
+                    ChangePasswordResult.Failure(StringKey.EDIT_PROFILE_ERROR_WRONG_PASSWORD)
+                }
+
                 HttpStatusCode.TooManyRequests -> {
-                    ChangePasswordResult.Failure(response.errorMessage("Could not update password."))
+                    ChangePasswordResult.Failure(StringKey.EDIT_PROFILE_ERROR_PASSWORD_TOO_MANY_ATTEMPTS)
                 }
 
                 HttpStatusCode.Unauthorized -> {
-                    ChangePasswordResult.Failure("Your session expired. Please sign in again.")
+                    ChangePasswordResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 }
 
                 else -> {
-                    ChangePasswordResult.Failure("Could not update password. Status: ${response.status.value}")
+                    ChangePasswordResult.Failure(StringKey.EDIT_PROFILE_ERROR_PASSWORD_UPDATE_FAILED)
                 }
             }
         } catch (_: Exception) {
-            ChangePasswordResult.Failure("Cannot connect to the server.")
-        }
-    }
-
-    private suspend fun io.ktor.client.statement.HttpResponse.errorMessage(
-        fallback: String
-    ): String {
-        return try {
-            body<ErrorResponse>().message
-        } catch (_: Exception) {
-            fallback
+            ChangePasswordResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

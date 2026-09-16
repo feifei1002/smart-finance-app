@@ -62,7 +62,7 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
                         email = result.getString("email"),
                         passwordHash = result.getString("password_hash"),
                         consentAccepted = result.getBoolean("consent_accepted"),
-                        language = result.getString("language")
+                        language = result.getString("language") ?: "en"
                     )
                 }
             }

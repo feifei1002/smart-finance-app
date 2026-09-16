@@ -1,5 +1,6 @@
 package com.smart_finance_app.dashboard
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.*
@@ -45,7 +46,7 @@ data class AccountData(
 
 sealed interface DashboardResult<out T> {
     data class Success<T>(val data: T) : DashboardResult<T>
-    data class Failure(val message: String) : DashboardResult<Nothing>
+    data class Failure(val message: StringKey) : DashboardResult<Nothing>
 }
 
 // ── Dashboard layout sync ─────────────────────────────────────────────────────
@@ -69,11 +70,11 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
             }
             when (response.status) {
                 HttpStatusCode.OK           -> DashboardResult.Success(response.body())
-                HttpStatusCode.Unauthorized -> DashboardResult.Failure("Session expired, please sign in again")
-                else                        -> DashboardResult.Failure("Failed to load balances (${response.status.value})")
+                HttpStatusCode.Unauthorized -> DashboardResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else                        -> DashboardResult.Failure(StringKey.DASHBOARD_ERROR_LOAD_BALANCES_FAILED)
             }
         } catch (_: Exception) {
-            DashboardResult.Failure("Cannot connect to the server")
+            DashboardResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -84,11 +85,11 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
             }
             when (response.status) {
                 HttpStatusCode.OK           -> DashboardResult.Success(response.body())
-                HttpStatusCode.Unauthorized -> DashboardResult.Failure("Session expired, please sign in again")
-                else                        -> DashboardResult.Failure("Failed to load transactions (${response.status.value})")
+                HttpStatusCode.Unauthorized -> DashboardResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else                        -> DashboardResult.Failure(StringKey.DASHBOARD_ERROR_LOAD_TRANSACTIONS_FAILED)
             }
         } catch (_: Exception) {
-            DashboardResult.Failure("Cannot connect to the server")
+            DashboardResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -99,11 +100,11 @@ class DashboardApi(private val baseUrl: String, private val client: HttpClient) 
             }
             when (response.status) {
                 HttpStatusCode.OK           -> DashboardResult.Success(response.body())
-                HttpStatusCode.Unauthorized -> DashboardResult.Failure("Session expired, please sign in again")
-                else                        -> DashboardResult.Failure("Failed to load accounts (${response.status.value})")
+                HttpStatusCode.Unauthorized -> DashboardResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else                        -> DashboardResult.Failure(StringKey.DASHBOARD_ERROR_LOAD_ACCOUNTS_FAILED)
             }
         } catch (_: Exception) {
-            DashboardResult.Failure("Cannot connect to the server")
+            DashboardResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 

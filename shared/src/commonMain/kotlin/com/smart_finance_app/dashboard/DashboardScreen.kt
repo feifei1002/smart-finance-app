@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
+import com.smart_finance_app.AppStrings
+import com.smart_finance_app.LocaleController
 import kotlinx.coroutines.launch
 import com.smart_finance_app.budget.BudgetApi
 import com.smart_finance_app.budget.BudgetData
@@ -69,7 +71,6 @@ import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.add
 import smart_finance_app.shared.generated.resources.moving
-import org.jetbrains.compose.resources.stringResource
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.localiseCategory
@@ -239,7 +240,13 @@ fun DashboardScreen(
         errorMsg  = null
 
         val a = api.getAccounts(authToken)
-        if (a is DashboardResult.Failure) { errorMsg = a.message; isLoading = false; return }
+        if (a is DashboardResult.Failure) { errorMsg = AppStrings.get(
+            LocaleController.currentLanguageCode,
+            a.message
+        )
+            isLoading = false
+            return
+        }
         val accounts = (a as DashboardResult.Success).data
 
         if (accounts.isEmpty()) {
@@ -249,7 +256,12 @@ fun DashboardScreen(
         }
 
         val b = api.getBalances(authToken)
-        if (b is DashboardResult.Failure) { errorMsg = b.message; isLoading = false; return }
+        if (b is DashboardResult.Failure) { errorMsg = AppStrings.get(
+            LocaleController.currentLanguageCode,
+            b.message
+        )
+            isLoading = false
+            return }
         val balances = (b as DashboardResult.Success).data
 
         // Transactions are non-critical — if they fail, show dashboard with empty list
@@ -938,7 +950,7 @@ private fun MobileDashboard(
                                         DonutChart(categories = chartCategories, modifier = Modifier.size(120.dp))
                                         Column(
                                             modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                             if (filteredCategories.isEmpty()) {
                                                 Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
@@ -1341,7 +1353,7 @@ private fun DesktopDashboard(
                                     DonutChart(categories = chartCategories, modifier = Modifier.size(150.dp))
                                     Column(
                                         modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         if (filteredCategories.isEmpty()) {
                                             Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
@@ -1855,7 +1867,10 @@ private fun BudgetProgressCardContent(
     suspend fun loadBudgets() {
         when (val r = api.getBudgets(authToken)) {
             is BudgetResult.Success -> budgets = r.data
-            is BudgetResult.Failure -> {errorMsg = r.message}
+            is BudgetResult.Failure -> {errorMsg = AppStrings.get(
+                LocaleController.currentLanguageCode,
+                r.message
+            )}
         }
     }
 
@@ -1933,7 +1948,10 @@ private fun BudgetProgressCardContent(
                                     }
 
                                     is BudgetResult.Failure -> {
-                                        errorMsg = res.message
+                                        errorMsg = AppStrings.get(
+                                            LocaleController.currentLanguageCode,
+                                            res.message
+                                        )
                                     }
                                 }
                             }
@@ -1984,7 +2002,10 @@ private fun BudgetProgressCardContent(
                             loadBudgets()
                         }
                         is BudgetResult.Failure -> {
-                            errorMsg = result.message
+                            errorMsg = AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                result.message
+                            )
                         }
                     }
                 }
@@ -2401,7 +2422,7 @@ private fun CategoryLegendRow(cat: SpendingCategory) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(
             modifier = Modifier
