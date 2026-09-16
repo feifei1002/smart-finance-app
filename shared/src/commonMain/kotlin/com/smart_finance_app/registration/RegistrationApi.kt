@@ -29,8 +29,6 @@ data class RegisterResponse(
     val language: String = "en"
 )
 
-@Serializable
-private data class ErrorResponse(val message: String)
 
 sealed interface RegistrationResult {
     data class Success(val session: AuthSession) : RegistrationResult
@@ -67,7 +65,7 @@ class RegistrationApi(private val baseUrl: String, private val client: HttpClien
                 HttpStatusCode.BadRequest -> {
                     RegistrationResult.Failure(StringKey.COMMON_ERROR_INVALID_REQUEST)
                 }
-                
+
                 HttpStatusCode.Conflict -> RegistrationResult.Failure(StringKey.REGISTER_ERROR_EMAIL_EXISTS)
                 else -> RegistrationResult.Failure(StringKey.COMMON_ERROR_UNKNOWN)
             }

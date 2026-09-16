@@ -13,9 +13,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 private data class UpdateLanguageRequest(val language: String)
 
-@Serializable
-private data class UpdateLanguageResponse(val language: String)
-
 sealed interface UpdateLanguageResult {
     data object Success : UpdateLanguageResult
     data class Failure(val message: StringKey) : UpdateLanguageResult

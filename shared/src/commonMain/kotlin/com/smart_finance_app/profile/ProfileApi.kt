@@ -31,10 +31,6 @@ private data class ChangePasswordRequest(
     val newPassword: String
 )
 
-@Serializable
-private data class ErrorResponse(
-    val message: String
-)
 
 sealed interface ProfileResult {
     data class Success(val profile: ProfileResponse) : ProfileResult

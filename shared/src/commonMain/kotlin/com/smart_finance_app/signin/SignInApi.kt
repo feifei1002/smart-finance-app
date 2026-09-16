@@ -5,7 +5,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -23,9 +22,6 @@ data class AuthSession(
     val consentAccepted: Boolean,
     val language: String = "en"
 )
-
-@Serializable
-private data class ErrorResponse(val message: String)
 
 sealed interface SignInResult {
     data class Success(val session: AuthSession): SignInResult
@@ -68,14 +64,6 @@ class SignInApi(baseUrl: String, private val client: HttpClient) {
             }
         } catch (_: Exception) {
             SignInResult.Failure(StringKey.COMMON_ERROR_SERVER)
-        }
-    }
-
-    private suspend fun HttpResponse.errorMessage(fallback: String): String {
-        return try {
-            body<ErrorResponse>().message
-        } catch (_: Exception) {
-            fallback
         }
     }
 }

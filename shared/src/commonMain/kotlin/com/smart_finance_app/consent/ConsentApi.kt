@@ -5,7 +5,6 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.post
 import io.ktor.http.HttpStatusCode
-import kotlinx.serialization.Serializable
 
 sealed interface ConsentResult {
     data object Success : ConsentResult
