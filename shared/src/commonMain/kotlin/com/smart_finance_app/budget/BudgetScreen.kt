@@ -634,7 +634,7 @@ fun AddBudgetDialog(
                                             CircleShape
                                         )
                                     )
-                                    Text(selectedCategory)
+                                    Text(localiseCategory(selectedCategory))
                                 }
                                 Text("▾", style = MaterialTheme.typography.bodySmall)
                             }
@@ -658,7 +658,7 @@ fun AddBudgetDialog(
                                                 )
                                             )
                                             Text(
-                                                cat,
+                                                localiseCategory(cat),
                                                 color = if (alreadyUsed)
                                                     MaterialTheme.colorScheme.onSurfaceVariant
                                                 else
