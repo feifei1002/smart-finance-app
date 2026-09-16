@@ -2,6 +2,7 @@ package com.smart_finance_app
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import com.smart_finance_app.transactions.TransactionCategories
 
 /**
  * Returns the localised string for the current language set in LocaleController.
@@ -165,4 +166,33 @@ enum class StringKey {
     UPDATE_PASSWORD_SUCCESS_TITLE, UPDATE_PASSWORD_SUCCESS_BODY,
     UPDATE_PASSWORD_OK, UPDATE_PASSWORD_ERROR_CURRENT_REQUIRED,
     UPDATE_PASSWORD_ERROR_LENGTH, UPDATE_PASSWORD_ERROR_MISMATCH,
+
+    // Time of day labels
+    TIME_OF_DAY_MORNING, TIME_OF_DAY_AFTERNOON, TIME_OF_DAY_NIGHT,
+
+    // Monthly trend legend
+    CHART_LEGEND_IN, CHART_LEGEND_OUT,
+
+    // Upcoming bills
+    UPCOMING_BILLS_PREDICTED, UPCOMING_BILLS_EMPTY, UPCOMING_BILLS_CADENCE_WEEKLY,
+    UPCOMING_BILLS_CADENCE_MONTHLY, UPCOMING_BILLS_EXPECTED,
+
+    // Misc chart labels
+    CHART_NO_DATA, CHART_NO_DATA_THIS_MONTH, CHART_AREA_TOTAL_SPEND,
+    CHART_PREDICTED_FROM_HISTORY, CHART_NO_RECURRING,
+}
+
+@Composable
+fun localiseCategory(category: String): String {
+    return when (category) {
+        TransactionCategories.FOOD_DINING                 -> appStringResource(StringKey.CATEGORY_FOOD_DINING)
+        TransactionCategories.SHOPPING_PERSONAL           -> appStringResource(StringKey.CATEGORY_SHOPPING_PERSONAL)
+        TransactionCategories.BILLS_HOUSING               -> appStringResource(StringKey.CATEGORY_BILLS_HOUSING)
+        TransactionCategories.ENTERTAINMENT_SUBSCRIPTIONS -> appStringResource(StringKey.CATEGORY_ENTERTAINMENT_SUBSCRIPTIONS)
+        TransactionCategories.TRANSPORTATION              -> appStringResource(StringKey.CATEGORY_TRANSPORTATION)
+        TransactionCategories.TRANSFERS                   -> appStringResource(StringKey.CATEGORY_TRANSFERS)
+        TransactionCategories.INCOME                      -> appStringResource(StringKey.CATEGORY_INCOME)
+        TransactionCategories.OTHERS                      -> appStringResource(StringKey.CATEGORY_OTHERS)
+        else                                              -> category
+    }
 }

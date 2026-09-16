@@ -72,6 +72,7 @@ import smart_finance_app.shared.generated.resources.moving
 import org.jetbrains.compose.resources.stringResource
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
+import com.smart_finance_app.localiseCategory
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -84,6 +85,7 @@ data class InferredBill(val merchant: String, val amount: Double, val expectedDa
  * Finds outgoing merchant payments that recur at a similar cadence and amount.
  * This deliberately uses only the transaction list already on-device.
  */
+
 private fun inferUpcomingBills(transactions: List<TransactionData>): List<InferredBill> {
     val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
     return transactions
@@ -2408,7 +2410,7 @@ private fun CategoryLegendRow(cat: SpendingCategory) {
         )
 
         Text(
-            text = cat.name,
+            text = localiseCategory(cat.name),
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
@@ -2709,7 +2711,7 @@ private fun ChartCardContent(
                 )
                 if (totals.isEmpty()) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text("No data yet", style = MaterialTheme.typography.bodySmall,
+                        Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
@@ -2726,7 +2728,7 @@ private fun ChartCardContent(
                             ) {
                                 Box(Modifier.size(8.dp).background(cat.color, CircleShape))
                                 Text(
-                                    "${cat.name}  ${cat.amount}",
+                                    "${localiseCategory(cat.name)}  ${cat.amount}",
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -2798,7 +2800,16 @@ private fun ChartCardContent(
         // ── Spending by Time of Day (half) ──
         // 3. Everything centered inside the card
         "time_of_day" -> {
-            val buckets = mapOf("Morning" to Color(0xFFF59E0B), "Afternoon" to Color(0xFF6366F1), "Night" to Color(0xFF1E40AF))
+            // Keep English keys for grouping logic — they match the timestamp groupBy below
+            val morningLabel   = appStringResource(StringKey.TIME_OF_DAY_MORNING)
+            val afternoonLabel = appStringResource(StringKey.TIME_OF_DAY_AFTERNOON)
+            val nightLabel     = appStringResource(StringKey.TIME_OF_DAY_NIGHT)
+
+            val buckets = mapOf(
+                "Morning"   to Pair(morningLabel,   Color(0xFFF59E0B)),
+                "Afternoon" to Pair(afternoonLabel, Color(0xFF6366F1)),
+                "Night"     to Pair(nightLabel,     Color(0xFF1E40AF))
+            )
             val grouped = rawTransactions
                 .filter { tx ->
                     val p = tx.timestamp.take(10).split("-")
@@ -2812,9 +2823,11 @@ private fun ChartCardContent(
                     when { hour < 12 -> "Morning"; hour < 18 -> "Afternoon"; else -> "Night" }
                 }
             val total = grouped.values.flatten().sumOf { abs(it.amount) }.takeIf { it > 0 } ?: 1.0
-            val cats = buckets.map { (label, color) ->
-                val amt = grouped[label]?.sumOf { abs(it.amount) } ?: 0.0
+            val cats = buckets.map { (key, pair) ->
+                val (label, color) = pair
+                val amt = grouped[key]?.sumOf { abs(it.amount) } ?: 0.0
                 SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym), color = color)
+
             }
             Box(
                 modifier = Modifier.fillMaxHeight().fillMaxWidth(),
@@ -2865,7 +2878,7 @@ private fun ChartCardContent(
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(appStringResource(StringKey.CHART_LARGEST_TX_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (top5.isEmpty()) {
-                    Text("No data", style = MaterialTheme.typography.bodySmall,
+                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
@@ -2927,7 +2940,7 @@ private fun ChartCardContent(
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(appStringResource(StringKey.CHART_SMALLEST_TX_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (bottom5.isEmpty()) {
-                    Text("No data", style = MaterialTheme.typography.bodySmall,
+                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
@@ -2974,11 +2987,11 @@ private fun ChartCardContent(
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Predicted from history", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(appStringResource(StringKey.UPCOMING_BILLS_PREDICTED), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (bills.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No recurring payments identified yet", style = MaterialTheme.typography.bodySmall,
+                        Text(appStringResource(StringKey.CHART_NO_RECURRING), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
@@ -2988,7 +3001,13 @@ private fun ChartCardContent(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(bill.merchant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${bill.cadence} · expected ${bill.expectedDate}", style = MaterialTheme.typography.labelSmall,
+                                val cadenceLabel = when (bill.cadence) {
+                                    "Weekly"  -> appStringResource(StringKey.UPCOMING_BILLS_CADENCE_WEEKLY)
+                                    "Monthly" -> appStringResource(StringKey.UPCOMING_BILLS_CADENCE_MONTHLY)
+                                    else      -> bill.cadence
+                                }
+                                val expectedLabel = appStringResource(StringKey.UPCOMING_BILLS_EXPECTED)
+                                Text("$cadenceLabel · $expectedLabel ${bill.expectedDate}", style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Text(formatCurrency(bill.amount, sym), style = MaterialTheme.typography.bodySmall,
@@ -3039,14 +3058,14 @@ private fun ChartCardContent(
                 ) {
                     Text(appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE), style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold)
-                    Text("area = total spend",
+                    Text(appStringResource(StringKey.CHART_AREA_TOTAL_SPEND),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 if (bubbles.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No data this month", style = MaterialTheme.typography.bodySmall,
+                        Text(appStringResource(StringKey.CHART_NO_DATA_THIS_MONTH), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {

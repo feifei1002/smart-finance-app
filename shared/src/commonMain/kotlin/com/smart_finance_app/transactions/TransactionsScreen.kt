@@ -54,7 +54,7 @@ import smart_finance_app.shared.generated.resources.search
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import kotlin.math.ceil
-
+import com.smart_finance_app.localiseCategory
 data class TransactionUI(
     val id: String,
     val dateLabel: String,
@@ -301,7 +301,7 @@ private fun MobileTransactionRow(transaction: TransactionUI) {
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "${transaction.category} • ${transaction.accountName}",
+                text = "${localiseCategory(transaction.category)} • ${transaction.accountName}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

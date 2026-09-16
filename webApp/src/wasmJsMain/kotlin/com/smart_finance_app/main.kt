@@ -9,15 +9,31 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.header
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.browser.document
 import kotlinx.browser.window
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlinx.serialization.json.Json
 import web.http.RequestCredentials
 import web.http.include
-import web.fonts.FontFace
-import web.fonts.FontFaceDescriptors
+
+// Only pass primitive types and callbacks across the WASM/JS boundary
+@JsFun("""
+function(startApp) {
+    document.fonts.ready.then(function() {
+        var font = new FontFace(
+            'Noto Sans TC',
+            "url('NotoSansTC-Regular.ttf') format('truetype')"
+        );
+        font.load().then(function(loaded) {
+            document.fonts.add(loaded);
+            startApp();
+        }).catch(function(err) {
+            console.warn('Font load failed, starting anyway:', err);
+            startApp();
+        });
+    });
+}
+""")
+external fun loadFontThenStart(startApp: () -> Unit)
 
 @OptIn(
     ExperimentalComposeUiApi::class,
@@ -42,9 +58,8 @@ fun main() {
         }
     }
 
-    // Load Noto Sans TC font so Traditional Chinese renders correctly
-    // in the WASM Canvas renderer
-    loadNotoSansTCFont {
+    // Build everything in Kotlin, only pass the lambda to JS
+    loadFontThenStart {
         ComposeViewport {
             App(
                 apiBaseUrl = apiBaseUrl,
@@ -57,20 +72,6 @@ fun main() {
     }
 }
 
-@JsFun("""
-function(onComplete) {
-    var fontUrl = 'https://fonts.gstatic.com/s/notosanstc/v35/nKKF-GM_FYFRJvXzVXaAPe97P1KHynJFKFhLNEiLDzA.woff2';
-    var font = new FontFace('Noto Sans TC', 'url(' + fontUrl + ')');
-    font.load().then(function(loadedFont) {
-        document.fonts.add(loadedFont);
-        onComplete();
-    }).catch(function(err) {
-        console.warn('Noto Sans TC font failed to load:', err);
-        onComplete();
-    });
-}
-""")
-external fun loadNotoSansTCFont(onComplete: () -> Unit)
 private fun isPasswordResetRoute(): Boolean {
     return window.location.hash.startsWith("#/reset-password")
 }
