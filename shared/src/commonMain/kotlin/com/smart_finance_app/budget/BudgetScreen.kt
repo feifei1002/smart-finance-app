@@ -35,6 +35,7 @@ import smart_finance_app.shared.generated.resources.delete
 import smart_finance_app.shared.generated.resources.edit
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
+import com.smart_finance_app.localiseCategory
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
@@ -383,8 +384,7 @@ fun BudgetCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(Modifier.size(10.dp).background(item.color, CircleShape))
-                    Text(
-                        item.budget.category,
+                    Text(localiseCategory(item.budget.category),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -491,7 +491,7 @@ fun CompactBudgetProgressRow(
             ) {
                 Box(Modifier.size(8.dp).background(item.color, CircleShape))
                 Text(
-                    text = item.budget.category,
+                    text = localiseCategory(item.budget.category),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium
                 )
