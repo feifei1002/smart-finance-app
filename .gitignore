@@ -18,6 +18,8 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
 yarn.lock
+*.pem
+transaction_category_model.joblib
 
 
 # Python / Machine Learning rules

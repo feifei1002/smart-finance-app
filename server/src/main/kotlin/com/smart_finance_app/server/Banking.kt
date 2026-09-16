@@ -478,6 +478,17 @@ fun Route.bankingRoutes() {
                 return@put
             }
 
+            val transactionAmount = getTransactionAmountForUser(userId, transactionId)
+                ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Transaction not found"))
+
+            if (category == "Income" && transactionAmount < 0) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    ErrorResponse("Income cannot be assigned to outgoing transactions")
+                )
+                return@put
+            }
+
             val updated = updateTransactionCategoryForUser(userId, transactionId, category)
 
             if (!updated) {
@@ -1723,7 +1734,7 @@ private suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
             SELECT id, provider_transaction_id, transaction_timestamp, description,
                    amount, currency, transaction_type, merchant_name
             FROM transactions
-            WHERE user_id = ? AND COALESCE(category_source, 'auto' <> '
+            WHERE user_id = ? AND COALESCE(category_source, 'auto') <> 'manual'
             """.trimIndent()
         ).use { statement ->
             statement.setObject(1, userId)
@@ -1844,6 +1855,28 @@ private fun updateTransactionCategoryForUser(
         } catch (exception: Exception) {
             connection.rollback()
             throw exception
+        }
+    }
+}
+
+private fun getTransactionAmountForUser(
+    userId: UUID,
+    transactionId: UUID
+): Double? {
+    return Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT amount
+            FROM transactions
+            WHERE id = ? AND user_id = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, transactionId)
+            statement.setObject(2, userId)
+
+            statement.executeQuery().use { result ->
+                if (result.next()) result.getDouble("amount") else null
+            }
         }
     }
 }
