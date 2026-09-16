@@ -1,5 +1,6 @@
 package com.smart_finance_app.accounts
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -41,22 +42,22 @@ data class BankProviderResponse(
 )
 sealed interface BankConnectionResult {
     data class Success(val authUrl: String, val state: String): BankConnectionResult
-    data class Failure(val message: String): BankConnectionResult
+    data class Failure(val message: StringKey): BankConnectionResult
 }
 
 sealed interface ConnectedAccountResult {
     data class Success(val accounts: List<ConnectedAccountResponse>): ConnectedAccountResult
-    data class Failure(val message: String): ConnectedAccountResult
+    data class Failure(val message: StringKey): ConnectedAccountResult
 }
 
 sealed interface BankProviderResult {
     data class Success(val providers: List<BankProviderResponse>): BankProviderResult
-    data class Failure(val message: String): BankProviderResult
+    data class Failure(val message: StringKey): BankProviderResult
 }
 
 sealed interface BankConnectionStatusResult {
     data class Success(val status: String) : BankConnectionStatusResult
-    data class Failure(val message: String) : BankConnectionStatusResult
+    data class Failure(val message: StringKey) : BankConnectionStatusResult
 }
 
 /**
@@ -96,17 +97,15 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
                 }
 
                 HttpStatusCode.Unauthorized -> {
-                    BankConnectionResult.Failure("Your session expired. Please connect again.")
+                    BankConnectionResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 }
 
                 else -> {
-                    BankConnectionResult.Failure(
-                        "Could not start bank connection. Status: ${response.status.value}"
-                    )
+                    BankConnectionResult.Failure(StringKey.BANKING_ERROR_CONNECT_FAILED)
                 }
             }
         } catch (_: Exception) {
-            BankConnectionResult.Failure("Cannot connect to the server.")
+            BankConnectionResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -128,15 +127,15 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
                 }
 
                 HttpStatusCode.Unauthorized -> {
-                    ConnectedAccountResult.Failure("Your session expired. Please sign in again")
+                    ConnectedAccountResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 }
 
                 else -> {
-                    ConnectedAccountResult.Failure("Could not load connected accounts. Status: ${response.status.value}")
+                    ConnectedAccountResult.Failure(StringKey.BANKING_ERROR_LOAD_ACCOUNTS_FAILED)
                 }
             }
         } catch (_: Exception) {
-            ConnectedAccountResult.Failure("Cannot connect to the server.")
+            ConnectedAccountResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -158,15 +157,15 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
                 }
 
                 HttpStatusCode.Unauthorized -> {
-                    BankProviderResult.Failure("Your session expired. Please sign in again.")
+                    BankProviderResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 }
 
                 else -> {
-                    BankProviderResult.Failure("Could not load bank providers. Status: ${response.status.value}")
+                    BankProviderResult.Failure(StringKey.BANKING_ERROR_LOAD_PROVIDERS_FAILED)
                 }
             }
         } catch (_: Exception) {
-            BankProviderResult.Failure("Cannot connect to the server.")
+            BankProviderResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -184,17 +183,15 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
                 }
 
                 HttpStatusCode.Unauthorized -> {
-                    BankConnectionStatusResult.Failure( "Your session expired. Please connect again.")
+                    BankConnectionStatusResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 }
 
                 else -> {
-                    BankConnectionStatusResult.Failure(
-                        "Could not check bank connection status. Status: ${response.status.value}"
-                    )
+                    BankConnectionStatusResult.Failure(StringKey.BANKING_ERROR_CONNECT_FAILED)
                 }
             }
         } catch (_: Exception) {
-            BankConnectionStatusResult.Failure("Cannot connect to the server.")
+            BankConnectionStatusResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

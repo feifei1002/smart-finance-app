@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
+import com.smart_finance_app.AppStrings
+import com.smart_finance_app.LocaleController
 import kotlinx.coroutines.launch
 import com.smart_finance_app.budget.BudgetApi
 import com.smart_finance_app.budget.BudgetData
@@ -69,6 +71,9 @@ import smart_finance_app.shared.generated.resources.bank
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.add
 import smart_finance_app.shared.generated.resources.moving
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
+import com.smart_finance_app.localiseCategory
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -81,6 +86,7 @@ data class InferredBill(val merchant: String, val amount: Double, val expectedDa
  * Finds outgoing merchant payments that recur at a similar cadence and amount.
  * This deliberately uses only the transaction list already on-device.
  */
+
 private fun inferUpcomingBills(transactions: List<TransactionData>): List<InferredBill> {
     val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
     return transactions
@@ -204,9 +210,9 @@ private fun rememberGreeting(): String {
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
     val hour = now.hour
     return when {
-        hour < 12 -> "Good morning"
-        hour < 18 -> "Good afternoon"
-        else      -> "Good night"
+        hour < 12 -> appStringResource(StringKey.DASHBOARD_GREETING_MORNING)
+        hour < 18 -> appStringResource(StringKey.DASHBOARD_GREETING_AFTERNOON)
+        else      -> appStringResource(StringKey.DASHBOARD_GREETING_NIGHT)
     }
 }
 
@@ -234,7 +240,13 @@ fun DashboardScreen(
         errorMsg  = null
 
         val a = api.getAccounts(authToken)
-        if (a is DashboardResult.Failure) { errorMsg = a.message; isLoading = false; return }
+        if (a is DashboardResult.Failure) { errorMsg = AppStrings.get(
+            LocaleController.currentLanguageCode,
+            a.message
+        )
+            isLoading = false
+            return
+        }
         val accounts = (a as DashboardResult.Success).data
 
         if (accounts.isEmpty()) {
@@ -244,7 +256,12 @@ fun DashboardScreen(
         }
 
         val b = api.getBalances(authToken)
-        if (b is DashboardResult.Failure) { errorMsg = b.message; isLoading = false; return }
+        if (b is DashboardResult.Failure) { errorMsg = AppStrings.get(
+            LocaleController.currentLanguageCode,
+            b.message
+        )
+            isLoading = false
+            return }
         val balances = (b as DashboardResult.Success).data
 
         // Transactions are non-critical — if they fail, show dashboard with empty list
@@ -263,7 +280,7 @@ fun DashboardScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator()
-                        Text("Loading your financial data...",
+                        Text(appStringResource(StringKey.DASHBOARD_LOADING),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -274,14 +291,14 @@ fun DashboardScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.padding(24.dp)) {
-                        Text("Something went wrong",
+                        Text(appStringResource(StringKey.DASHBOARD_ERROR_TITLE),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
                         Text(errorMsg ?: "",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center)
-                        Button(onClick = { scope.launch { load() } }) { Text("Retry") }
+                        Button(onClick = { scope.launch { load() } }) { Text(appStringResource(StringKey.DASHBOARD_RETRY)) }
                     }
                 }
             }
@@ -296,10 +313,10 @@ fun DashboardScreen(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(48.dp)
                         )
-                        Text("No accounts connected",
+                        Text(appStringResource(StringKey.DASHBOARD_NO_ACCOUNTS_TITLE),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
-                        Text("Connect a bank account to see your\nfinancial overview here.",
+                        Text(appStringResource(StringKey.DASHBOARD_NO_ACCOUNTS_SUBTITLE),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center)
@@ -308,8 +325,7 @@ fun DashboardScreen(
                             onClick = { onConnectAccountClicked() },
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                         ) {
-                            Text(
-                                text = "Connect Account",
+                            Text(text = appStringResource(StringKey.DASHBOARD_CONNECTED_ACCOUNTS),
                                 style = MaterialTheme.typography.labelLarge
                             )
                         }
@@ -565,9 +581,11 @@ private fun MobileDashboard(
     }
 
     // Label on the top-right button
-    val selectorLabel = if (selectedAccounts.isEmpty()) "All Accounts"
+    val allAccountsLabel = appStringResource(StringKey.DASHBOARD_ALL_ACCOUNTS)
+    val accountsCountLabel = appStringResource(StringKey.DASHBOARD_ACCOUNTS_COUNT)
+    val selectorLabel = if (selectedAccounts.isEmpty()) allAccountsLabel
     else if (selectedAccounts.size == 1) selectedAccounts.first()
-    else "${selectedAccounts.size} accounts"
+    else accountsCountLabel.replace("%1\$d", "${selectedAccounts.size}")
 
     @OptIn(ExperimentalMaterial3Api::class)
     if (showChartsSheet) {
@@ -599,8 +617,7 @@ private fun MobileDashboard(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = "Here's your financial overview",
+                Text(appStringResource(StringKey.DASHBOARD_SUBTITLE),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -667,7 +684,7 @@ private fun MobileDashboard(
                                             checked = selectedAccounts.isEmpty(),
                                             onCheckedChange = { onAccountsChanged(setOf()) }
                                         )
-                                        Text("All Accounts", style = MaterialTheme.typography.bodySmall)
+                                        Text(allAccountsLabel, style = MaterialTheme.typography.bodySmall)
                                     }
                                 },
                                 onClick = {
@@ -933,7 +950,7 @@ private fun MobileDashboard(
                                         DonutChart(categories = chartCategories, modifier = Modifier.size(120.dp))
                                         Column(
                                             modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                             if (filteredCategories.isEmpty()) {
                                                 Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
@@ -974,16 +991,15 @@ private fun MobileDashboard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SectionTitle("Recent Transactions")
-                        Text(
-                            text = "See all",
+                        SectionTitle(appStringResource(StringKey.DASHBOARD_RECENT_TRANSACTIONS))
+                        Text(text = appStringResource(StringKey.DASHBOARD_VIEW_ALL),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.clickable { onViewAllTransactionsClicked() }
                         )
                     }
                     if (state.recentTransactions.isEmpty()) {
-                        Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
+                        Text(appStringResource(StringKey.TRANSACTIONS_EMPTY), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         state.recentTransactions.take(6).forEach { tx -> TransactionRow(tx) }
@@ -1123,9 +1139,11 @@ private fun DesktopDashboard(
         }
     }
 
-    val selectorLabel = if (selectedAccounts.isEmpty()) "All Accounts"
+    val allAccountsLabel = appStringResource(StringKey.DASHBOARD_ALL_ACCOUNTS)
+    val accountsCountLabel = appStringResource(StringKey.DASHBOARD_ACCOUNTS_COUNT)
+    val selectorLabel = if (selectedAccounts.isEmpty()) allAccountsLabel
     else if (selectedAccounts.size == 1) selectedAccounts.first()
-    else "${selectedAccounts.size} accounts"
+    else accountsCountLabel.replace("%1\$d", "${selectedAccounts.size}")
 
     // Row grouping for desktop chart cards — must live here in Composable scope, not inside LazyListScope
     val desktopChartRows by remember(desktopChartOrder, chartCardsOnDashboard) {
@@ -1176,8 +1194,7 @@ private fun DesktopDashboard(
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = "Here's your financial overview",
+                Text(appStringResource(StringKey.DASHBOARD_SUBTITLE),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1243,7 +1260,7 @@ private fun DesktopDashboard(
                                             checked = selectedAccounts.isEmpty(),
                                             onCheckedChange = { onAccountsChanged(setOf()) }
                                         )
-                                        Text("All Accounts", style = MaterialTheme.typography.bodySmall)
+                                        Text(allAccountsLabel, style = MaterialTheme.typography.bodySmall)
                                     }
                                 },
                                 onClick = {
@@ -1336,7 +1353,7 @@ private fun DesktopDashboard(
                                     DonutChart(categories = chartCategories, modifier = Modifier.size(150.dp))
                                     Column(
                                         modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         if (filteredCategories.isEmpty()) {
                                             Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
@@ -1361,7 +1378,7 @@ private fun DesktopDashboard(
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SectionTitle("Monthly Trend")
+                                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_TREND))
                                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                     LegendDot(color = Color(0xFF16A34A), label = "In")
                                     LegendDot(color = Color(0xFFEF4444), label = "Out")
@@ -1386,7 +1403,7 @@ private fun DesktopDashboard(
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SectionTitle("Monthly Spending Comparison")
+                                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_COMPARISON))
                                 BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
                             }
                         }
@@ -1516,13 +1533,13 @@ private fun DesktopDashboard(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                SectionTitle("Recent Transactions")
-                                Text("View all", style = MaterialTheme.typography.labelMedium,
+                                SectionTitle(appStringResource(StringKey.DASHBOARD_RECENT_TRANSACTIONS))
+                                Text(appStringResource(StringKey.DASHBOARD_VIEW_ALL), style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.clickable { onViewAllTransactionsClicked() })
                             }
                             if (state.recentTransactions.isEmpty()) {
-                                Text("No transactions yet", style = MaterialTheme.typography.bodySmall,
+                                Text(appStringResource(StringKey.TRANSACTIONS_EMPTY), style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
                                 Column(
@@ -1543,9 +1560,9 @@ private fun DesktopDashboard(
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SectionTitle("Accounts Overview")
+                            SectionTitle(appStringResource(StringKey.DASHBOARD_ACCOUNTS_OVERVIEW))
                             if (state.accounts.isEmpty()) {
-                                Text("No accounts connected yet", style = MaterialTheme.typography.bodySmall,
+                                Text(appStringResource(StringKey.DASHBOARD_NO_ACCOUNTS_TITLE), style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
                                 Column(
@@ -1567,7 +1584,7 @@ private fun DesktopDashboard(
                                             Column(horizontalAlignment = Alignment.End) {
                                                 Text(account.balance, style = MaterialTheme.typography.bodyMedium,
                                                     fontWeight = FontWeight.SemiBold)
-                                                Text("Connected", style = MaterialTheme.typography.labelSmall,
+                                                Text(appStringResource(StringKey.ACCOUNTS_STATUS_CONNECTED), style = MaterialTheme.typography.labelSmall,
                                                     color = Color(0xFF16A34A))
                                             }
                                         }
@@ -1577,7 +1594,7 @@ private fun DesktopDashboard(
                             }
                             Spacer(Modifier.height(4.dp))
                             OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
-                                Text("+ Add Account", style = MaterialTheme.typography.labelMedium)
+                                Text(appStringResource(StringKey.DASHBOARD_ADD_ACCOUNT), style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }
@@ -1590,16 +1607,16 @@ private fun DesktopDashboard(
                         modifier = Modifier.weight(0.8f).fillMaxHeight()
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SectionTitle("Quick Actions")
+                            SectionTitle(appStringResource(StringKey.DASHBOARD_QUICK_ACTIONS))
                             Button(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                                Text("+ Connect Account", style = MaterialTheme.typography.labelMedium)
+                                Text(appStringResource(StringKey.DASHBOARD_CONNECTED_ACCOUNTS), style = MaterialTheme.typography.labelMedium)
                             }
                             OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                                Text("Create Budget", style = MaterialTheme.typography.labelMedium)
+                                Text(appStringResource(StringKey.BUDGETS_ADD), style = MaterialTheme.typography.labelMedium)
                             }
                             Spacer(Modifier.height(8.dp))
-                            SectionTitle("Upcoming Bills")
-                            Text("Coming soon", style = MaterialTheme.typography.bodySmall,
+                            SectionTitle(appStringResource(StringKey.DASHBOARD_UPCOMING_BILLS))
+                            Text(appStringResource(StringKey.COMMON_COMING_SOON), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -1816,7 +1833,7 @@ private fun BarChart(data: List<MonthlyTopCategory>, modifier: Modifier = Modifi
                     Text(point.month, style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center)
-                    Text(point.category, style = MaterialTheme.typography.labelSmall,
+                    Text(localiseCategory(point.category), style = MaterialTheme.typography.labelSmall,
                         fontSize = 8.sp,
                         color = point.color,
                         textAlign = TextAlign.Center,
@@ -1850,7 +1867,10 @@ private fun BudgetProgressCardContent(
     suspend fun loadBudgets() {
         when (val r = api.getBudgets(authToken)) {
             is BudgetResult.Success -> budgets = r.data
-            is BudgetResult.Failure -> {errorMsg = r.message}
+            is BudgetResult.Failure -> {errorMsg = AppStrings.get(
+                LocaleController.currentLanguageCode,
+                r.message
+            )}
         }
     }
 
@@ -1862,7 +1882,7 @@ private fun BudgetProgressCardContent(
         modifier = Modifier.fillMaxHeight(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        SectionTitle("Budget Progress")
+        SectionTitle(appStringResource(StringKey.DASHBOARD_BUDGET_PROGRESS))
         if (errorMsg != null) {
             Text(
                 text = errorMsg ?: "",
@@ -1895,8 +1915,7 @@ private fun BudgetProgressCardContent(
                             fontWeight = FontWeight.Light
                         )
                     }
-                    Text(
-                        "Add a budget",
+                    Text(appStringResource(StringKey.BUDGETS_EMPTY_TITLE),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -1929,7 +1948,10 @@ private fun BudgetProgressCardContent(
                                     }
 
                                     is BudgetResult.Failure -> {
-                                        errorMsg = res.message
+                                        errorMsg = AppStrings.get(
+                                            LocaleController.currentLanguageCode,
+                                            res.message
+                                        )
                                     }
                                 }
                             }
@@ -1947,7 +1969,7 @@ private fun BudgetProgressCardContent(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("+ Add Budget", style = MaterialTheme.typography.labelMedium)
+                Text(appStringResource(StringKey.BUDGETS_ADD), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -1980,7 +2002,10 @@ private fun BudgetProgressCardContent(
                             loadBudgets()
                         }
                         is BudgetResult.Failure -> {
-                            errorMsg = result.message
+                            errorMsg = AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                result.message
+                            )
                         }
                     }
                 }
@@ -2008,7 +2033,16 @@ private fun SpendingOverviewHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SectionTitle("Spending (${selectedPeriod.label})")
+        val periodLabel = when (selectedPeriod) {
+            SpendingPeriod.THIS_MONTH    -> appStringResource(StringKey.PERIOD_THIS_MONTH)
+            SpendingPeriod.LAST_MONTH    -> appStringResource(StringKey.PERIOD_LAST_MONTH)
+            SpendingPeriod.LAST_3_MONTHS -> appStringResource(StringKey.PERIOD_LAST_3_MONTHS)
+            SpendingPeriod.THIS_YEAR     -> appStringResource(StringKey.PERIOD_THIS_YEAR)
+        }
+
+        val spendingLabel = appStringResource(StringKey.DASHBOARD_SPENDING_PERIOD)
+            .replace("%1\$s", periodLabel)
+        SectionTitle(spendingLabel)
         Box {
             IconButton(
                 onClick = { periodDropdownExpanded = true },
@@ -2040,7 +2074,12 @@ private fun SpendingOverviewHeader(
                                 } else {
                                     Spacer(Modifier.width(14.dp))
                                 }
-                                Text(period.label, style = MaterialTheme.typography.bodySmall)
+                                val periodLabels = mapOf(
+                                    SpendingPeriod.THIS_MONTH    to appStringResource(StringKey.PERIOD_THIS_MONTH),
+                                    SpendingPeriod.LAST_MONTH    to appStringResource(StringKey.PERIOD_LAST_MONTH),
+                                    SpendingPeriod.LAST_3_MONTHS to appStringResource(StringKey.PERIOD_LAST_3_MONTHS),
+                                    SpendingPeriod.THIS_YEAR     to appStringResource(StringKey.PERIOD_THIS_YEAR)
+                                )
                             }
                         },
                         onClick = {
@@ -2112,8 +2151,7 @@ private fun FinancialOverviewCard(
                     modifier = Modifier.weight(1.5f),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text  = "Current Balance",
+                    Text(text = appStringResource(StringKey.DASHBOARD_CURRENT_BALANCE),
                         style = MaterialTheme.typography.labelMedium,
                         color = accentColor.copy(alpha = 0.8f),
                         fontWeight = FontWeight.SemiBold
@@ -2151,8 +2189,7 @@ private fun FinancialOverviewCard(
                                     .size(6.dp)
                                     .background(Color(0xFF16A34A), CircleShape)
                             )
-                            Text(
-                                text  = "Monthly Income",
+                            Text(text = appStringResource(StringKey.DASHBOARD_INCOME),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2178,8 +2215,7 @@ private fun FinancialOverviewCard(
                                     .size(6.dp)
                                     .background(Color(0xFFEF4444), CircleShape)
                             )
-                            Text(
-                                text  = "Monthly Expenses",
+                            Text(text = appStringResource(StringKey.DASHBOARD_EXPENSES),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2386,7 +2422,7 @@ private fun CategoryLegendRow(cat: SpendingCategory) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(
             modifier = Modifier
@@ -2395,7 +2431,7 @@ private fun CategoryLegendRow(cat: SpendingCategory) {
         )
 
         Text(
-            text = cat.name,
+            text = localiseCategory(cat.name),
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
@@ -2473,8 +2509,7 @@ private fun TrendIndicator(percentageChange: Float) {
             fontWeight = FontWeight.Bold,
             color = color
         )
-        Text(
-            text = "vs last month",
+        Text(text = appStringResource(StringKey.DASHBOARD_VS_LAST_MONTH),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -2519,8 +2554,7 @@ private fun DashboardChartsButton(
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = "Charts",
+        Text(text = appStringResource(StringKey.DASHBOARD_CHARTS_BUTTON),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold
         )
@@ -2548,8 +2582,7 @@ private fun DashboardCustomizeButton(
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Done",
+                Text(text = appStringResource(StringKey.DASHBOARD_DONE),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -2566,8 +2599,7 @@ private fun DashboardCustomizeButton(
                         contentColor = Color.White
                     )
                 ) {
-                    Text(
-                        text = "Cancel",
+                    Text(text = appStringResource(StringKey.SETTINGS_CANCEL),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -2581,8 +2613,7 @@ private fun DashboardCustomizeButton(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
             shape = RoundedCornerShape(18.dp)
         ) {
-            Text(
-                text = "Customise",
+            Text(text = appStringResource(StringKey.DASHBOARD_CUSTOMISE),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -2600,7 +2631,7 @@ private fun HalfCardContent(
     when (cardKey) {
         "trend" -> {
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle("Monthly Trend")
+                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_TREND))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LegendDot(color = Color(0xFF16A34A), label = "In")
                     LegendDot(color = Color(0xFFEF4444), label = "Out")
@@ -2610,7 +2641,7 @@ private fun HalfCardContent(
         }
         "top_categories" -> {
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle("Highest Spending")
+                SectionTitle(appStringResource(StringKey.DASHBOARD_HIGHEST_SPENDING))
                 BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().weight(1f))
             }
         }
@@ -2659,7 +2690,7 @@ private fun ChartCardContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("Weekly Spending", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     BarChart(data = weeklyData, modifier = Modifier.fillMaxWidth().height(160.dp))
                 }
             }
@@ -2695,14 +2726,13 @@ private fun ChartCardContent(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    "Spending per Day",
+                Text(appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 if (totals.isEmpty()) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text("No data yet", style = MaterialTheme.typography.bodySmall,
+                        Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
@@ -2719,7 +2749,7 @@ private fun ChartCardContent(
                             ) {
                                 Box(Modifier.size(8.dp).background(cat.color, CircleShape))
                                 Text(
-                                    "${cat.name}  ${cat.amount}",
+                                    "${localiseCategory(cat.name)}  ${cat.amount}",
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -2753,7 +2783,7 @@ private fun ChartCardContent(
             val maxAmt = accountSpend.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1f
             val barColors = listOf(Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B), Color(0xFFEC4899))
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Bank Comparison", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 Column(
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -2791,7 +2821,16 @@ private fun ChartCardContent(
         // ── Spending by Time of Day (half) ──
         // 3. Everything centered inside the card
         "time_of_day" -> {
-            val buckets = mapOf("Morning" to Color(0xFFF59E0B), "Afternoon" to Color(0xFF6366F1), "Night" to Color(0xFF1E40AF))
+            // Keep English keys for grouping logic — they match the timestamp groupBy below
+            val morningLabel   = appStringResource(StringKey.TIME_OF_DAY_MORNING)
+            val afternoonLabel = appStringResource(StringKey.TIME_OF_DAY_AFTERNOON)
+            val nightLabel     = appStringResource(StringKey.TIME_OF_DAY_NIGHT)
+
+            val buckets = mapOf(
+                "Morning"   to Pair(morningLabel,   Color(0xFFF59E0B)),
+                "Afternoon" to Pair(afternoonLabel, Color(0xFF6366F1)),
+                "Night"     to Pair(nightLabel,     Color(0xFF1E40AF))
+            )
             val grouped = rawTransactions
                 .filter { tx ->
                     val p = tx.timestamp.take(10).split("-")
@@ -2805,9 +2844,11 @@ private fun ChartCardContent(
                     when { hour < 12 -> "Morning"; hour < 18 -> "Afternoon"; else -> "Night" }
                 }
             val total = grouped.values.flatten().sumOf { abs(it.amount) }.takeIf { it > 0 } ?: 1.0
-            val cats = buckets.map { (label, color) ->
-                val amt = grouped[label]?.sumOf { abs(it.amount) } ?: 0.0
+            val cats = buckets.map { (key, pair) ->
+                val (label, color) = pair
+                val amt = grouped[key]?.sumOf { abs(it.amount) } ?: 0.0
                 SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym), color = color)
+
             }
             Box(
                 modifier = Modifier.fillMaxHeight().fillMaxWidth(),
@@ -2817,7 +2858,7 @@ private fun ChartCardContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Time of Day", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     DonutChart(categories = cats, modifier = Modifier.size(80.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         cats.forEach { cat ->
@@ -2856,9 +2897,9 @@ private fun ChartCardContent(
                 .take(5)
                 .toList()
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Largest Transactions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(appStringResource(StringKey.CHART_LARGEST_TX_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (top5.isEmpty()) {
-                    Text("No data", style = MaterialTheme.typography.bodySmall,
+                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
@@ -2918,9 +2959,9 @@ private fun ChartCardContent(
                 .take(5)
                 .toList()
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Smallest Transactions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(appStringResource(StringKey.CHART_SMALLEST_TX_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 if (bottom5.isEmpty()) {
-                    Text("No data", style = MaterialTheme.typography.bodySmall,
+                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
@@ -2966,12 +3007,12 @@ private fun ChartCardContent(
             val bills = remember(rawTransactions) { inferUpcomingBills(rawTransactions) }
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Upcoming Bills", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                    Text("Predicted from history", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(appStringResource(StringKey.UPCOMING_BILLS_PREDICTED), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (bills.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No recurring payments identified yet", style = MaterialTheme.typography.bodySmall,
+                        Text(appStringResource(StringKey.CHART_NO_RECURRING), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
@@ -2981,7 +3022,13 @@ private fun ChartCardContent(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(bill.merchant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text("${bill.cadence} · expected ${bill.expectedDate}", style = MaterialTheme.typography.labelSmall,
+                                val cadenceLabel = when (bill.cadence) {
+                                    "Weekly"  -> appStringResource(StringKey.UPCOMING_BILLS_CADENCE_WEEKLY)
+                                    "Monthly" -> appStringResource(StringKey.UPCOMING_BILLS_CADENCE_MONTHLY)
+                                    else      -> bill.cadence
+                                }
+                                val expectedLabel = appStringResource(StringKey.UPCOMING_BILLS_EXPECTED)
+                                Text("$cadenceLabel · $expectedLabel ${bill.expectedDate}", style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Text(formatCurrency(bill.amount, sym), style = MaterialTheme.typography.bodySmall,
@@ -3030,16 +3077,16 @@ private fun ChartCardContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Text("Merchant Spending Treemap", style = MaterialTheme.typography.labelMedium,
+                    Text(appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE), style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold)
-                    Text("area = total spend",
+                    Text(appStringResource(StringKey.CHART_AREA_TOTAL_SPEND),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 if (bubbles.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No data this month", style = MaterialTheme.typography.bodySmall,
+                        Text(appStringResource(StringKey.CHART_NO_DATA_THIS_MONTH), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
@@ -3145,8 +3192,7 @@ private fun ChartsBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Add Charts",
+                Text(text = appStringResource(StringKey.DASHBOARD_ADD_CHARTS),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -3159,8 +3205,7 @@ private fun ChartsBottomSheet(
             if (available.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "All charts are already on your dashboard.\nRemove one with the − button to free up a slot.",
+                    Text(text = appStringResource(StringKey.DASHBOARD_ALL_CHARTS_ADDED),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -3187,6 +3232,29 @@ private fun ChartOptionRow(
     def: ChartCardDef,
     onAdd: () -> Unit
 ) {
+    val title = when (def.key) {
+        "weekly_spending"    -> appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE)
+        "spending_per_day"   -> appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE)
+        "bank_comparison"    -> appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE)
+        "time_of_day"        -> appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE)
+        "largest_tx"         -> appStringResource(StringKey.CHART_LARGEST_TX_TITLE)
+        "smallest_tx"        -> appStringResource(StringKey.CHART_SMALLEST_TX_TITLE)
+        "merchant_frequency" -> appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE)
+        "upcoming_bills"     -> appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE)
+        else                 -> def.title
+    }
+    val description = when (def.key) {
+        "weekly_spending"    -> appStringResource(StringKey.CHART_WEEKLY_SPENDING_DESC)
+        "spending_per_day"   -> appStringResource(StringKey.CHART_SPENDING_PER_DAY_DESC)
+        "bank_comparison"    -> appStringResource(StringKey.CHART_BANK_COMPARISON_DESC)
+        "time_of_day"        -> appStringResource(StringKey.CHART_TIME_OF_DAY_DESC)
+        "largest_tx"         -> appStringResource(StringKey.CHART_LARGEST_TX_DESC)
+        "smallest_tx"        -> appStringResource(StringKey.CHART_SMALLEST_TX_DESC)
+        "merchant_frequency" -> appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_DESC)
+        "upcoming_bills"     -> appStringResource(StringKey.CHART_UPCOMING_BILLS_DESC)
+        else                 -> def.description
+    }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -3200,7 +3268,7 @@ private fun ChartOptionRow(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = def.title,
+                        text = title,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -3210,7 +3278,10 @@ private fun ChartOptionRow(
                         else Color(0xFF22C55E).copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = if (def.size == CardSize.FULL) "Full" else "Half",
+                            text = if (def.size == CardSize.FULL)
+                                appStringResource(StringKey.DASHBOARD_CHART_SIZE_FULL)
+                            else
+                                appStringResource(StringKey.DASHBOARD_CHART_SIZE_HALF),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (def.size == CardSize.FULL) Color(0xFF6366F1) else Color(0xFF16A34A),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -3218,7 +3289,7 @@ private fun ChartOptionRow(
                     }
                 }
                 Text(
-                    text = def.description,
+                    text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -3228,7 +3299,11 @@ private fun ChartOptionRow(
                 onClick = onAdd,
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
             ) {
-                Text("+ Add", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    appStringResource(StringKey.DASHBOARD_ADD_BUTTON),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }

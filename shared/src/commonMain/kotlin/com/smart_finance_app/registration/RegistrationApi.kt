@@ -1,5 +1,6 @@
 package com.smart_finance_app.registration
 
+import com.smart_finance_app.StringKey
 import com.smart_finance_app.signin.AuthSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -24,15 +25,14 @@ data class RegisterResponse(
     val userId: String,
     val name: String,
     val email: String,
-    val consentAccepted: Boolean
+    val consentAccepted: Boolean,
+    val language: String = "en"
 )
 
-@Serializable
-private data class ErrorResponse(val message: String)
 
 sealed interface RegistrationResult {
     data class Success(val session: AuthSession) : RegistrationResult
-    data class Failure(val message: String) : RegistrationResult
+    data class Failure(val message: StringKey) : RegistrationResult
 }
 
 class RegistrationApi(private val baseUrl: String, private val client: HttpClient) {
@@ -57,18 +57,20 @@ class RegistrationApi(private val baseUrl: String, private val client: HttpClien
                             userId = body.userId,
                             name = body.name,
                             email = body.email,
-                            consentAccepted = body.consentAccepted
+                            consentAccepted = body.consentAccepted,
+                            language = body.language
                         )
                     )
                 }
-                HttpStatusCode.BadRequest,
-                HttpStatusCode.Conflict -> RegistrationResult.Failure(response.body<ErrorResponse>().message)
-                else -> RegistrationResult.Failure(
-                    "Registration failed (${response.status.value})"
-                )
+                HttpStatusCode.BadRequest -> {
+                    RegistrationResult.Failure(StringKey.COMMON_ERROR_INVALID_REQUEST)
+                }
+
+                HttpStatusCode.Conflict -> RegistrationResult.Failure(StringKey.REGISTER_ERROR_EMAIL_EXISTS)
+                else -> RegistrationResult.Failure(StringKey.COMMON_ERROR_UNKNOWN)
             }
         } catch (_: Exception) {
-            RegistrationResult.Failure("Cannot connect to the server")
+            RegistrationResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.smart_finance_app.payments
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -53,32 +54,32 @@ data class BillingAddressResponse(
 
 sealed interface CheckoutResult {
     data class Success(val checkoutUrl: String): CheckoutResult
-    data class Failure(val message: String): CheckoutResult
+    data class Failure(val message: StringKey): CheckoutResult
 }
 
 sealed interface SubscriptionStatusResult {
     data class Success(val status: String): SubscriptionStatusResult
-    data class Failure(val message: String): SubscriptionStatusResult
+    data class Failure(val message: StringKey): SubscriptionStatusResult
 }
 
 sealed interface PaymentDetailsResult {
     data class Success(val details: PaymentDetailsResponse): PaymentDetailsResult
-    data class Failure(val message: String): PaymentDetailsResult
+    data class Failure(val message: StringKey): PaymentDetailsResult
 }
 
 sealed interface CustomerPortalResult {
     data class Success(val portalUrl: String): CustomerPortalResult
-    data class Failure(val message: String): CustomerPortalResult
+    data class Failure(val message: StringKey): CustomerPortalResult
 }
 
 sealed interface BillingInvoicesResult {
     data class Success(val invoices: List<BillingInvoiceResponse>): BillingInvoicesResult
-    data class Failure(val message: String): BillingInvoicesResult
+    data class Failure(val message: StringKey): BillingInvoicesResult
 }
 
 sealed interface BillingAddressResult {
     data class Success(val address: BillingAddressResponse) : BillingAddressResult
-    data class Failure(val message: String): BillingAddressResult
+    data class Failure(val message: StringKey): BillingAddressResult
 }
 
 class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
@@ -92,12 +93,12 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> SubscriptionStatusResult.Success(response.body<SubscriptionStatusResponse>().status)
-                HttpStatusCode.Unauthorized -> SubscriptionStatusResult.Failure("Your session expired. Please sign in again.")
-                else -> SubscriptionStatusResult.Failure("Could not load subscription status. Status: ${response.status.value}")
+                HttpStatusCode.Unauthorized -> SubscriptionStatusResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> SubscriptionStatusResult.Failure(StringKey.SUBSCRIPTION_ERROR_LOAD_STATUS_FAILED)
 
             }
         } catch (_: Exception) {
-            SubscriptionStatusResult.Failure("Cannot connect to the server.")
+            SubscriptionStatusResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -109,11 +110,11 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> CheckoutResult.Success(response.body<CheckoutSessionResponse>().checkoutUrl)
-                HttpStatusCode.Unauthorized -> CheckoutResult.Failure("Your session expired. Please sign in again.")
-                else -> CheckoutResult.Failure("Could not start checkout. Status: ${response.status.value}")
+                HttpStatusCode.Unauthorized -> CheckoutResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> CheckoutResult.Failure(StringKey.SUBSCRIPTION_ERROR_CHECKOUT_FAILED)
             }
         } catch (_: Exception) {
-            CheckoutResult.Failure("Cannot connect to the server.")
+            CheckoutResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -125,11 +126,11 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> PaymentDetailsResult.Success(response.body())
-                HttpStatusCode.Unauthorized -> PaymentDetailsResult.Failure("Your session expired. Please sign in again.")
-                else -> PaymentDetailsResult.Failure("Could not load payment details. Status: ${response.status.value}")
+                HttpStatusCode.Unauthorized -> PaymentDetailsResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> PaymentDetailsResult.Failure(StringKey.SUBSCRIPTION_ERROR_PAYMENT_DETAILS_FAILED)
         }
     } catch (_: Exception) {
-            PaymentDetailsResult.Failure("Cannot connect to the server")
+            PaymentDetailsResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -141,11 +142,11 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> CustomerPortalResult.Success(response.body<CustomerPortalResponse>().portalUrl)
-                HttpStatusCode.Unauthorized -> CustomerPortalResult.Failure("Your session expired. Please sign in again.")
-                else -> CustomerPortalResult.Failure("Could not open payment settings. Status: ${response.status.value}")
+                HttpStatusCode.Unauthorized -> CustomerPortalResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> CustomerPortalResult.Failure(StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED)
             }
         } catch (_: Exception) {
-            CustomerPortalResult.Failure("Cannot connect to the server")
+            CustomerPortalResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -157,11 +158,11 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> BillingInvoicesResult.Success(response.body())
-                HttpStatusCode.Unauthorized -> BillingInvoicesResult.Failure("Your session expired. Please try again.")
-                else -> BillingInvoicesResult.Failure("Could not load billing history. Status: ${response.status.value}")
+                HttpStatusCode.Unauthorized -> BillingInvoicesResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> BillingInvoicesResult.Failure(StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED)
             }
         } catch (_: Exception) {
-            BillingInvoicesResult.Failure("Cannot connect to the server")
+            BillingInvoicesResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -173,11 +174,11 @@ class SubscriptionApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> BillingAddressResult.Success(response.body())
-                HttpStatusCode.Unauthorized -> BillingAddressResult.Failure("Your session expired. Please sign in again.")
-                else -> BillingAddressResult.Failure("Could not load billing information. Status: ${response.status.value}")
+                HttpStatusCode.Unauthorized -> BillingAddressResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> BillingAddressResult.Failure(StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED)
             }
         } catch (_: Exception) {
-            BillingAddressResult.Failure("Cannot connect to the server")
+            BillingAddressResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

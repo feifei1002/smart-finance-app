@@ -1,20 +1,15 @@
 package com.smart_finance_app.consent
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.post
-import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
-import kotlinx.serialization.Serializable
 
 sealed interface ConsentResult {
     data object Success : ConsentResult
-    data class Failure(val message: String) : ConsentResult
+    data class Failure(val message: StringKey) : ConsentResult
 }
-
-@Serializable
-private data class ErrorResponse(val message: String)
 
 class ConsentApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
@@ -31,24 +26,14 @@ class ConsentApi(baseUrl: String, private val client: HttpClient) {
             when (response.status) {
                 HttpStatusCode.OK, HttpStatusCode.NoContent -> ConsentResult.Success
                 HttpStatusCode.Unauthorized -> {
-                    ConsentResult.Failure("Your session expired. Status: 401")
+                    ConsentResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 }
                 else -> {
-                    ConsentResult.Failure(
-                        response.errorMessage("Could not save your consent. Status: ${response.status.value}")
-                    )
+                    ConsentResult.Failure(StringKey.CONSENT_ERROR_SAVE_FAILED)
                 }
             }
         } catch (_: Exception) {
-            ConsentResult.Failure("Cannot connect to the server")
-        }
-    }
-
-    private suspend fun HttpResponse.errorMessage(fallback: String): String {
-        return try {
-            body<ErrorResponse>().message
-        } catch (_: Exception) {
-            fallback
+            ConsentResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

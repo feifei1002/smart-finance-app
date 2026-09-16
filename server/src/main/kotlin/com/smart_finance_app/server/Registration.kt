@@ -16,22 +16,25 @@ data class RegisterRequest(
     val email: String,
     val password: String
 )
+
 @Serializable
-data class RegisterResponse (
+data class RegisterResponse(
     val token: String,
     val refreshToken: String,
     val userId: String,
     val name: String,
     val email: String,
-    val consentAccepted: Boolean
-)
-@Serializable
-data class ErrorResponse (
-    val message: String
+    val consentAccepted: Boolean,
+    val language: String          // ← new
 )
 
-fun Route.registrationRoutes(createAccessToken: (UUID) -> String,
-                             createRefreshToken: (UUID) -> String) {
+@Serializable
+data class ErrorResponse(val message: String)
+
+fun Route.registrationRoutes(
+    createAccessToken: (UUID) -> String,
+    createRefreshToken: (UUID) -> String
+) {
     post("/auth/register") {
         val request = runCatching { call.receive<RegisterRequest>() }
             .getOrElse {
@@ -43,12 +46,12 @@ fun Route.registrationRoutes(createAccessToken: (UUID) -> String,
         val email = request.email.trim().lowercase()
         val passwordBytes = request.password.encodeToByteArray()
 
-        if(name.isBlank() || !email.contains("@")) {
+        if (name.isBlank() || !email.contains("@")) {
             call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid name or email"))
             return@post
         }
 
-        if(request.password.length < 8 || passwordBytes.size > 72) {
+        if (request.password.length < 8 || passwordBytes.size > 72) {
             call.respond(HttpStatusCode.BadRequest, ErrorResponse("Password must be more than 8 characters"))
             return@post
         }
@@ -65,7 +68,6 @@ fun Route.registrationRoutes(createAccessToken: (UUID) -> String,
         }
 
         val refreshToken = createRefreshToken(userId)
-
         call.setRefreshTokenCookie(refreshToken)
 
         call.respond(
@@ -76,13 +78,14 @@ fun Route.registrationRoutes(createAccessToken: (UUID) -> String,
                 userId = userId.toString(),
                 name = name,
                 email = email,
-                consentAccepted = false
+                consentAccepted = false,
+                language = "en"   // ← new users always start in English
             )
         )
     }
 }
 
-private fun createUser (
+private fun createUser(
     fullName: String,
     email: String,
     passwordHash: String
@@ -90,10 +93,10 @@ private fun createUser (
     try {
         connection.prepareStatement(
             """
-                INSERT INTO users (full_name, email, password_hash)
-                VALUES (?, ?, ?)
-                RETURNING id
-                """.trimIndent()
+            INSERT INTO users (full_name, email, password_hash)
+            VALUES (?, ?, ?)
+            RETURNING id
+            """.trimIndent()
         ).use { statement ->
             statement.setString(1, fullName)
             statement.setString(2, email)
