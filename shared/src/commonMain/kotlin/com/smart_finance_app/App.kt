@@ -41,7 +41,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
-import com.smart_finance_app.LocaleController
 import com.smart_finance_app.settings.UserPreferencesApi
 
 
@@ -69,7 +68,7 @@ fun App(
     CompositionLocalProvider(
         LocalAppLanguage provides languageCode
     ) {
-    MaterialTheme {
+        SmartFinanceTheme {
 
         val registrationApi = remember(apiBaseUrl, httpClient) { RegistrationApi(apiBaseUrl, httpClient) }
 
@@ -236,7 +235,7 @@ fun App(
         }
 
         if (checkingSavedSession) {
-            MaterialTheme {
+            SmartFinanceTheme {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -244,7 +243,7 @@ fun App(
                     CircularProgressIndicator()
                 }
             }
-            return@MaterialTheme
+            return@SmartFinanceTheme
         }
 
         when (screen) {
