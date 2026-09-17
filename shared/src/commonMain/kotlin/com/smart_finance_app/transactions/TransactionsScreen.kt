@@ -51,7 +51,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.download
 import smart_finance_app.shared.generated.resources.edit
@@ -311,7 +310,10 @@ private fun MobileTransactionsList(
                             )
                         }
                         items(items = dayTransactions, key = { it.id }) { transaction ->
-                            MobileTransactionRow(transaction)
+                            MobileTransactionRow(
+                                transaction = transaction,
+                                onEditCategory = onEditCategory
+                            )
                         }
                     }
                     if (hasMore && isLoading) {
@@ -515,34 +517,12 @@ private fun DesktopTransactionsTable(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             when {
-                isSyncing && transactions.isEmpty() -> LoadingTransactionsState(loadingLabel)
-                isLoading                           -> LoadingTransactionsState(loadingLabel)
-                errorMessage != null && searchTransactions.isEmpty() -> TransactionsInlineMessage(
-                    message = errorMessage, isError = true
-                )
-                searchTransactions.isEmpty() -> TransactionsInlineMessage(message = emptyLabel)
-                else -> Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(12.dp)
-                ) {
-                    TransactionTableHeader(
-                        dateHeader     = dateHeader,
-                        merchantHeader = merchantHeader,
-                        categoryHeader = categoryHeader,
-                        accountHeader  = accountHeader,
-                        amountHeader   = amountHeader,
-                        actionsHeader  = actionsHeader
-                    )
-                    searchTransactions.forEach { transaction ->
-                        TransactionTableRow(transaction, editLabel)
                 isSyncing && transactions.isEmpty() -> {
-                    LoadingTransactionsState()
+                    LoadingTransactionsState(loadingLabel)
                 }
 
                 isLoading -> {
-                    LoadingTransactionsState()
+                    LoadingTransactionsState(loadingLabel)
                 }
 
                 errorMessage != null && searchTransactions.isEmpty() -> {
@@ -553,26 +533,31 @@ private fun DesktopTransactionsTable(
                 }
 
                 searchTransactions.isEmpty() -> {
-                    TransactionsInlineMessage(
-                        message = "No transactions available."
-                    )
+                    TransactionsInlineMessage(message = emptyLabel)
                 }
 
                 else -> {
-
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
                             .padding(12.dp)
                     ) {
-                        TransactionTableHeader()
+                        TransactionTableHeader(
+                            dateHeader = dateHeader,
+                            merchantHeader = merchantHeader,
+                            categoryHeader = categoryHeader,
+                            accountHeader = accountHeader,
+                            amountHeader = amountHeader,
+                            actionsHeader = actionsHeader
+                        )
 
                         searchTransactions.forEach { transaction ->
                             TransactionTableRow(
-                                transaction,
+                                transaction = transaction,
+                                editLabel = editLabel,
                                 onEditCategory = onEditCategory
-                                )
+                            )
                         }
                     }
                 }
@@ -626,20 +611,23 @@ private fun TransactionTableHeader(
 @Composable
 private fun TransactionTableRow(
     transaction: TransactionUI,
-    onEditCategory: (TransactionUI) -> Unit,
-    editLabel: String
+    editLabel: String,
+    onEditCategory: (TransactionUI) -> Unit
 ) {
     Row(
         modifier = Modifier.width(900.dp).padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TableCell(transaction.dateLabel,  1f)
-        MerchantTableCell(transaction,    1.5f)
-        TableCell(transaction.category,   1.2f)
+        TableCell(transaction.dateLabel, 1f)
+        MerchantTableCell(transaction, 1.5f)
+        TableCell(localiseCategory(transaction.category), 1.2f)
         TableCell(transaction.accountName, 1.5f)
-        TableCell(formatAmount(transaction.amount, transaction.currency), 1f)
-        TableCell(editLabel,              0.8f)
+
+        TableCell(
+            text = formatAmount(transaction.amount, transaction.currency),
+            weight = 1f
+        )
 
         Box(
             modifier = Modifier.weight(0.8f),
@@ -651,7 +639,7 @@ private fun TransactionTableRow(
             ) {
                 Icon(
                     painter = painterResource(Res.drawable.edit),
-                    contentDescription = "Edit transaction category",
+                    contentDescription = editLabel,
                     modifier = Modifier.size(18.dp)
                 )
             }

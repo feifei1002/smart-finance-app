@@ -452,6 +452,20 @@ fun Route.bankingRoutes() {
                     ErrorResponse("Invalid token")
                 )
 
+            val expectedAdminToken = System.getenv("RECATEGORIZE_ADMIN_TOKEN")
+
+            if (expectedAdminToken.isNullOrBlank()) {
+                call.respond(HttpStatusCode.NotFound, ErrorResponse("Not found"))
+                return@post
+            }
+
+            val providedAdminToken = call.request.headers["X-Admin-Token"]
+
+            if (providedAdminToken != expectedAdminToken) {
+                call.respond(HttpStatusCode.Forbidden, ErrorResponse("Forbidden"))
+                return@post
+            }
+            
             val updatedCount = recategorizeTransactionsForUser(userId)
             call.respond(mapOf("updatedCount" to updatedCount))
         }
