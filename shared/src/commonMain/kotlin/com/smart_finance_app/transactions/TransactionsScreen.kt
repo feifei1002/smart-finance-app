@@ -40,6 +40,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +61,8 @@ import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import kotlin.math.ceil
 import com.smart_finance_app.localiseCategory
+import kotlinx.coroutines.launch
+
 data class TransactionUI(
     val id: String,
     val dateLabel: String,
@@ -88,11 +91,13 @@ fun TransactionsScreen(
     onPageSelected: (Int) -> Unit = {},
     isUpdatingCategory: Boolean = false,
     categoryUpdateError: String? = null,
-    onUpdateCategory: (String, String) -> Unit = { _, _ -> },
+    onUpdateCategory: suspend (String, String) -> Boolean = { _, _ -> false },
     onDismissCategoryUpdateError: () -> Unit = {},
 ) {
 
     var editingTransaction by remember { mutableStateOf<TransactionUI?>(null) }
+
+    val scope = rememberCoroutineScope()
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -109,6 +114,7 @@ fun TransactionsScreen(
                     onFilterSelected = onFilterSelected,
                     onLoadNextPage = onLoadNextPage,
                     onEditCategory = { transaction: TransactionUI ->
+                        onDismissCategoryUpdateError()
                         editingTransaction = transaction
                     }
                 )
@@ -142,8 +148,13 @@ fun TransactionsScreen(
                     onDismissCategoryUpdateError()
                 },
                 onCategorySelected = { category ->
-                    onUpdateCategory(transaction.id, category)
-                    editingTransaction = null
+                    scope.launch {
+                        val success = onUpdateCategory(transaction.id, category)
+
+                        if (success) {
+                            editingTransaction = null
+                        }
+                    }
                 }
             )
         }
@@ -767,7 +778,7 @@ private fun EditTransactionCategoryDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text("Edit Category") },
+        title = { Text(appStringResource(StringKey.TRANSACTIONS_EDIT_CATEGORY)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Column(
@@ -823,7 +834,7 @@ private fun EditTransactionCategoryDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = category,
+                            text = localiseCategory(category),
                             color = if (isCurrent) {
                                 MaterialTheme.colorScheme.primary
                             } else {

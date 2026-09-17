@@ -406,22 +406,23 @@ private fun NavigationContent(
                     categoryUpdateError = null
                 },
                 onUpdateCategory = { transactionId, category ->
-                    scope.launch {
-                        updatingCategoryTransactionId = transactionId
-                        categoryUpdateError = null
+                    updatingCategoryTransactionId = transactionId
+                    categoryUpdateError = null
 
-                        when (val result = transactionsApi.updateTransactionCategory(authToken, transactionId, category)) {
-                            is UpdateTransactionCategoryResult.Success -> {
-                                updateTransactionCategoryLocally(transactionId, category)
-                            }
-
-                            is UpdateTransactionCategoryResult.Failure -> {
-                                categoryUpdateError = result.message
-                            }
+                    val success = when (val result = transactionsApi.updateTransactionCategory(authToken, transactionId, category)) {
+                        is UpdateTransactionCategoryResult.Success -> {
+                            updateTransactionCategoryLocally(transactionId, category)
+                            true
                         }
 
-                        updatingCategoryTransactionId = null
+                        is UpdateTransactionCategoryResult.Failure -> {
+                            categoryUpdateError = result.message
+                            false
+                        }
                     }
+
+                    updatingCategoryTransactionId = null
+                    success
                 }
             )
         }
