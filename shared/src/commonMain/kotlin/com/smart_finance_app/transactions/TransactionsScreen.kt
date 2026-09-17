@@ -1,6 +1,8 @@
 package com.smart_finance_app.transactions
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -37,24 +40,29 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.download
+import smart_finance_app.shared.generated.resources.edit
 import smart_finance_app.shared.generated.resources.filter
 import smart_finance_app.shared.generated.resources.search
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import kotlin.math.ceil
 import com.smart_finance_app.localiseCategory
+import kotlinx.coroutines.launch
+
 data class TransactionUI(
     val id: String,
     val dateLabel: String,
@@ -81,32 +89,73 @@ fun TransactionsScreen(
     onFilterSelected: (String) -> Unit = {},
     onLoadNextPage: () -> Unit = {},
     onPageSelected: (Int) -> Unit = {},
+    isUpdatingCategory: Boolean = false,
+    categoryUpdateError: String? = null,
+    onUpdateCategory: suspend (String, String) -> Boolean = { _, _ -> false },
+    onDismissCategoryUpdateError: () -> Unit = {},
 ) {
+
+    var editingTransaction by remember { mutableStateOf<TransactionUI?>(null) }
+
+    val scope = rememberCoroutineScope()
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
         when {
-            compact -> MobileTransactionsList(
-                transactions = transactions,
-                isLoading = isLoading,
-                isSyncing = isSyncing,
-                errorMessage = errorMessage,
-                hasMore = hasMore,
-                selectedFilter = selectedFilter,
-                onFilterSelected = onFilterSelected,
-                onLoadNextPage = onLoadNextPage
-            )
-            else -> DesktopTransactionsTable(
-                transactions = transactions,
-                isLoading = isLoading,
-                isSyncing = isSyncing,
-                errorMessage = errorMessage,
-                currentPage = currentPage,
-                totalCount = totalCount,
-                pageSize = pageSize,
-                selectedFilter = selectedFilter,
-                onFilterSelected = onFilterSelected,
-                onPageSelected = onPageSelected
+            compact -> {
+                MobileTransactionsList(
+                    transactions = transactions,
+                    isLoading = isLoading,
+                    isSyncing = isSyncing,
+                    errorMessage = errorMessage,
+                    hasMore = hasMore,
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = onFilterSelected,
+                    onLoadNextPage = onLoadNextPage,
+                    onEditCategory = { transaction: TransactionUI ->
+                        onDismissCategoryUpdateError()
+                        editingTransaction = transaction
+                    }
+                )
+            }
+            else -> {
+                DesktopTransactionsTable(
+                    transactions = transactions,
+                    isLoading = isLoading,
+                    isSyncing = isSyncing,
+                    errorMessage = errorMessage,
+                    currentPage = currentPage,
+                    totalCount = totalCount,
+                    pageSize = pageSize,
+                    selectedFilter = selectedFilter,
+                    onFilterSelected = onFilterSelected,
+                    onPageSelected = onPageSelected,
+                    onEditCategory = { transaction: TransactionUI ->
+                        editingTransaction = transaction
+                    }
+                )
+            }
+        }
+
+        editingTransaction?.let { transaction ->
+            EditTransactionCategoryDialog(
+                transaction = transaction,
+                isSaving = isUpdatingCategory,
+                errorMessage = categoryUpdateError,
+                onDismiss = {
+                    editingTransaction = null
+                    onDismissCategoryUpdateError()
+                },
+                onCategorySelected = { category ->
+                    scope.launch {
+                        val success = onUpdateCategory(transaction.id, category)
+
+                        if (success) {
+                            editingTransaction = null
+                        }
+                    }
+                }
             )
         }
     }
@@ -121,7 +170,8 @@ private fun MobileTransactionsList(
     hasMore: Boolean = false,
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
-    onLoadNextPage: () -> Unit = {}
+    onLoadNextPage: () -> Unit = {},
+    onEditCategory: (TransactionUI) -> Unit
 ) {
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -200,6 +250,7 @@ private fun MobileTransactionsList(
                         contentDescription = searchPlaceholder
                     )
                 }
+
                 IconButton(onClick = {}) {
                     Icon(
                         painter = painterResource(Res.drawable.filter),
@@ -270,7 +321,10 @@ private fun MobileTransactionsList(
                             )
                         }
                         items(items = dayTransactions, key = { it.id }) { transaction ->
-                            MobileTransactionRow(transaction)
+                            MobileTransactionRow(
+                                transaction = transaction,
+                                onEditCategory = onEditCategory
+                            )
                         }
                     }
                     if (hasMore && isLoading) {
@@ -283,7 +337,10 @@ private fun MobileTransactionsList(
 }
 
 @Composable
-private fun MobileTransactionRow(transaction: TransactionUI) {
+private fun MobileTransactionRow(
+    transaction: TransactionUI,
+    onEditCategory: (TransactionUI) -> Unit
+    ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -313,6 +370,17 @@ private fun MobileTransactionRow(transaction: TransactionUI) {
             color = if (transaction.amount >= 0) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurface
         )
+
+        IconButton(
+            onClick = { onEditCategory(transaction) },
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                painter = painterResource(Res.drawable.edit),
+                contentDescription = "Edit transaction category",
+                modifier = Modifier.size(18.dp)
+            )
+        }
     }
 }
 
@@ -327,7 +395,8 @@ private fun DesktopTransactionsTable(
     pageSize: Int = 6,
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
-    onPageSelected: (Int) -> Unit = {}
+    onPageSelected: (Int) -> Unit = {},
+    onEditCategory: (TransactionUI) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
@@ -459,28 +528,48 @@ private fun DesktopTransactionsTable(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             when {
-                isSyncing && transactions.isEmpty() -> LoadingTransactionsState(loadingLabel)
-                isLoading                           -> LoadingTransactionsState(loadingLabel)
-                errorMessage != null && searchTransactions.isEmpty() -> TransactionsInlineMessage(
-                    message = errorMessage, isError = true
-                )
-                searchTransactions.isEmpty() -> TransactionsInlineMessage(message = emptyLabel)
-                else -> Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(12.dp)
-                ) {
-                    TransactionTableHeader(
-                        dateHeader     = dateHeader,
-                        merchantHeader = merchantHeader,
-                        categoryHeader = categoryHeader,
-                        accountHeader  = accountHeader,
-                        amountHeader   = amountHeader,
-                        actionsHeader  = actionsHeader
+                isSyncing && transactions.isEmpty() -> {
+                    LoadingTransactionsState(loadingLabel)
+                }
+
+                isLoading -> {
+                    LoadingTransactionsState(loadingLabel)
+                }
+
+                errorMessage != null && searchTransactions.isEmpty() -> {
+                    TransactionsInlineMessage(
+                        message = errorMessage,
+                        isError = true
                     )
-                    searchTransactions.forEach { transaction ->
-                        TransactionTableRow(transaction, editLabel)
+                }
+
+                searchTransactions.isEmpty() -> {
+                    TransactionsInlineMessage(message = emptyLabel)
+                }
+
+                else -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(12.dp)
+                    ) {
+                        TransactionTableHeader(
+                            dateHeader = dateHeader,
+                            merchantHeader = merchantHeader,
+                            categoryHeader = categoryHeader,
+                            accountHeader = accountHeader,
+                            amountHeader = amountHeader,
+                            actionsHeader = actionsHeader
+                        )
+
+                        searchTransactions.forEach { transaction ->
+                            TransactionTableRow(
+                                transaction = transaction,
+                                editLabel = editLabel,
+                                onEditCategory = onEditCategory
+                            )
+                        }
                     }
                 }
             }
@@ -526,33 +615,62 @@ private fun TransactionTableHeader(
         TableCell(categoryHeader, 1.2f, bold = true)
         TableCell(accountHeader,  1.5f, bold = true)
         TableCell(amountHeader,   1f,   bold = true)
-        TableCell(actionsHeader,  0.8f, bold = true)
+        TableCell(actionsHeader,  0.8f, bold = true, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
-private fun TransactionTableRow(transaction: TransactionUI, editLabel: String) {
+private fun TransactionTableRow(
+    transaction: TransactionUI,
+    editLabel: String,
+    onEditCategory: (TransactionUI) -> Unit
+) {
     Row(
         modifier = Modifier.width(900.dp).padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TableCell(transaction.dateLabel,  1f)
-        MerchantTableCell(transaction,    1.5f)
-        TableCell(transaction.category,   1.2f)
+        TableCell(transaction.dateLabel, 1f)
+        MerchantTableCell(transaction, 1.5f)
+        TableCell(localiseCategory(transaction.category), 1.2f)
         TableCell(transaction.accountName, 1.5f)
-        TableCell(formatAmount(transaction.amount, transaction.currency), 1f)
-        TableCell(editLabel,              0.8f)
+
+        TableCell(
+            text = formatAmount(transaction.amount, transaction.currency),
+            weight = 1f
+        )
+
+        Box(
+            modifier = Modifier.weight(0.8f),
+            contentAlignment = Alignment.Center
+        ) {
+            IconButton(
+                onClick = { onEditCategory(transaction) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    painter = painterResource(Res.drawable.edit),
+                    contentDescription = editLabel,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun RowScope.TableCell(text: String, weight: Float, bold: Boolean = false) {
+private fun RowScope.TableCell(
+    text: String,
+    weight: Float,
+    bold: Boolean = false,
+    textAlign: TextAlign = TextAlign.Start
+) {
     Text(
         text = text,
         modifier = Modifier.weight(weight),
         style = MaterialTheme.typography.bodySmall,
-        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal
+        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+        textAlign = textAlign
     )
 }
 
@@ -644,6 +762,105 @@ private fun MerchantLogo(
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun EditTransactionCategoryDialog(
+    transaction: TransactionUI,
+    isSaving: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    onCategorySelected: (String) -> Unit
+) {
+    val categories = selectableCategories(transaction)
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text(appStringResource(StringKey.TRANSACTIONS_EDIT_CATEGORY)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = transaction.merchantName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = formatAmount(transaction.amount, transaction.currency),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (transaction.amount >= 0) {
+                            Color(0xFF6F58A8)
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+
+                errorMessage?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+
+                categories.forEach { category ->
+                    val isCurrent = category == transaction.category
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (isCurrent) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                } else {
+                                    Color.Transparent
+                                }
+                            )
+                            .clickable(enabled = !isSaving) {
+                                onCategorySelected(category)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = localiseCategory(category),
+                            color = if (isCurrent) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) {
+                Text(appStringResource(StringKey.COMMON_CANCEL))
+            }
+        }
+    )
+}
+
+private fun selectableCategories(transaction: TransactionUI): List<String> {
+    return if (transaction.amount < 0) {
+        TransactionCategories.all.filter { it != TransactionCategories.INCOME }
+    } else {
+        TransactionCategories.all
     }
 }
 

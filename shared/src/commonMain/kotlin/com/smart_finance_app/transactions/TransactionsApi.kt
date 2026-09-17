@@ -7,7 +7,11 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -40,6 +44,9 @@ data class PaginatedTransactionsResponse(
     val hasMore: Boolean
 )
 
+@Serializable
+data class UpdateTransactionCategoryRequest(val category: String)
+
 sealed interface TransactionsResult {
     data class Success(val page: PaginatedTransactionsResponse): TransactionsResult
     data class Failure(val message: StringKey): TransactionsResult
@@ -50,6 +57,10 @@ sealed interface TransactionSyncResult {
     data class Failure(val message: StringKey): TransactionSyncResult
 }
 
+sealed interface UpdateTransactionCategoryResult {
+    data object Success: UpdateTransactionCategoryResult
+    data class Failure(val message: String): UpdateTransactionCategoryResult
+}
 class TransactionsApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
 
@@ -88,6 +99,30 @@ class TransactionsApi(baseUrl: String, private val client: HttpClient) {
             }
         } catch (_: Exception) {
             TransactionsResult.Failure(StringKey.COMMON_ERROR_SERVER)
+        }
+    }
+
+    suspend fun updateTransactionCategory(
+        token: String,
+        transactionId: String,
+        category: String
+    ): UpdateTransactionCategoryResult {
+        return try {
+            val response = client.put("$normalizedBaseUrl/api/banking/transactions/$transactionId/category") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(UpdateTransactionCategoryRequest(category))
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> UpdateTransactionCategoryResult.Success
+                HttpStatusCode.Unauthorized -> UpdateTransactionCategoryResult.Failure("Your session expired. Please sign in again.")
+                HttpStatusCode.NotFound -> UpdateTransactionCategoryResult.Failure("Transaction not found.")
+                HttpStatusCode.BadRequest -> UpdateTransactionCategoryResult.Failure("Invalid category.")
+                else -> UpdateTransactionCategoryResult.Failure("Could not update category.")
+            }
+        } catch (exception: Exception) {
+            UpdateTransactionCategoryResult.Failure("Update failed: ${exception.message ?: "Unknown error"}")
         }
     }
 }

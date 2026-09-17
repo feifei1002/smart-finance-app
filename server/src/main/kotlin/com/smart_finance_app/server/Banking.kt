@@ -90,6 +90,16 @@ data class PaginatedTransactionsResponse(
 )
 
 @Serializable
+data class UpdateTransactionCategoryRequest(
+    val category: String
+)
+@Serializable
+data class UpdateTransactionCategoryResponse(
+    val id: String,
+    val category: String
+)
+
+@Serializable
 data class BankProviderVariantResponse(
     val id: String,
     val label: String,
@@ -430,6 +440,10 @@ fun Route.bankingRoutes() {
             call.respond(BankConnectionStatusResponse(status))
         }
 
+        /* Bulk ML recategorization for existing imported transactions.
+         This should only update transactions whose category_source is auto.
+         Manually edited categories must be preserved.
+         */
         post("/api/banking/transactions/recategorize") {
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.userIdOrNull()
@@ -438,8 +452,65 @@ fun Route.bankingRoutes() {
                     ErrorResponse("Invalid token")
                 )
 
+            val expectedAdminToken = System.getenv("RECATEGORIZE_ADMIN_TOKEN")
+
+            if (expectedAdminToken.isNullOrBlank()) {
+                call.respond(HttpStatusCode.NotFound, ErrorResponse("Not found"))
+                return@post
+            }
+
+            val providedAdminToken = call.request.headers["X-Admin-Token"]
+
+            if (providedAdminToken != expectedAdminToken) {
+                call.respond(HttpStatusCode.Forbidden, ErrorResponse("Forbidden"))
+                return@post
+            }
+            
             val updatedCount = recategorizeTransactionsForUser(userId)
             call.respond(mapOf("updatedCount" to updatedCount))
+        }
+
+        put("/api/banking/transactions/{id}/category") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@put call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val transactionId = call.parameters["id"]
+                ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid transaction id"))
+
+            val request = runCatching { call.receive<UpdateTransactionCategoryRequest>() }
+                .getOrElse {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request"))
+                    return@put
+                }
+
+            val category = request.category.trim()
+
+            if (category !in allowedTransactionCategories) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid category"))
+                return@put
+            }
+
+            val transactionAmount = getTransactionAmountForUser(userId, transactionId)
+                ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Transaction not found"))
+
+            if (category == "Income" && transactionAmount < 0) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    ErrorResponse("Income cannot be assigned to outgoing transactions")
+                )
+                return@put
+            }
+
+            val updated = updateTransactionCategoryForUser(userId, transactionId, category)
+
+            if (!updated) {
+                call.respond(HttpStatusCode.NotFound, ErrorResponse("Transaction not found"))
+                return@put
+            }
+
+            call.respond(UpdateTransactionCategoryResponse(transactionId.toString(), category))
         }
     }
 
@@ -1677,7 +1748,7 @@ private suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
             SELECT id, provider_transaction_id, transaction_timestamp, description,
                    amount, currency, transaction_type, merchant_name
             FROM transactions
-            WHERE user_id = ?
+            WHERE user_id = ? AND COALESCE(category_source, 'auto') <> 'manual'
             """.trimIndent()
         ).use { statement ->
             statement.setObject(1, userId)
@@ -1714,8 +1785,8 @@ private suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
                 val updated = connection.prepareStatement(
                     """
                     UPDATE transactions
-                    SET category = ?
-                    WHERE id = ?
+                    SET category = ?, category_source = 'auto'
+                    WHERE id = ? AND COALESCE(category_source, 'auto') <> 'manual'
                     """.trimIndent()
                 ).use { statement ->
                     statement.setString(1, category)
@@ -1760,6 +1831,68 @@ suspend fun inferTransactionCategory(transaction: TransactionResponse): String {
     }
 
     return CategoryServiceClient.classify(cleanDesc)
+}
+
+private val allowedTransactionCategories = setOf(
+    "Food & Dining",
+    "Shopping & Personal",
+    "Bills & Housing",
+    "Entertainment & Subscriptions",
+    "Transportation",
+    "Transfers",
+    "Income",
+    "Others"
+)
+
+private fun updateTransactionCategoryForUser(
+    userId: UUID,
+    transactionId: UUID,
+    category: String
+): Boolean {
+    return Database.dataSource.connection.use { connection ->
+        try {
+            val updated = connection.prepareStatement(
+                """
+                UPDATE transactions
+                SET category = ?, category_source = 'manual'
+                WHERE id = ? AND user_id = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, category)
+                statement.setObject(2, transactionId)
+                statement.setObject(3, userId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            updated > 0
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private fun getTransactionAmountForUser(
+    userId: UUID,
+    transactionId: UUID
+): Double? {
+    return Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT amount
+            FROM transactions
+            WHERE id = ? AND user_id = ?
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, transactionId)
+            statement.setObject(2, userId)
+
+            statement.executeQuery().use { result ->
+                if (result.next()) result.getDouble("amount") else null
+            }
+        }
+    }
 }
 
 /**
