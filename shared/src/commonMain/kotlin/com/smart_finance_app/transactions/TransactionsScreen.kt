@@ -839,7 +839,7 @@ private fun EditTransactionCategoryDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isSaving) {
-                Text("Cancel")
+                Text(appStringResource(StringKey.COMMON_CANCEL))
             }
         }
     )
