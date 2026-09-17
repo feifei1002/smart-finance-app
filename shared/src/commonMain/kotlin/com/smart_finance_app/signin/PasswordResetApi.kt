@@ -1,10 +1,9 @@
 package com.smart_finance_app.signin
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -18,22 +17,19 @@ private data class PasswordResetRequest(val email: String)
 @Serializable
 private data class PasswordResetConfirmRequest(val token: String, val newPassword: String)
 
-@Serializable
-private data class PasswordResetErrorResponse(val message: String)
-
 sealed interface PasswordResetValidateResult {
     data object Success : PasswordResetValidateResult
-    data class Failure(val message: String) : PasswordResetValidateResult
+    data class Failure(val message: StringKey) : PasswordResetValidateResult
 }
 
 sealed interface PasswordResetRequestResult {
     data object Success : PasswordResetRequestResult
-    data class Failure(val message: String): PasswordResetRequestResult
+    data class Failure(val message: StringKey): PasswordResetRequestResult
 }
 
 sealed interface PasswordResetConfirmResult {
     data object Success : PasswordResetConfirmResult
-    data class Failure(val message: String) : PasswordResetConfirmResult
+    data class Failure(val message: StringKey) : PasswordResetConfirmResult
 }
 
 class PasswordResetApi(baseUrl: String, private val client: HttpClient) {
@@ -48,10 +44,10 @@ class PasswordResetApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> PasswordResetValidateResult.Success
-                else -> PasswordResetValidateResult.Failure("Reset link is invalid or expired")
+                else -> PasswordResetValidateResult.Failure(StringKey.RESET_PASSWORD_ERROR_INVALID_OR_EXPIRED)
             }
         } catch (_: Exception) {
-            PasswordResetValidateResult.Failure("Cannot connect to the server")
+            PasswordResetValidateResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -64,19 +60,14 @@ class PasswordResetApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> PasswordResetRequestResult.Success
-                HttpStatusCode.BadRequest -> PasswordResetRequestResult.Failure(
-                    response.errorMessage("Please enter a valid email address.")
-                )
+                HttpStatusCode.BadRequest -> PasswordResetRequestResult.Failure(StringKey.FORGOT_PASSWORD_INVALID_EMAIL)
 
-                HttpStatusCode.ServiceUnavailable -> PasswordResetRequestResult.Failure(
-                    response.errorMessage("Password reset email could not be sent. Please try again later.")
-                )
-                else -> PasswordResetRequestResult.Failure(
-                    response.errorMessage("Password reset request failed (${response.status.value})")
-                )
+                HttpStatusCode.ServiceUnavailable -> PasswordResetRequestResult.Failure(StringKey.FORGOT_PASSWORD_ERROR_EMAIL_UNAVAILABLE)
+
+                else -> PasswordResetRequestResult.Failure(StringKey.FORGOT_PASSWORD_ERROR_REQUEST_FAILED)
             }
         } catch (_: Exception) {
-            PasswordResetRequestResult.Failure("Cannot connect to the server.")
+            PasswordResetRequestResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -93,23 +84,12 @@ class PasswordResetApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> PasswordResetConfirmResult.Success
-                HttpStatusCode.BadRequest -> PasswordResetConfirmResult.Failure(
-                    response.errorMessage("Reset link is invalid or expired.")
-                )
-                else -> PasswordResetConfirmResult.Failure(
-                    response.errorMessage("Password reset failed (${response.status.value})")
-                )
+                HttpStatusCode.BadRequest -> PasswordResetConfirmResult.Failure(StringKey.RESET_PASSWORD_ERROR_INVALID_OR_EXPIRED)
+
+                else -> PasswordResetConfirmResult.Failure(StringKey.RESET_PASSWORD_ERROR_CONFIRM_FAILED)
             }
         } catch (_: Exception) {
-            PasswordResetConfirmResult.Failure("Cannot connect to the server.")
-        }
-    }
-
-    private suspend fun HttpResponse.errorMessage(fallback: String): String {
-        return try {
-            body<PasswordResetErrorResponse>().message
-        } catch (_: Exception) {
-            fallback
+            PasswordResetConfirmResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

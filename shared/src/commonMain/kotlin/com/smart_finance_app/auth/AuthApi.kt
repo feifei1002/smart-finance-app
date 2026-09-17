@@ -1,5 +1,6 @@
 package com.smart_finance_app.auth
 
+import com.smart_finance_app.StringKey
 import com.smart_finance_app.signin.AuthSession
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -19,7 +20,7 @@ private data class LogoutRequest(val refreshToken: String)
 sealed interface RefreshSessionResult {
     data class Success(val session: AuthSession) : RefreshSessionResult
     data object Expired : RefreshSessionResult
-    data class Failure(val message: String) : RefreshSessionResult
+    data class Failure(val message: StringKey) : RefreshSessionResult
 }
 
 class AuthApi(baseUrl: String, private val client: HttpClient) {
@@ -37,10 +38,10 @@ class AuthApi(baseUrl: String, private val client: HttpClient) {
             when (response.status) {
                 HttpStatusCode.OK -> RefreshSessionResult.Success(response.body())
                 HttpStatusCode.Unauthorized -> RefreshSessionResult.Expired
-                else -> RefreshSessionResult.Failure("Could not refresh session. Status: ${response.status.value}")
+                else -> RefreshSessionResult.Failure(StringKey.AUTH_ERROR_REFRESH_FAILED)
             }
         } catch (_: Exception) {
-            RefreshSessionResult.Failure("Cannot connect to the server")
+            RefreshSessionResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 

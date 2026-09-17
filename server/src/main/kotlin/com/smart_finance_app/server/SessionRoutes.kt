@@ -33,13 +33,13 @@ data class RefreshTokenResponse(
     val userId: String,
     val name: String,
     val email: String,
-    val consentAccepted: Boolean
+    val consentAccepted: Boolean,
+    val language: String          // ← new
 )
 
 fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
 
     post("/auth/refresh") {
-        // Reject refresh requests from unexpected web origins before reading or rotating any refresh token.
         if (call.rejectInvalidAuthOrigin()) return@post
 
         val refreshTokenFromBody = runCatching {
@@ -65,10 +65,7 @@ fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
         val userId = rotated.userId
         val newRefreshToken = rotated.refreshToken
         val user = getSessionUser(userId)
-            ?: return@post call.respond(
-                HttpStatusCode.Unauthorized,
-                ErrorResponse("User not found")
-            )
+            ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
 
         call.setRefreshTokenCookie(newRefreshToken)
 
@@ -79,14 +76,13 @@ fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
                 userId = userId.toString(),
                 name = user.fullName,
                 email = user.email,
-                consentAccepted = user.consentAccepted
+                consentAccepted = user.consentAccepted,
+                language = user.language   // ← new
             )
         )
     }
 
     post("/auth/logout") {
-
-        // Reject logout requests from unexpected web origins before reading or rotating any refresh token.
         if (call.rejectInvalidAuthOrigin()) return@post
 
         val refreshTokenFromBody = runCatching {
@@ -108,34 +104,34 @@ fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
 private data class SessionUser(
     val fullName: String,
     val email: String,
-    val consentAccepted: Boolean
+    val consentAccepted: Boolean,
+    val language: String          // ← new
 )
 
 private fun getSessionUser(userId: UUID): SessionUser? {
     return Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
-                SELECT full_name, email, consent_accepted_at IS NOT NULL AS consent_accepted
-                FROM users
-                WHERE id = ?
+            SELECT full_name, email, language,
+                   consent_accepted_at IS NOT NULL AS consent_accepted
+            FROM users
+            WHERE id = ?
             """.trimIndent()
         ).use {
             it.setObject(1, userId)
-
             it.executeQuery().use { result ->
-                if (!result.next()) {
-                    null
-                } else {
-                    SessionUser(
-                        fullName = result.getString("full_name"),
-                        email = result.getString("email"),
-                        consentAccepted = result.getBoolean("consent_accepted")
-                    )
-                }
+                if (!result.next()) null
+                else SessionUser(
+                    fullName = result.getString("full_name"),
+                    email = result.getString("email"),
+                    consentAccepted = result.getBoolean("consent_accepted"),
+                    language = result.getString("language") ?: "en"  // ← new
+                )
             }
         }
     }
 }
+
 private fun allowedAuthOrigins(): Set<String> {
     return System.getenv("AUTH_ALLOWED_ORIGINS")
         ?.split(",")
@@ -145,15 +141,6 @@ private fun allowedAuthOrigins(): Set<String> {
         ?: defaultAllowedAuthOrigins
 }
 
-/*
-For local development:
-COOKIE_SECURE=false
-COOKIE_SAME_SITE=Lax
-
-For deployed Web with HTTPS:
-COOKIE_SECURE=true
-COOKIE_SAME_SITE=None
- */
 fun ApplicationCall.setRefreshTokenCookie(refreshToken: String) {
     response.cookies.append(
         Cookie(
@@ -162,9 +149,7 @@ fun ApplicationCall.setRefreshTokenCookie(refreshToken: String) {
             path = "/auth",
             httpOnly = true,
             secure = System.getenv("COOKIE_SECURE")?.toBooleanStrictOrNull() ?: false,
-            extensions = mapOf(
-                "SameSite" to (System.getenv("COOKIE_SAME_SITE") ?: "Lax")
-            ),
+            extensions = mapOf("SameSite" to (System.getenv("COOKIE_SAME_SITE") ?: "Lax")),
             maxAge = 30 * 24 * 60 * 60
         )
     )
@@ -178,35 +163,19 @@ fun ApplicationCall.clearRefreshTokenCookie() {
             path = "/auth",
             httpOnly = true,
             secure = System.getenv("COOKIE_SECURE")?.toBooleanStrictOrNull() ?: false,
-            extensions = mapOf(
-                "SameSite" to (System.getenv("COOKIE_SAME_SITE") ?: "Lax")
-            ),
+            extensions = mapOf("SameSite" to (System.getenv("COOKIE_SAME_SITE") ?: "Lax")),
             maxAge = 0
         )
     )
 }
 
-/* Web uses an HttpOnly cookie for the refresh token, so JavaScript should not
- receive the raw token. Android still receives it so it can store it securely.
- */
 fun ApplicationCall.refreshTokenForResponse(refreshToken: String): String {
-    return if (request.headers[HttpHeaders.Origin] != null) {
-        ""
-    } else {
-        refreshToken
-    }
+    return if (request.headers[HttpHeaders.Origin] != null) "" else refreshToken
 }
 
-/* Protects cookie-based auth routes from cross-site requests. This matters for
- web because the browser automatically sends HttpOnly cookies with requests.
- */
 private suspend fun ApplicationCall.rejectInvalidAuthOrigin(): Boolean {
     val origin = request.headers[HttpHeaders.Origin] ?: return false
-
-    if (origin in allowedAuthOrigins()) {
-        return false
-    }
-
+    if (origin in allowedAuthOrigins()) return false
     respond(HttpStatusCode.Forbidden, ErrorResponse("Invalid request origin"))
     return true
 }

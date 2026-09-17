@@ -23,9 +23,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.visibility
 import smart_finance_app.shared.generated.resources.visibility_off
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 data class SignInForm(val email: String, val password: String)
 
@@ -41,19 +44,20 @@ fun SignInScreen(
     var password by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
 
-    val emailFocus = remember { FocusRequester() }
+    val emailFocus    = remember { FocusRequester() }
     val passwordFocus = remember { FocusRequester() }
-    val buttonFocus = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
+    val buttonFocus   = remember { FocusRequester() }
+    val focusManager  = LocalFocusManager.current
+
+    val showPasswordLabel = appStringResource(StringKey.REGISTER_SHOW_PASSWORD)
+    val hidePasswordLabel = appStringResource(StringKey.REGISTER_HIDE_PASSWORD)
 
     val valid = email.trim().contains("@") && password.isNotBlank()
 
     val submitForm: () -> Unit = {
         if (valid && !isLoading) {
             focusManager.clearFocus()
-            onSignIn(
-                SignInForm(email = email.trim(), password = password)
-            )
+            onSignIn(SignInForm(email = email.trim(), password = password))
         }
     }
 
@@ -62,32 +66,27 @@ fun SignInScreen(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 440.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 440.dp)
                 .onPreviewKeyEvent { event ->
-                    if(event.type == KeyEventType.KeyDown &&
-                        event.key == Key.Tab
-                        ) {
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Tab) {
                         focusManager.moveFocus(
-                            if(event.isShiftPressed) {
-                                FocusDirection.Previous
-                            } else {
-                                FocusDirection.Next
-                            }
+                            if (event.isShiftPressed) FocusDirection.Previous
+                            else FocusDirection.Next
                         )
                         true
-                    } else {
-                        false
-                    }
+                    } else false
                 },
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "Welcome back",
+                text = appStringResource(StringKey.SIGNIN_TITLE),
                 style = MaterialTheme.typography.headlineMedium
             )
 
             Text(
-                text = "Please sign in to access your financial dashboard.",
+                text = appStringResource(StringKey.SIGNIN_SUBTITLE),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -95,67 +94,54 @@ fun SignInScreen(
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Email") },
+                label = { Text(appStringResource(StringKey.SIGNIN_EMAIL)) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(emailFocus)
-                    .focusProperties{ next = passwordFocus },
+                    .focusProperties { next = passwordFocus },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Email,
                     imeAction = ImeAction.Next
                 ),
-                keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus()}
-                )
+                keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() })
             )
 
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password") },
+                label = { Text(appStringResource(StringKey.SIGNIN_PASSWORD)) },
                 singleLine = true,
-                visualTransformation = if (showPassword) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
+                visualTransformation = if (showPassword) VisualTransformation.None
+                else PasswordVisualTransformation(),
                 trailingIcon = {
-                    IconButton(onClick = { showPassword = !showPassword }
-                    ) {
+                    IconButton(onClick = { showPassword = !showPassword }) {
                         Icon(
                             painter = painterResource(
-                                if (showPassword) {
-                                    Res.drawable.visibility_off
-                                } else {
-                                    Res.drawable.visibility
-                                }
+                                if (showPassword) Res.drawable.visibility_off
+                                else Res.drawable.visibility
                             ),
-                            contentDescription = if (showPassword) {
-                                "Hide password"
-                            } else {
-                                "Show password"
-                            }
+                            contentDescription = if (showPassword) hidePasswordLabel
+                            else showPasswordLabel
                         )
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(passwordFocus)
-                    .focusProperties{
-                            previous = emailFocus
-                            next = buttonFocus
-                    }.onPreviewKeyEvent {event ->
-                        if (event.type == KeyEventType.KeyDown &&
-                            event.key == Key.Enter
-                            ) {
+                    .focusProperties {
+                        previous = emailFocus
+                        next = buttonFocus
+                    }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
                             submitForm()
                             true
-                        } else {
-                            false
-                        }
+                        } else false
                     },
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password, imeAction = ImeAction.Done
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
                 ),
                 keyboardActions = KeyboardActions(onDone = { submitForm() })
             )
@@ -168,7 +154,7 @@ fun SignInScreen(
                     onClick = onForgotPassword,
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text("Forgot password?")
+                    Text(appStringResource(StringKey.SIGNIN_FORGOT_PASSWORD))
                 }
             }
 
@@ -183,11 +169,12 @@ fun SignInScreen(
             Button(
                 enabled = valid && !isLoading,
                 onClick = submitForm,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(buttonFocus)
+                modifier = Modifier.fillMaxWidth().focusRequester(buttonFocus)
             ) {
-                Text(if (isLoading) "Signing in..." else "Sign in")
+                Text(
+                    if (isLoading) appStringResource(StringKey.SIGNIN_BUTTON_LOADING)
+                    else appStringResource(StringKey.SIGNIN_BUTTON)
+                )
             }
 
             Row(
@@ -195,16 +182,14 @@ fun SignInScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Don't have an account?")
-
+                Text(appStringResource(StringKey.SIGNIN_NO_ACCOUNT))
                 TextButton(
                     onClick = onCreateAccount,
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Text("Create an account")
+                    Text(appStringResource(StringKey.SIGNIN_CREATE_ACCOUNT))
                 }
             }
         }
     }
-
 }

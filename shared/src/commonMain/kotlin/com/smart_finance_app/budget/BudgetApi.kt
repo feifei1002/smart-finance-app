@@ -1,8 +1,8 @@
 package com.smart_finance_app.budget
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.statement.bodyAsText
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -34,17 +34,7 @@ data class BudgetRequest(
 
 sealed interface BudgetResult<out T> {
     data class Success<T>(val data: T) : BudgetResult<T>
-    data class Failure(val message: String) : BudgetResult<Nothing>
-}
-
-private suspend fun parseError(response: io.ktor.client.statement.HttpResponse, fallback: String): String {
-    return try {
-        val errObj = response.body<ErrorMessage>()
-        errObj.message.ifBlank { fallback }
-    } catch (_: Exception) {
-        val text = runCatching { response.bodyAsText() }.getOrDefault("")
-        if (text.isNotBlank()) "HTTP ${response.status.value}: $text" else "$fallback (HTTP ${response.status.value})"
-    }
+    data class Failure(val message: StringKey) : BudgetResult<Nothing>
 }
 
 // ── API client ────────────────────────────────────────────────────────────────
@@ -58,11 +48,11 @@ class BudgetApi(private val baseUrl: String, private val client: HttpClient) {
             }
             when (response.status) {
                 HttpStatusCode.OK           -> BudgetResult.Success(response.body())
-                HttpStatusCode.Unauthorized -> BudgetResult.Failure("Session expired")
-                else                        -> BudgetResult.Failure(parseError(response, "Failed to load budgets"))
+                HttpStatusCode.Unauthorized -> BudgetResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else                        -> BudgetResult.Failure(StringKey.BUDGET_ERROR_LOAD_FAILED)
             }
-        } catch (e: Exception) {
-            BudgetResult.Failure("Cannot connect to server: ${e.message}")
+        } catch (_: Exception) {
+            BudgetResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -75,11 +65,11 @@ class BudgetApi(private val baseUrl: String, private val client: HttpClient) {
             }
             when (response.status) {
                 HttpStatusCode.Created, HttpStatusCode.OK -> BudgetResult.Success(response.body())
-                HttpStatusCode.Unauthorized               -> BudgetResult.Failure("Session expired")
-                else                                      -> BudgetResult.Failure(parseError(response, "Failed to create budget"))
+                HttpStatusCode.Unauthorized               -> BudgetResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else                                      -> BudgetResult.Failure(StringKey.BUDGET_ERROR_CREATE_FAILED)
             }
-        } catch (e: Exception) {
-            BudgetResult.Failure("Cannot connect to server: ${e.message}")
+        } catch (_: Exception) {
+            BudgetResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -92,11 +82,11 @@ class BudgetApi(private val baseUrl: String, private val client: HttpClient) {
             }
             when (response.status) {
                 HttpStatusCode.OK           -> BudgetResult.Success(Unit)
-                HttpStatusCode.Unauthorized -> BudgetResult.Failure("Session expired")
-                else                        -> BudgetResult.Failure(parseError(response, "Failed to update budget"))
+                HttpStatusCode.Unauthorized -> BudgetResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else                        -> BudgetResult.Failure(StringKey.BUDGET_ERROR_UPDATE_FAILED)
             }
-        } catch (e: Exception) {
-            BudgetResult.Failure("Cannot connect to server: ${e.message}")
+        } catch (_: Exception) {
+            BudgetResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -107,14 +97,11 @@ class BudgetApi(private val baseUrl: String, private val client: HttpClient) {
             }
             when (response.status) {
                 HttpStatusCode.OK           -> BudgetResult.Success(Unit)
-                HttpStatusCode.Unauthorized -> BudgetResult.Failure("Session expired")
-                else                        -> BudgetResult.Failure(parseError(response, "Failed to delete budget"))
+                HttpStatusCode.Unauthorized -> BudgetResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else                        -> BudgetResult.Failure(StringKey.BUDGET_ERROR_DELETE_FAILED)
             }
-        } catch (e: Exception) {
-            BudgetResult.Failure("Cannot connect to server: ${e.message}")
+        } catch (_: Exception) {
+            BudgetResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }
-
-@Serializable
-private data class ErrorMessage(val message: String)

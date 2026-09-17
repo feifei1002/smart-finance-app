@@ -1,5 +1,6 @@
 package com.smart_finance_app.transactions
 
+import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -48,12 +49,12 @@ data class UpdateTransactionCategoryRequest(val category: String)
 
 sealed interface TransactionsResult {
     data class Success(val page: PaginatedTransactionsResponse): TransactionsResult
-    data class Failure(val message: String): TransactionsResult
+    data class Failure(val message: StringKey): TransactionsResult
 }
 
 sealed interface TransactionSyncResult {
     data class Success(val result: TransactionSyncResponse): TransactionSyncResult
-    data class Failure(val message: String): TransactionSyncResult
+    data class Failure(val message: StringKey): TransactionSyncResult
 }
 
 sealed interface UpdateTransactionCategoryResult {
@@ -71,11 +72,11 @@ class TransactionsApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> TransactionSyncResult.Success(response.body<TransactionSyncResponse>())
-                HttpStatusCode.Unauthorized -> TransactionSyncResult.Failure("Your session expired. Please sign in again.")
-                else -> TransactionSyncResult.Failure("Could not sync transactions. Status: ${response.status.value}")
+                HttpStatusCode.Unauthorized -> TransactionSyncResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> TransactionSyncResult.Failure(StringKey.TRANSACTIONS_ERROR_SYNC_FAILED)
             }
-        } catch (exception: Exception) {
-            TransactionSyncResult.Failure("Sync failed: ${exception.message ?: exception.toString()}")
+        } catch (_: Exception) {
+            TransactionSyncResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 
@@ -93,11 +94,11 @@ class TransactionsApi(baseUrl: String, private val client: HttpClient) {
 
             when (response.status) {
                 HttpStatusCode.OK -> TransactionsResult.Success(response.body<PaginatedTransactionsResponse>())
-                HttpStatusCode.Unauthorized -> TransactionsResult.Failure("Your session expired. Please sign in again.")
-                else -> TransactionsResult.Failure("Could not load transactions. Status: ${response.status.value}")
+                HttpStatusCode.Unauthorized -> TransactionsResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> TransactionsResult.Failure(StringKey.TRANSACTIONS_ERROR_LOAD_FAILED)
             }
-        } catch (exception: Exception) {
-            TransactionsResult.Failure("Load failed: ${exception.message ?: exception.toString()}")
+        } catch (_: Exception) {
+            TransactionsResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 

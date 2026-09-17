@@ -51,13 +51,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.download
 import smart_finance_app.shared.generated.resources.edit
 import smart_finance_app.shared.generated.resources.filter
 import smart_finance_app.shared.generated.resources.search
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 import kotlin.math.ceil
-
+import com.smart_finance_app.localiseCategory
 data class TransactionUI(
     val id: String,
     val dateLabel: String,
@@ -166,15 +169,21 @@ private fun MobileTransactionsList(
 
     val listState = rememberLazyListState()
 
+    // Filter keys are internal constants — keep them as English strings for
+    // logic comparisons. Only the displayed labels are localised.
+    val filterAllLabel      = appStringResource(StringKey.TRANSACTIONS_FILTER_ALL)
+    val filterIncomeLabel   = appStringResource(StringKey.TRANSACTIONS_FILTER_INCOME)
+    val filterExpensesLabel = appStringResource(StringKey.TRANSACTIONS_FILTER_EXPENSES)
+    val emptyLabel          = appStringResource(StringKey.TRANSACTIONS_EMPTY)
+    val loadingLabel        = appStringResource(StringKey.TRANSACTIONS_LOADING)
+    val searchPlaceholder   = appStringResource(StringKey.TRANSACTIONS_SEARCH_PLACEHOLDER)
+
     val shouldLoadMore by remember(
-        hasMore,
-        isLoading,
-        transactions.size,
-        lastRequestedPage) {
+        hasMore, isLoading, transactions.size, lastRequestedPage
+    ) {
         derivedStateOf {
             val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
             val totalItems = listState.layoutInfo.totalItemsCount
-
             hasMore &&
                     !isLoading &&
                     lastVisibleItem != null &&
@@ -193,22 +202,19 @@ private fun MobileTransactionsList(
 
     val searchTransactions = transactions.filter { transaction ->
         val query = searchQuery.trim()
-
-        val matchesSearch =
-            query.isBlank() ||
-                    transaction.merchantName.contains(query, ignoreCase = true) ||
-                    transaction.category.contains(query, ignoreCase = true) ||
-                    transaction.accountName.contains(query, ignoreCase = true) ||
-                    transaction.dateLabel.contains(query, ignoreCase = true)
-
+        val matchesSearch = query.isBlank() ||
+                transaction.merchantName.contains(query, ignoreCase = true) ||
+                transaction.category.contains(query, ignoreCase = true) ||
+                transaction.accountName.contains(query, ignoreCase = true) ||
+                transaction.dateLabel.contains(query, ignoreCase = true)
         val matchesFilter = when (selectedFilter) {
-            "Income" -> transaction.amount > 0
+            "Income"   -> transaction.amount > 0
             "Expenses" -> transaction.amount < 0
-            else -> true
+            else       -> true
         }
-
         matchesSearch && matchesFilter
     }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -216,29 +222,29 @@ private fun MobileTransactionsList(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Spacer(modifier = Modifier.height(24.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Transactions",
+                text = appStringResource(StringKey.TRANSACTIONS_TITLE),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
-
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = { showSearch = !showSearch }) {
                     Icon(
                         painter = painterResource(Res.drawable.search),
-                        contentDescription = "Search transactions"
+                        contentDescription = searchPlaceholder
                     )
                 }
 
                 IconButton(onClick = {}) {
                     Icon(
                         painter = painterResource(Res.drawable.filter),
-                        contentDescription = "Filter transactions"
+                        contentDescription = null
                     )
                 }
             }
@@ -247,17 +253,16 @@ private fun MobileTransactionsList(
         if (showSearch) {
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = {
-                    searchQuery = it },
+                onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 leadingIcon = {
                     Icon(
                         painter = painterResource(Res.drawable.search),
-                        contentDescription = "Search transactions"
+                        contentDescription = null
                     )
                 },
-                placeholder = { Text("Search transactions...") }
+                placeholder = { Text(searchPlaceholder) }
             )
         }
 
@@ -268,54 +273,34 @@ private fun MobileTransactionsList(
             FilterChip(
                 selected = selectedFilter == "All",
                 onClick = { onFilterSelected("All") },
-                label = { Text("All") }
+                label = { Text(filterAllLabel) }
             )
             FilterChip(
                 selected = selectedFilter == "Income",
                 onClick = { onFilterSelected("Income") },
-                label = { Text("Income") }
+                label = { Text(filterIncomeLabel) }
             )
             FilterChip(
                 selected = selectedFilter == "Expenses",
                 onClick = { onFilterSelected("Expenses") },
-                label = { Text("Expenses") }
+                label = { Text(filterExpensesLabel) }
             )
         }
 
         LazyColumn(
             state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+            modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             when {
-                isSyncing && transactions.isEmpty() -> {
-                    item {
-                        LoadingTransactionsState()
-                    }
+                isSyncing && transactions.isEmpty() -> item { LoadingTransactionsState(loadingLabel) }
+                isLoading && transactions.isEmpty()  -> item { LoadingTransactionsState(loadingLabel) }
+                errorMessage != null && searchTransactions.isEmpty() -> item {
+                    TransactionsInlineMessage(message = errorMessage, isError = true)
                 }
-                isLoading && transactions.isEmpty() -> {
-                    item { LoadingTransactionsState() }
+                searchTransactions.isEmpty() -> item {
+                    TransactionsInlineMessage(message = emptyLabel)
                 }
-
-                errorMessage != null && searchTransactions.isEmpty() -> {
-                    item {
-                        TransactionsInlineMessage(
-                            message = errorMessage,
-                            isError = true
-                        )
-                    }
-                }
-
-                searchTransactions.isEmpty() -> {
-                    item {
-                        TransactionsInlineMessage(
-                            message = "No transactions available."
-                        )
-                    }
-                }
-
                 else -> {
                     searchTransactions.groupBy { it.dateLabel }.forEach { (date, dayTransactions) ->
                         item {
@@ -325,22 +310,12 @@ private fun MobileTransactionsList(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-
-                        items(
-                            items = dayTransactions,
-                            key = { transaction -> transaction.id }
-                        ) { transaction ->
-                            MobileTransactionRow(
-                                transaction,
-                                onEditCategory = onEditCategory
-                            )
+                        items(items = dayTransactions, key = { it.id }) { transaction ->
+                            MobileTransactionRow(transaction)
                         }
                     }
-
                     if (hasMore && isLoading) {
-                        item {
-                            LoadingTransactionsState()
-                        }
+                        item { LoadingTransactionsState(loadingLabel) }
                     }
                 }
             }
@@ -354,9 +329,7 @@ private fun MobileTransactionRow(
     onEditCategory: (TransactionUI) -> Unit
     ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -365,7 +338,6 @@ private fun MobileTransactionRow(
             logoUrl = transaction.merchantLogoUrl,
             modifier = Modifier.size(40.dp)
         )
-
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = transaction.merchantName,
@@ -373,21 +345,17 @@ private fun MobileTransactionRow(
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "${transaction.category} • ${transaction.accountName}",
+                text = "${localiseCategory(transaction.category)} • ${transaction.accountName}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-
         Text(
             text = formatAmount(transaction.amount, transaction.currency),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            color = if (transaction.amount >= 0) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            }
+            color = if (transaction.amount >= 0) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface
         )
 
         IconButton(
@@ -419,34 +387,45 @@ private fun DesktopTransactionsTable(
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
+    val filterAllLabel      = appStringResource(StringKey.TRANSACTIONS_FILTER_ALL)
+    val filterIncomeLabel   = appStringResource(StringKey.TRANSACTIONS_FILTER_INCOME)
+    val filterExpensesLabel = appStringResource(StringKey.TRANSACTIONS_FILTER_EXPENSES)
+    val emptyLabel          = appStringResource(StringKey.TRANSACTIONS_EMPTY)
+    val loadingLabel        = appStringResource(StringKey.TRANSACTIONS_LOADING)
+    val searchPlaceholder   = appStringResource(StringKey.TRANSACTIONS_SEARCH_PLACEHOLDER)
+    val previousLabel       = appStringResource(StringKey.TRANSACTIONS_PREVIOUS)
+    val nextLabel           = appStringResource(StringKey.TRANSACTIONS_NEXT)
+    val dateHeader          = appStringResource(StringKey.TRANSACTIONS_COL_DATE)
+    val merchantHeader      = appStringResource(StringKey.TRANSACTIONS_COL_MERCHANT)
+    val categoryHeader      = appStringResource(StringKey.TRANSACTIONS_COL_CATEGORY)
+    val accountHeader       = appStringResource(StringKey.TRANSACTIONS_COL_ACCOUNT)
+    val amountHeader        = appStringResource(StringKey.TRANSACTIONS_COL_AMOUNT)
+    val actionsHeader       = appStringResource(StringKey.TRANSACTIONS_COL_ACTIONS)
+    val editLabel           = appStringResource(StringKey.TRANSACTIONS_EDIT)
+
     val searchTransactions = transactions.filter { transaction ->
         val query = searchQuery.trim()
-
-        val matchesSearch =
-            query.isBlank() ||
-                    transaction.merchantName.contains(query, ignoreCase = true) ||
-                    transaction.category.contains(query, ignoreCase = true) ||
-                    transaction.accountName.contains(query, ignoreCase = true) ||
-                    transaction.dateLabel.contains(query, ignoreCase = true)
-
+        val matchesSearch = query.isBlank() ||
+                transaction.merchantName.contains(query, ignoreCase = true) ||
+                transaction.category.contains(query, ignoreCase = true) ||
+                transaction.accountName.contains(query, ignoreCase = true) ||
+                transaction.dateLabel.contains(query, ignoreCase = true)
         val matchesFilter = when (selectedFilter) {
-            "Income" -> transaction.amount > 0
+            "Income"   -> transaction.amount > 0
             "Expenses" -> transaction.amount < 0
-            else -> true
+            else       -> true
         }
-
         matchesSearch && matchesFilter
     }
+
     val totalPages = ceil(totalCount / pageSize.toDouble()).toInt().coerceAtLeast(1)
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Transactions",
+            text = appStringResource(StringKey.TRANSACTIONS_TITLE),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
@@ -458,19 +437,16 @@ private fun DesktopTransactionsTable(
         ) {
             OutlinedTextField(
                 value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    onPageSelected(0)
-                },
+                onValueChange = { searchQuery = it; onPageSelected(0) },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 leadingIcon = {
                     Icon(
                         painter = painterResource(Res.drawable.search),
-                        contentDescription = "Search transactions"
+                        contentDescription = null
                     )
                 },
-                placeholder = { Text("Search transactions...") }
+                placeholder = { Text(searchPlaceholder) }
             )
 
             OutlinedButton(
@@ -480,10 +456,12 @@ private fun DesktopTransactionsTable(
             ) {
                 Icon(
                     painter = painterResource(Res.drawable.filter),
-                    contentDescription = "Filter transactions",
+                    contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
+                // "Filters" and "Export" are UI chrome labels — add to strings.xml
+                // if you want them localised; for MVP they're fine as-is
                 Text("Filters")
             }
 
@@ -494,7 +472,7 @@ private fun DesktopTransactionsTable(
             ) {
                 Icon(
                     painter = painterResource(Res.drawable.download),
-                    contentDescription = "Export transactions",
+                    contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
@@ -509,25 +487,17 @@ private fun DesktopTransactionsTable(
             FilterChip(
                 selected = selectedFilter == "All",
                 onClick = { onFilterSelected("All") },
-                label = { Text("All") }
+                label = { Text(filterAllLabel) }
             )
-
             FilterChip(
                 selected = selectedFilter == "Income",
-                onClick = {
-                    onFilterSelected("Income")
-                    onPageSelected(0)
-                },
-                label = { Text("Income") }
+                onClick = { onFilterSelected("Income"); onPageSelected(0) },
+                label = { Text(filterIncomeLabel) }
             )
-
             FilterChip(
                 selected = selectedFilter == "Expenses",
-                onClick = {
-                    onFilterSelected("Expenses")
-                    onPageSelected(0)
-                },
-                label = { Text("Expenses") }
+                onClick = { onFilterSelected("Expenses"); onPageSelected(0) },
+                label = { Text(filterExpensesLabel) }
             )
         }
 
@@ -545,6 +515,28 @@ private fun DesktopTransactionsTable(
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             when {
+                isSyncing && transactions.isEmpty() -> LoadingTransactionsState(loadingLabel)
+                isLoading                           -> LoadingTransactionsState(loadingLabel)
+                errorMessage != null && searchTransactions.isEmpty() -> TransactionsInlineMessage(
+                    message = errorMessage, isError = true
+                )
+                searchTransactions.isEmpty() -> TransactionsInlineMessage(message = emptyLabel)
+                else -> Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(12.dp)
+                ) {
+                    TransactionTableHeader(
+                        dateHeader     = dateHeader,
+                        merchantHeader = merchantHeader,
+                        categoryHeader = categoryHeader,
+                        accountHeader  = accountHeader,
+                        amountHeader   = amountHeader,
+                        actionsHeader  = actionsHeader
+                    )
+                    searchTransactions.forEach { transaction ->
+                        TransactionTableRow(transaction, editLabel)
                 isSyncing && transactions.isEmpty() -> {
                     LoadingTransactionsState()
                 }
@@ -596,51 +588,58 @@ private fun DesktopTransactionsTable(
                 enabled = currentPage > 0,
                 onClick = { onPageSelected(currentPage - 1) }
             ) {
-                Text("Previous")
+                Text(previousLabel)
             }
-
-            Text("${currentPage  + 1} / $totalPages")
-
+            Text("${currentPage + 1} / $totalPages")
             TextButton(
-                enabled = currentPage  < totalPages - 1,
+                enabled = currentPage < totalPages - 1,
                 onClick = { onPageSelected(currentPage + 1) }
             ) {
-                Text("Next")
+                Text(nextLabel)
             }
         }
     }
 }
 
 @Composable
-private fun TransactionTableHeader() {
+private fun TransactionTableHeader(
+    dateHeader: String,
+    merchantHeader: String,
+    categoryHeader: String,
+    accountHeader: String,
+    amountHeader: String,
+    actionsHeader: String
+) {
     Row(
         modifier = Modifier.width(900.dp).padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        TableCell("Date", 1f, bold = true)
-        TableCell("Merchant", 1.5f, bold = true)
-        TableCell("Category", 1.2f, bold = true)
-        TableCell("Account", 1.5f, bold = true)
-        TableCell("Amount", 1f, bold = true)
-        TableCell("Actions", 0.8f, bold = true, textAlign = TextAlign.Center)
+        TableCell(dateHeader,     1f,   bold = true)
+        TableCell(merchantHeader, 1.5f, bold = true)
+        TableCell(categoryHeader, 1.2f, bold = true)
+        TableCell(accountHeader,  1.5f, bold = true)
+        TableCell(amountHeader,   1f,   bold = true)
+        TableCell(actionsHeader,  0.8f, bold = true, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
 private fun TransactionTableRow(
     transaction: TransactionUI,
-    onEditCategory: (TransactionUI) -> Unit
+    onEditCategory: (TransactionUI) -> Unit,
+    editLabel: String
 ) {
     Row(
         modifier = Modifier.width(900.dp).padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TableCell(transaction.dateLabel, 1f)
-        MerchantTableCell(transaction, 1.5f)
-        TableCell(transaction.category, 1.2f)
+        TableCell(transaction.dateLabel,  1f)
+        MerchantTableCell(transaction,    1.5f)
+        TableCell(transaction.category,   1.2f)
         TableCell(transaction.accountName, 1.5f)
         TableCell(formatAmount(transaction.amount, transaction.currency), 1f)
+        TableCell(editLabel,              0.8f)
 
         Box(
             modifier = Modifier.weight(0.8f),
@@ -688,7 +687,6 @@ private fun RowScope.MerchantTableCell(transaction: TransactionUI, weight: Float
             logoUrl = transaction.merchantLogoUrl,
             modifier = Modifier.size(28.dp)
         )
-
         Text(
             text = transaction.merchantName,
             style = MaterialTheme.typography.bodySmall,
@@ -698,18 +696,15 @@ private fun RowScope.MerchantTableCell(transaction: TransactionUI, weight: Float
 }
 
 @Composable
-private fun LoadingTransactionsState() {
+private fun LoadingTransactionsState(loadingLabel: String) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 48.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         CircularProgressIndicator()
-
         Text(
-            text = "Loading transactions...",
+            text = loadingLabel,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -719,18 +714,13 @@ private fun LoadingTransactionsState() {
 @Composable
 private fun TransactionsInlineMessage(message: String, isError: Boolean = false) {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 48.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = message,
-            color = if (isError) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
+            color = if (isError) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center
         )
@@ -738,17 +728,18 @@ private fun TransactionsInlineMessage(message: String, isError: Boolean = false)
 }
 
 @Composable
-private fun MerchantLogo(merchantName: String, logoUrl: String?, modifier: Modifier = Modifier) {
+private fun MerchantLogo(
+    merchantName: String,
+    logoUrl: String?,
+    modifier: Modifier = Modifier
+) {
     var imageFailed by remember(logoUrl) { mutableStateOf(false) }
     Surface(
         modifier = modifier,
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
-        Box(
-            modifier = modifier,
-            contentAlignment = Alignment.Center
-        ) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
             if (!logoUrl.isNullOrBlank() && !imageFailed) {
                 AsyncImage(
                     model = logoUrl,
@@ -875,12 +866,12 @@ private fun selectableCategories(transaction: TransactionUI): List<String> {
 }
 
 private fun formatAmount(amount: Double, currency: String): String {
-    val sign = if (amount >= 0) "+" else "-"
+    val sign   = if (amount >= 0) "+" else "-"
     val symbol = when (currency.uppercase()) {
         "GBP" -> "£"
         "USD" -> "$"
         "EUR" -> "€"
-        else -> currency.uppercase()
+        else  -> currency.uppercase()
     }
     return "$sign$symbol${kotlin.math.abs(amount)}"
 }

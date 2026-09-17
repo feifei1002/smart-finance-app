@@ -1,6 +1,5 @@
 package com.smart_finance_app.server
 
-
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import javax.sql.DataSource
@@ -35,6 +34,8 @@ object Database {
             }
         }
     }
+
+
 
     fun close() {
         if (::hikari.isInitialized) {
