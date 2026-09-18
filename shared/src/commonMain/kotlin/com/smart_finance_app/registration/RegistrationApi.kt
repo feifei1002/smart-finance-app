@@ -26,7 +26,8 @@ data class RegisterResponse(
     val name: String,
     val email: String,
     val consentAccepted: Boolean,
-    val language: String = "en"
+    val language: String = "en",
+    val currency: String = "GBP"
 )
 
 
@@ -58,7 +59,8 @@ class RegistrationApi(private val baseUrl: String, private val client: HttpClien
                             name = body.name,
                             email = body.email,
                             consentAccepted = body.consentAccepted,
-                            language = body.language
+                            language = body.language,
+                            currency = body.currency
                         )
                     )
                 }

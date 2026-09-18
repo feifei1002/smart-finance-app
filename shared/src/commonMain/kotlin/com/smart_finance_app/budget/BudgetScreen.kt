@@ -37,6 +37,8 @@ import smart_finance_app.shared.generated.resources.edit
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.localiseCategory
+import com.smart_finance_app.currency.CurrencyController
+import com.smart_finance_app.currency.ExchangeRateService
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
@@ -69,7 +71,9 @@ data class BudgetWithSpending(
 
 fun computeBudgetsWithSpending(
     budgets: List<BudgetData>,
-    transactions: List<TransactionData>
+    transactions: List<TransactionData>,
+    displayCurrency: String = "GBP",
+    rates: Map<String, Double> = emptyMap()
 ): List<BudgetWithSpending> {
     val now = Clock.System.now()
         .toLocalDateTime(kotlinx.datetime.TimeZone.UTC)
@@ -80,13 +84,10 @@ fun computeBudgetsWithSpending(
             val dateOnly = tx.timestamp.split("T").firstOrNull() ?: tx.timestamp
             val parts = dateOnly.split("-")
             if (parts.size < 3) return@filter false
-
             val txYear  = parts[0].toIntOrNull() ?: return@filter false
             val txMonth = parts[1].toIntOrNull() ?: return@filter false
             val txDay   = parts[2].take(2).toIntOrNull() ?: return@filter false
-
             val periodNormalized = budget.period.trim().lowercase()
-
             val inPeriod = when (periodNormalized) {
                 "monthly" -> txYear == now.year && txMonth == now.month.number
                 "weekly"  -> {
@@ -99,14 +100,16 @@ fun computeBudgetsWithSpending(
                 }
                 else -> true
             }
-
             if (!inPeriod) return@filter false
             TransactionCategories.normalize(tx.category) == budget.category
         }
 
         BudgetWithSpending(
             budget = budget,
-            spent  = relevant.sumOf { abs(it.amount) },
+            // Convert each transaction to display currency before summing
+            spent  = relevant.sumOf { tx ->
+                abs(ExchangeRateService.convert(tx.amount, tx.currency, displayCurrency, rates))
+            },
             color  = categoryColors[budget.category] ?: Color(0xFF94A3B8)
         )
     }
@@ -119,6 +122,7 @@ fun BudgetScreen(
     authToken: String,
     transactions: List<TransactionData>,
     currency: String,
+    exchangeRates: Map<String, Double> = emptyMap(),
     api: BudgetApi
 ) {
     val scope  = rememberCoroutineScope()
@@ -132,7 +136,12 @@ fun BudgetScreen(
     var dialogError by remember { mutableStateOf<String?>(null) }
 
     val budgetsWithSpending by derivedStateOf {
-        computeBudgetsWithSpending(budgets, transactions)
+        computeBudgetsWithSpending(
+            budgets         = budgets,
+            transactions    = transactions,
+            displayCurrency = currency,
+            rates           = exchangeRates
+        )
     }
 
     suspend fun loadBudgets() {
@@ -424,8 +433,7 @@ fun BudgetCard(
                         onClick = onDelete,
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
-                        Text(
-                            "Delete",
+                        Text(appStringResource(StringKey.BUDGETS_DELETE),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFFDC2626)
                         )

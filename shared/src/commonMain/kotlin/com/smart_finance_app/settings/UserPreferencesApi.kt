@@ -13,9 +13,17 @@ import kotlinx.serialization.Serializable
 @Serializable
 private data class UpdateLanguageRequest(val language: String)
 
+@Serializable
+private data class UpdateCurrencyRequest(val currency: String)
+
 sealed interface UpdateLanguageResult {
     data object Success : UpdateLanguageResult
     data class Failure(val message: StringKey) : UpdateLanguageResult
+}
+
+sealed interface UpdateCurrencyResult {
+    data object Success : UpdateCurrencyResult
+    data class Failure(val message: StringKey) : UpdateCurrencyResult
 }
 
 class UserPreferencesApi(baseUrl: String, private val client: HttpClient) {
@@ -36,6 +44,24 @@ class UserPreferencesApi(baseUrl: String, private val client: HttpClient) {
             }
         } catch (_: Exception) {
             UpdateLanguageResult.Failure(StringKey.COMMON_ERROR_SERVER)
+        }
+    }
+
+    suspend fun updateCurrency(token: String, currencyCode: String): UpdateCurrencyResult {
+        return try {
+            val response = client.patch("$normalizedBaseUrl/api/user/preferences/currency") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(UpdateCurrencyRequest(currencyCode))
+            }
+            when (response.status) {
+                HttpStatusCode.OK           -> UpdateCurrencyResult.Success
+                HttpStatusCode.Unauthorized -> UpdateCurrencyResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                HttpStatusCode.BadRequest   -> UpdateCurrencyResult.Failure(StringKey.SETTINGS_CURRENCY_SAVE_FAILED)
+                else                        -> UpdateCurrencyResult.Failure(StringKey.SETTINGS_CURRENCY_SAVE_FAILED)
+            }
+        } catch (_: Exception) {
+            UpdateCurrencyResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

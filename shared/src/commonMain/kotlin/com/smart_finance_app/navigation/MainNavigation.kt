@@ -40,6 +40,7 @@ import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
+import com.smart_finance_app.currency.CurrencyController
 
 @Composable
 fun MainNavigation(
@@ -152,6 +153,7 @@ private fun NavigationContent(
     var bankConnectionRefreshRequest by remember { mutableStateOf(0) }
     var categoryUpdateError by remember { mutableStateOf<String?>(null) }
     var updatingCategoryTransactionId by remember { mutableStateOf<String?>(null) }
+    var exchangeRates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
 
     val transactionsPageSize = if (compact) 25 else 6
     val scope = rememberCoroutineScope()
@@ -357,7 +359,8 @@ private fun NavigationContent(
             onConnectAccountClicked     = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,
             api = dashboardApi,
-            budgetApi = budgetApi
+            budgetApi = budgetApi,
+            onRatesFetched             = { rates -> exchangeRates = rates }
         )
 
         AppNavigation.Transactions -> {
@@ -569,6 +572,7 @@ private fun NavigationContent(
                 authToken    = authToken,
                 transactions = mappedTransactions,
                 currency     = resolvedCurrency,
+                exchangeRates = exchangeRates,
                 api = budgetApi
             )
         }

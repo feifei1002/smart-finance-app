@@ -81,6 +81,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import com.smart_finance_app.AppStrings
+import com.smart_finance_app.currency.CurrencyController
+import com.smart_finance_app.settings.UpdateCurrencyResult
 
 // ── Fix 1: removed duplicate enum entries from the merge conflict ─────────────
 private enum class SettingsPanel {
@@ -123,7 +125,7 @@ fun SettingsScreen(
 
     var openingPaymentPortal by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(SettingsPanel.Main) }
-    var selectedCurrency by remember { mutableStateOf("GBP") }
+    val selectedCurrency = CurrencyController.currentCurrency
     var selectedAppearance by remember { mutableStateOf("Light") }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
@@ -180,13 +182,32 @@ fun SettingsScreen(
     }
 
     if (showCurrencyDialog) {
+        val errorMsg = AppStrings.get(
+            LocaleController.currentLanguageCode,
+            StringKey.SETTINGS_CURRENCY_SAVE_FAILED
+        )
         SettingOptionDialog(
             title = appStringResource(StringKey.SETTINGS_CURRENCY_DIALOG_TITLE),
-            options = listOf("GBP", "USD", "EUR", "CAD", "TWD"),
+            options = CurrencyController.supportedCurrencies,
             selectedOption = selectedCurrency,
-            onSelected = {
-                selectedCurrency = it
+            onSelected = { selectedCode ->
                 showCurrencyDialog = false
+                scope.launch {
+                    when (val result = userPreferencesApi.updateCurrency(authToken, selectedCode)) {
+                        is UpdateCurrencyResult.Success -> {
+                            CurrencyController.setCurrency(selectedCode)
+                        }
+                        is UpdateCurrencyResult.Failure -> {
+                            snackBarHostState.showSnackbar(
+                                message = AppStrings.get(
+                                    LocaleController.currentLanguageCode,
+                                    result.message
+                                ),
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                }
             },
             onDismiss = { showCurrencyDialog = false }
         )

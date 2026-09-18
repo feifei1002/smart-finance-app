@@ -1,6 +1,7 @@
 package com.smart_finance_app.dashboard
 
 import androidx.compose.ui.graphics.Color
+import com.smart_finance_app.currency.ExchangeRateService
 import com.smart_finance_app.transactions.TransactionCategories
 import kotlin.time.Clock
 import kotlinx.datetime.DatePeriod
@@ -12,6 +13,7 @@ import kotlinx.datetime.toLocalDateTime
 /**
  * Holds all computed dashboard data derived from API responses.
  * Built by [computeDashboardState] from raw balance + transaction + account data.
+ * All monetary values are converted to [displayCurrency] before storage.
  */
 data class MonthlyTopCategory(
     val month: String,
@@ -87,15 +89,31 @@ enum class SpendingPeriod(val label: String) {
 }
 
 /**
- * Computes spending categories for a given period.
- * Called when user changes the calendar filter on the spending overview.
+ * Converts a transaction amount to the display currency using ECB rates.
+ * If the transaction is already in the display currency, no conversion is done.
+ */
+private fun TransactionData.convertedAmount(
+    displayCurrency: String,
+    rates: Map<String, Double>
+): Double = ExchangeRateService.convert(
+    amount       = this.amount,
+    fromCurrency = this.currency,
+    toCurrency   = displayCurrency,
+    rates        = rates
+)
+
+/**
+ * Computes spending categories for a given period with currency conversion.
+ * Every transaction amount is converted to [displayCurrency] before summing,
+ * so mixed-currency transactions (e.g. GBP + EUR) are correctly aggregated.
  */
 fun computeSpendingCategories(
     transactions: List<TransactionData>,
     period: SpendingPeriod,
-    currency: String
+    displayCurrency: String,
+    rates: Map<String, Double>
 ): List<SpendingCategory> {
-    val symbol = getCurrencySymbol(currency)
+    val symbol = getCurrencySymbol(displayCurrency)
     val now    = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
     val filtered = transactions.filter { tx ->
@@ -103,6 +121,7 @@ fun computeSpendingCategories(
         if (parts.size != 3) return@filter false
         val txYear  = parts[0].toIntOrNull() ?: return@filter false
         val txMonth = parts[1].toIntOrNull() ?: return@filter false
+        @Suppress("UNUSED_VARIABLE")
         val txDay   = parts[2].toIntOrNull() ?: return@filter false
         when (period) {
             SpendingPeriod.THIS_MONTH -> txYear == now.year && txMonth == now.month.number
@@ -118,15 +137,25 @@ fun computeSpendingCategories(
         }
     }.filter { it.amount < 0 }
 
-    val totalSpend = filtered.sumOf { kotlin.math.abs(it.amount) }.takeIf { it > 0 } ?: 1.0
-    val colorMap   = categoryNames.zip(categoryColors).toMap()
+    // Convert each transaction to display currency before summing
+    val totalSpend = filtered.sumOf {
+        kotlin.math.abs(it.convertedAmount(displayCurrency, rates))
+    }.takeIf { it > 0 } ?: 1.0
+
+    val colorMap = categoryNames.zip(categoryColors).toMap()
 
     return filtered
         .groupBy { TransactionCategories.normalize(it.category) }
         .entries
-        .sortedByDescending { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
+        .sortedByDescending { entry ->
+            entry.value.sumOf { tx ->
+                kotlin.math.abs(tx.convertedAmount(displayCurrency, rates))
+            }
+        }
         .mapIndexed { index, (category, txList) ->
-            val absAmount = txList.sumOf { kotlin.math.abs(it.amount) }
+            val absAmount = txList.sumOf {
+                kotlin.math.abs(it.convertedAmount(displayCurrency, rates))
+            }
             SpendingCategory(
                 name    = category,
                 percent = (absAmount / totalSpend).toFloat().coerceIn(0f, 1f),
@@ -138,23 +167,33 @@ fun computeSpendingCategories(
 
 /**
  * Converts raw API data into a [DashboardState] ready for the UI.
+ * All monetary values are converted to [displayCurrency] before being stored.
+ * Transaction amounts from different currencies (e.g. GBP + EUR) are correctly
+ * summed by converting each one individually via ECB exchange rates.
  */
 fun computeDashboardState(
     balances: List<BalanceData>,
     transactions: List<TransactionData>,
-    accounts: List<AccountData>
+    accounts: List<AccountData>,
+    displayCurrency: String,
+    rates: Map<String, Double>
 ): DashboardState {
-    val currency = balances.firstOrNull()?.currency ?: "GBP"
-    val symbol   = getCurrencySymbol(currency)
-
-    // ── Balance ───────────────────────────────────────────────────────────────
-    val currentBalance = balances.sumOf { it.current }
-
-    // ── Current month income + expenses ───────────────────────────────────────
-    val now          = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+    val symbol = getCurrencySymbol(displayCurrency)
+    val now    = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
     val currentMonth = now.month.number
     val currentYear  = now.year
 
+    // ── Balance — convert each account balance to display currency ────────────
+    val currentBalance = balances.sumOf { balance ->
+        ExchangeRateService.convert(
+            amount       = balance.current,
+            fromCurrency = balance.currency,
+            toCurrency   = displayCurrency,
+            rates        = rates
+        )
+    }
+
+    // ── Current month transactions ────────────────────────────────────────────
     val thisMonthTx = transactions.filter { tx ->
         val parts = tx.timestamp.take(10).split("-")
         parts.size == 3 &&
@@ -162,11 +201,17 @@ fun computeDashboardState(
                 parts[1].toIntOrNull() == currentMonth
     }
 
-    val monthlyIncome   = thisMonthTx.filter { it.amount > 0 }.sumOf { it.amount }
-    val monthlyExpenses = thisMonthTx.filter { it.amount < 0 }.sumOf { kotlin.math.abs(it.amount) }
+    // Convert each transaction to display currency before summing
+    val monthlyIncome = thisMonthTx
+        .filter { it.amount > 0 }
+        .sumOf { it.convertedAmount(displayCurrency, rates) }
 
-    // ── Last month income + expenses calculation ──────────────────────────────
-    val lastMonthDate  = now.date.minus(DatePeriod(months = 1))
+    val monthlyExpenses = thisMonthTx
+        .filter { it.amount < 0 }
+        .sumOf { kotlin.math.abs(it.convertedAmount(displayCurrency, rates)) }
+
+    // ── Last month for change % calculations ─────────────────────────────────
+    val lastMonthDate   = now.date.minus(DatePeriod(months = 1))
     val lastMonthNumber = lastMonthDate.month.number
     val lastMonthYear   = lastMonthDate.year
 
@@ -177,10 +222,14 @@ fun computeDashboardState(
                 parts[1].toIntOrNull() == lastMonthNumber
     }
 
-    val lastMonthIncome   = lastMonthTx.filter { it.amount > 0 }.sumOf { it.amount }
-    val lastMonthExpenses = lastMonthTx.filter { it.amount < 0 }.sumOf { kotlin.math.abs(it.amount) }
+    val lastMonthIncome = lastMonthTx
+        .filter { it.amount > 0 }
+        .sumOf { it.convertedAmount(displayCurrency, rates) }
 
-    // Helper math to calculate the shift safely (handles division by zero)
+    val lastMonthExpenses = lastMonthTx
+        .filter { it.amount < 0 }
+        .sumOf { kotlin.math.abs(it.convertedAmount(displayCurrency, rates)) }
+
     fun calculateChange(current: Double, previous: Double): Float {
         if (previous == 0.0) return 0f
         return (((current - previous) / previous) * 100).toFloat()
@@ -189,24 +238,31 @@ fun computeDashboardState(
     val incomeChangePercent  = calculateChange(monthlyIncome, lastMonthIncome)
     val expenseChangePercent = calculateChange(monthlyExpenses, lastMonthExpenses)
 
-    // Balance change tracks net savings progression contextually
     val lastMonthNet = lastMonthIncome - lastMonthExpenses
     val thisMonthNet = monthlyIncome - monthlyExpenses
     val balanceChangePercent = if (lastMonthNet != 0.0) {
         (((thisMonthNet - lastMonthNet) / kotlin.math.abs(lastMonthNet)) * 100).toFloat()
     } else 0f
 
-    // ── Spending categories (this month, debits only) ─────────────────────────
+    // ── Spending categories (this month, debits only, converted) ─────────────
     val debitTx    = thisMonthTx.filter { it.amount < 0 }
-    val totalSpend = debitTx.sumOf { kotlin.math.abs(it.amount) }.takeIf { it > 0 } ?: 1.0
+    val totalSpend = debitTx.sumOf {
+        kotlin.math.abs(it.convertedAmount(displayCurrency, rates))
+    }.takeIf { it > 0 } ?: 1.0
     val colorMap   = categoryNames.zip(categoryColors).toMap()
 
     val spendingCategories = debitTx
         .groupBy { TransactionCategories.normalize(it.category) }
         .entries
-        .sortedByDescending { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
+        .sortedByDescending { entry ->
+            entry.value.sumOf { tx ->
+                kotlin.math.abs(tx.convertedAmount(displayCurrency, rates))
+            }
+        }
         .mapIndexed { index, (category, txList) ->
-            val absAmount = txList.sumOf { kotlin.math.abs(it.amount) }
+            val absAmount = txList.sumOf {
+                kotlin.math.abs(it.convertedAmount(displayCurrency, rates))
+            }
             SpendingCategory(
                 name    = category,
                 percent = (absAmount / totalSpend).toFloat().coerceIn(0f, 1f),
@@ -215,8 +271,8 @@ fun computeDashboardState(
             )
         }
 
-    // ── Monthly trend (last 6 months) ─────────────────────────────────────────
-    val monthLabels = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+    // ── Monthly trend (last 6 months, converted) ──────────────────────────────
+    val monthLabels  = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
     val monthlyTrend = (5 downTo 0).map { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
         val targetMonth = targetDate.month.number
@@ -232,17 +288,21 @@ fun computeDashboardState(
 
         MonthlyPoint(
             month    = monthName,
-            income   = monthTx.filter { it.amount > 0 }.sumOf { it.amount }.toFloat(),
-            expenses = monthTx.filter { it.amount < 0 }.sumOf { kotlin.math.abs(it.amount) }.toFloat()
+            income   = monthTx.filter { it.amount > 0 }
+                .sumOf { it.convertedAmount(displayCurrency, rates) }.toFloat(),
+            expenses = monthTx.filter { it.amount < 0 }
+                .sumOf { kotlin.math.abs(it.convertedAmount(displayCurrency, rates)) }.toFloat()
         )
     }
 
-    // ── Recent transactions (latest 10) ───────────────────────────────────────
+    // ── Recent transactions — shown in ORIGINAL currency (not converted) ──────
+    // We keep original currency here so the user sees what was actually charged.
     val recentTransactions = transactions.take(10).map { tx ->
+        val txSymbol  = getCurrencySymbol(tx.currency)
         val formatted = if (tx.type.uppercase() == "CREDIT")
-            "+${formatCurrency(tx.amount, symbol)}"
+            "+${formatCurrency(tx.amount, txSymbol)}"
         else
-            formatCurrency(tx.amount, symbol)
+            formatCurrency(tx.amount, txSymbol)
         Transaction(
             name     = tx.merchantName?.ifBlank { null } ?: tx.description,
             date     = formatDate(tx.timestamp),
@@ -251,24 +311,33 @@ fun computeDashboardState(
         )
     }
 
-    // ── Accounts overview ─────────────────────────────────────────────────────
+    // ── Accounts overview — balance converted to display currency ─────────────
     val accountOverviews = accounts.map { account ->
         val balance = balances.find { it.accountId == account.accountId }
+        val convertedBalance = if (balance != null) {
+            ExchangeRateService.convert(
+                amount       = balance.current,
+                fromCurrency = balance.currency,
+                toCurrency   = displayCurrency,
+                rates        = rates
+            )
+        } else null
+
         AccountOverview(
             accountId    = account.accountId,
             bankName     = account.bankName,
             maskedNumber = account.maskedNumber,
-            balance      = if (balance != null) formatCurrency(balance.current, symbol) else "--"
+            balance      = if (convertedBalance != null)
+                formatCurrency(convertedBalance, symbol) else "--"
         )
     }
 
-    // ── Monthly top spending category (last 6 months) ────────────────────────────
-    val monthLabels2 = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+    // ── Monthly top spending category (last 6 months, converted) ─────────────
     val monthlyTopCategories = (5 downTo 0).mapNotNull { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
         val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year
-        val monthName   = monthLabels2[targetMonth - 1]
+        val monthName   = monthLabels[targetMonth - 1]
 
         val monthDebits = transactions.filter { tx ->
             val parts = tx.timestamp.take(10).split("-")
@@ -281,13 +350,18 @@ fun computeDashboardState(
 
         val topCategory = monthDebits
             .groupBy { TransactionCategories.normalize(it.category) }
-            .maxByOrNull { it.value.sumOf { tx -> kotlin.math.abs(tx.amount) } }
-            ?: return@mapNotNull null
+            .maxByOrNull { entry ->
+                entry.value.sumOf { tx ->
+                    kotlin.math.abs(tx.convertedAmount(displayCurrency, rates))
+                }
+            } ?: return@mapNotNull null
 
         MonthlyTopCategory(
             month    = monthName,
             category = topCategory.key,
-            amount   = topCategory.value.sumOf { kotlin.math.abs(it.amount) }.toFloat(),
+            amount   = topCategory.value.sumOf {
+                kotlin.math.abs(it.convertedAmount(displayCurrency, rates))
+            }.toFloat(),
             color    = colorMap[topCategory.key] ?: categoryColors[0]
         )
     }
@@ -296,7 +370,7 @@ fun computeDashboardState(
         currentBalance        = currentBalance,
         monthlyIncome         = monthlyIncome,
         monthlyExpenses       = monthlyExpenses,
-        currency              = currency,
+        currency              = displayCurrency,
         spendingCategories    = spendingCategories,
         monthlyTrend          = monthlyTrend,
         recentTransactions    = recentTransactions,
