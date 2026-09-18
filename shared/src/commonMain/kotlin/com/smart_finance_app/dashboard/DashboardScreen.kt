@@ -223,6 +223,7 @@ fun DashboardScreen(
     authToken: String,
     userId: String,
     userName: String,
+    apiBaseUrl: String,
     transactions: List<TransactionData>,
     onConnectAccountClicked: () -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
@@ -245,7 +246,7 @@ fun DashboardScreen(
         isLoading = true
         errorMsg  = null
 
-        val rates = ExchangeRateService.getRates(api.client)
+        val rates = ExchangeRateService.getRates(api.client, apiBaseUrl)
         exchangeRates = rates
         onRatesFetched(rates)
 
@@ -746,11 +747,11 @@ private fun MobileDashboard(
         // ── Merged Balance + Income + Expenses card (fixed, not deletable/movable) ──
         item {
             FinancialOverviewCard(
-                balance = formatCurrency(displayBalance, getCurrencySymbol(state.currency)),
+                balance  = formatCurrency(displayBalance,        getCurrencySymbol(state.currency), state.currency),
                 balanceTrend = state.balanceChangePercent,
-                income = formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)),
+                income   = formatCurrency(state.monthlyIncome,   getCurrencySymbol(state.currency), state.currency),
                 incomeTrend = state.incomeChangePercent,
-                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)),
+                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency), state.currency),
                 expensesTrend = state.expenseChangePercent
             )
         }
@@ -1346,11 +1347,11 @@ private fun DesktopDashboard(
         // ── Merged Balance + Income + Expenses card (fixed) ──
         item {
             FinancialOverviewCard(
-                balance = formatCurrency(displayBalance, getCurrencySymbol(state.currency)),
+                balance  = formatCurrency(displayBalance,        getCurrencySymbol(state.currency), state.currency),
                 balanceTrend = state.balanceChangePercent,
-                income = formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)),
+                income   = formatCurrency(state.monthlyIncome,   getCurrencySymbol(state.currency), state.currency),
                 incomeTrend = state.incomeChangePercent,
-                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)),
+                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency), state.currency),
                 expensesTrend = state.expenseChangePercent
             )
         }
@@ -2791,7 +2792,7 @@ private fun ChartCardContent(
                 }.sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) }.toFloat()
                 SpendingCategory(
                     name   = label,
-                    amount = formatCurrency(total.toDouble(), sym),
+                    amount = formatCurrency(total.toDouble(), sym, displayCurrency),
                     percent = total,   // raw total; DonutChart normalises internally
                     color  = dayColors[idx]
                 )
@@ -2882,7 +2883,7 @@ private fun ChartCardContent(
                                         .background(barColors[i % barColors.size], RoundedCornerShape(4.dp)))
                                 }
                                 Text(
-                                    text = formatCurrency(amount.toDouble(), sym),
+                                    text = formatCurrency(amount.toDouble(), sym, displayCurrency),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1
@@ -2923,7 +2924,7 @@ private fun ChartCardContent(
             val cats = buckets.map { (key, pair) ->
                 val (label, color) = pair
                 val amt = grouped[key]?.sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) } ?: 0.0
-                SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym), color = color)
+                SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym, displayCurrency), color = color)
 
             }
             Box(
@@ -3004,7 +3005,7 @@ private fun ChartCardContent(
                                     )
                                 }
                                 Text(
-                                    text = formatCurrency(amount, getCurrencySymbol(displayCurrency)),
+                                    text = formatCurrency(amount, getCurrencySymbol(displayCurrency), displayCurrency),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color(0xFFEF4444),
@@ -3066,7 +3067,7 @@ private fun ChartCardContent(
                                     )
                                 }
                                 Text(
-                                    text = formatCurrency(amount, getCurrencySymbol(displayCurrency)),
+                                    text = formatCurrency(amount, getCurrencySymbol(displayCurrency), displayCurrency),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -3107,7 +3108,7 @@ private fun ChartCardContent(
                                 Text("$cadenceLabel · $expectedLabel ${bill.expectedDate}", style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(formatCurrency(bill.amount, sym), style = MaterialTheme.typography.bodySmall,
+                            Text(formatCurrency(bill.amount, sym, displayCurrency), style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -3223,7 +3224,7 @@ private fun ChartCardContent(
                                     constraints = Constraints(maxWidth = w.toInt().coerceAtLeast(1))
                                 )
                                 val amountLayout = textMeasurer.measure(
-                                    formatCurrency(b.totalSpend, sym), amountStyle
+                                    formatCurrency(b.totalSpend, sym, displayCurrency), amountStyle
                                 )
 
                                 val totalTextH = nameLayout.size.height + amountLayout.size.height + 2.dp.toPx()

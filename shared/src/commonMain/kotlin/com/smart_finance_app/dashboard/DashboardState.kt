@@ -57,18 +57,26 @@ fun getCurrencySymbol(currency: String) = when (currency.uppercase()) {
     "GBP" -> "£"
     "EUR" -> "€"
     "USD" -> "$"
-    "PLN" -> "zł"
+    "PLN" -> "z\u0142"
     "TWD" -> "NT$"
     else  -> currency
 }
 
 /** KMP-compatible currency formatter — avoids String.format() which is JVM-only */
-fun formatCurrency(value: Double, symbol: String): String {
+fun formatCurrency(value: Double, symbol: String, currencyCode: String = ""): String {
     val absValue = kotlin.math.abs(value)
-    val intPart  = absValue.toLong()
-    val decPart  = kotlin.math.round((absValue - intPart) * 100).toLong()
     val prefix   = if (value < 0) "-" else ""
-    return "$prefix$symbol$intPart.${decPart.toString().padStart(2, '0')}"
+
+    // Zero-decimal currencies — no cents shown
+    val zeroDecimalCurrencies = setOf("TWD", "JPY", "KRW")
+    return if (currencyCode.uppercase() in zeroDecimalCurrencies) {
+        val rounded = kotlin.math.round(absValue).toLong()
+        "$prefix$symbol$rounded"
+    } else {
+        val intPart = absValue.toLong()
+        val decPart = kotlin.math.round((absValue - intPart) * 100).toLong()
+        "$prefix$symbol$intPart.${decPart.toString().padStart(2, '0')}"
+    }
 }
 
 fun formatDate(timestamp: String): String {
@@ -160,7 +168,7 @@ fun computeSpendingCategories(
             SpendingCategory(
                 name    = category,
                 percent = (absAmount / totalSpend).toFloat().coerceIn(0f, 1f),
-                amount  = formatCurrency(absAmount, symbol),
+                amount  = formatCurrency(absAmount, symbol, displayCurrency),
                 color   = colorMap[category] ?: categoryColors[index % categoryColors.size]
             )
         }
@@ -267,7 +275,7 @@ fun computeDashboardState(
             SpendingCategory(
                 name    = category,
                 percent = (absAmount / totalSpend).toFloat().coerceIn(0f, 1f),
-                amount  = formatCurrency(absAmount, symbol),
+                amount  = formatCurrency(absAmount, symbol, displayCurrency),
                 color   = colorMap[category] ?: categoryColors[index % categoryColors.size]
             )
         }
@@ -301,9 +309,9 @@ fun computeDashboardState(
     val recentTransactions = transactions.take(10).map { tx ->
         val txSymbol  = getCurrencySymbol(tx.currency)
         val formatted = if (tx.type.uppercase() == "CREDIT")
-            "+${formatCurrency(tx.amount, txSymbol)}"
+            "+${formatCurrency(tx.amount, txSymbol, tx.currency)}"
         else
-            formatCurrency(tx.amount, txSymbol)
+            formatCurrency(tx.amount, txSymbol, tx.currency)
         Transaction(
             name     = tx.merchantName?.ifBlank { null } ?: tx.description,
             date     = formatDate(tx.timestamp),
@@ -329,7 +337,7 @@ fun computeDashboardState(
             bankName     = account.bankName,
             maskedNumber = account.maskedNumber,
             balance      = if (convertedBalance != null)
-                formatCurrency(convertedBalance, symbol) else "--"
+                formatCurrency(convertedBalance, symbol, displayCurrency) else "--"
         )
     }
 

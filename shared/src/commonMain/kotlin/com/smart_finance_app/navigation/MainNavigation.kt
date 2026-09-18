@@ -355,6 +355,7 @@ private fun NavigationContent(
             authToken                   = authToken,
             userName                    = userName,
             userId                       = userEmail,
+            apiBaseUrl                   = apiBaseUrl,
             transactions                = mappedTransactions,
             onConnectAccountClicked     = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,

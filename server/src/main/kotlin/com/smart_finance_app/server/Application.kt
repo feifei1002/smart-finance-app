@@ -142,6 +142,7 @@ fun Application.module() {
         userPreferencesRoutes()
 
         profileRoutes()
+        exchangeRatesRoutes()
     }
 }
 
