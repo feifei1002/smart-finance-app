@@ -370,6 +370,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Could not open payment settings.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Could not load billing history.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Could not load billing information.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Exchange rates unavailable. Amounts shown in original currency.",
     )
 
     private val es = mapOf(
@@ -726,6 +727,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "No se pudo abrir la configuración de pago.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "No se pudo cargar el historial de facturación.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "No se pudo cargar la información de facturación.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Tipos de cambio no disponibles. Los importes se muestran en la moneda original.",
     )
 
     private val fr = mapOf(
@@ -1082,6 +1084,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Impossible d’ouvrir les paramètres de paiement.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Impossible de charger l’historique de facturation.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Impossible de charger les informations de facturation.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Taux de change indisponibles. Les montants sont affichés dans la devise d'origine.",
     )
 
     private val nl = mapOf(
@@ -1432,6 +1435,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Betalingsinstellingen konden niet worden geopend.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Factuurgeschiedenis kon niet worden geladen.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Factuurgegevens konden niet worden geladen.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Wisselkoersen niet beschikbaar. Bedragen worden weergegeven in de oorspronkelijke valuta.",
     )
 
     private val de = mapOf(
@@ -1782,6 +1786,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Zahlungseinstellungen konnten nicht geöffnet werden.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Abrechnungsverlauf konnte nicht geladen werden.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Abrechnungsinformationen konnten nicht geladen werden.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Wechselkurse nicht verfügbar. Beträge werden in der Originalwährung angezeigt.",
     )
 
     private val it = mapOf(
@@ -2132,6 +2137,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Impossibile aprire le impostazioni di pagamento.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Impossibile caricare la cronologia di fatturazione.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Impossibile caricare le informazioni di fatturazione.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Tassi di cambio non disponibili. Gli importi sono mostrati nella valuta originale.",
     )
 
     private val pl = mapOf(
@@ -2482,6 +2488,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Nie udało się otworzyć ustawień płatności.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Nie udało się załadować historii rozliczeń.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Nie udało się załadować informacji rozliczeniowych.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Kursy wymiany niedostępne. Kwoty wyświetlane w oryginalnej walucie.",
     )
 
     private val zhTW = mapOf(
@@ -2832,5 +2839,6 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "無法開啟付款設定。",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "無法載入帳單記錄。",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "無法載入帳單資料。",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "匯率無法取得。金額以原始貨幣顯示。",
     )
 }

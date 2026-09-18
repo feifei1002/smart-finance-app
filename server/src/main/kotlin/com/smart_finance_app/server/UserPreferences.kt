@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 private val allowedLanguages  = setOf("en", "es", "fr", "nl", "de", "it", "pl", "zh-TW")
-private val allowedCurrencies = setOf("GBP", "USD", "EUR", "TWD")
+private val allowedCurrencies = setOf("GBP", "USD", "EUR", "PLN", "TWD")
 
 @Serializable
 data class UpdateLanguageRequest(val language: String)

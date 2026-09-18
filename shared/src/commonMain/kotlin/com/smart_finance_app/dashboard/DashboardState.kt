@@ -57,6 +57,7 @@ fun getCurrencySymbol(currency: String) = when (currency.uppercase()) {
     "GBP" -> "£"
     "EUR" -> "€"
     "USD" -> "$"
+    "PLN" -> "zł"
     "TWD" -> "NT$"
     else  -> currency
 }

@@ -10,7 +10,7 @@ object CurrencyController {
     private val settings = Settings()
     private const val KEY = "app_currency"
 
-    val supportedCurrencies = listOf("GBP", "USD", "EUR", "TWD")
+    val supportedCurrencies = listOf("GBP", "USD", "EUR","PLN", "TWD")
 
     var currentCurrency by mutableStateOf(
         settings.getStringOrNull(KEY) ?: "GBP"

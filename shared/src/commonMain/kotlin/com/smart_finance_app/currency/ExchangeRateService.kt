@@ -11,27 +11,21 @@ import kotlin.time.Clock
  * Rates are EUR-based (1 EUR = X currency).
  * Free, no API key required, updated daily.
  *
- * Supported: GBP, USD, EUR, TWD
+ * Supported: GBP, USD, EUR, TWD, PLN
+ *
+ * If ECB is unreachable, returns an empty map — callers should handle
+ * this by showing amounts in their original currency unchanged.
  */
 object ExchangeRateService {
 
-    // Cached rates — keyed by currency code, value is how many units = 1 EUR
     private var cachedRates: Map<String, Double> = emptyMap()
     private var lastFetchTime: Long = 0L
     private const val CACHE_DURATION_MS = 60 * 60 * 1000L // 1 hour
 
-    // Fallback rates in case ECB is unreachable
-    // These are approximate and should only be used as a last resort
-    private val fallbackRates = mapOf(
-        "EUR" to 1.0,
-        "GBP" to 0.86,
-        "USD" to 1.08,
-        "TWD" to 34.5
-    )
-
     /**
      * Returns exchange rates, fetching from ECB if cache is stale.
-     * Always returns a non-empty map (falls back to hardcoded rates on failure).
+     * Returns an empty map if ECB is unreachable — never returns stale
+     * hardcoded rates.
      */
     suspend fun getRates(client: HttpClient): Map<String, Double> {
         val now = Clock.System.now().toEpochMilliseconds()
@@ -50,19 +44,20 @@ object ExchangeRateService {
                     lastFetchTime = now
                     cachedRates
                 } else {
-                    fallbackRates
+                    emptyMap()
                 }
             } else {
-                fallbackRates
+                emptyMap()
             }
         } catch (_: Exception) {
-            fallbackRates
+            emptyMap()
         }
     }
 
     /**
-     * Converts an amount from one currency to another using cached rates.
-     * All conversions go via EUR as the base.
+     * Converts an amount from one currency to another using provided rates.
+     * If rates are empty or the currency pair is not found, returns the
+     * original amount unchanged — no guessing.
      */
     fun convert(
         amount: Double,
@@ -71,20 +66,16 @@ object ExchangeRateService {
         rates: Map<String, Double>
     ): Double {
         if (fromCurrency.uppercase() == toCurrency.uppercase()) return amount
+        if (rates.isEmpty()) return amount
         val fromRate = rates[fromCurrency.uppercase()] ?: return amount
         val toRate   = rates[toCurrency.uppercase()]   ?: return amount
-        // Convert to EUR first, then to target currency
-        val inEUR = amount / fromRate
+        val inEUR    = amount / fromRate
         return inEUR * toRate
     }
 
-    /**
-     * Parses the ECB daily XML feed.
-     * Format: <Cube currency='USD' rate='1.0823'/>
-     */
     private fun parseECBRates(xml: String): Map<String, Double> {
         val result = mutableMapOf<String, Double>()
-        val regex = Regex("""currency='([A-Z]+)'\s+rate='([0-9.]+)'""")
+        val regex  = Regex("""currency='([A-Z]+)'\s+rate='([0-9.]+)'""")
         regex.findAll(xml).forEach { match ->
             val currency = match.groupValues[1]
             val rate     = match.groupValues[2].toDoubleOrNull()

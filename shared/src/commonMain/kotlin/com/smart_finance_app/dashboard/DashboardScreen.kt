@@ -249,6 +249,15 @@ fun DashboardScreen(
         exchangeRates = rates
         onRatesFetched(rates)
 
+        if (rates.isEmpty() && CurrencyController.currentCurrency != "GBP") {
+            // Show a snackbar or note that rates couldn't be fetched
+            // and amounts are shown in original currency
+            errorMsg = AppStrings.get(
+                LocaleController.currentLanguageCode,
+                StringKey.CURRENCY_RATES_UNAVAILABLE
+            )
+        }
+
         val a = api.getAccounts(authToken)
         if (a is DashboardResult.Failure) {
             errorMsg = AppStrings.get(LocaleController.currentLanguageCode, a.message)
