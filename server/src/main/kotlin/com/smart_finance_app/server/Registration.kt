@@ -25,7 +25,8 @@ data class RegisterResponse(
     val name: String,
     val email: String,
     val consentAccepted: Boolean,
-    val language: String          // ← new
+    val language: String,
+    val currency: String
 )
 
 @Serializable
@@ -79,7 +80,8 @@ fun Route.registrationRoutes(
                 name = name,
                 email = email,
                 consentAccepted = false,
-                language = "en"   // ← new users always start in English
+                language = "en" ,
+                currency = "GBP"
             )
         )
     }

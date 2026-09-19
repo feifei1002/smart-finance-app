@@ -73,7 +73,10 @@ import smart_finance_app.shared.generated.resources.add
 import smart_finance_app.shared.generated.resources.moving
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
+import com.smart_finance_app.currency.ConversionResult
 import com.smart_finance_app.localiseCategory
+import com.smart_finance_app.currency.CurrencyController
+import com.smart_finance_app.currency.ExchangeRateService
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
@@ -216,11 +219,29 @@ private fun rememberGreeting(): String {
     }
 }
 
+private fun convertedAbsAmount(
+    amount: Double,
+    fromCurrency: String,
+    displayCurrency: String,
+    rates: Map<String, Double>
+): Double {
+    return when (val result = ExchangeRateService.convert(
+        amount = amount,
+        fromCurrency = fromCurrency,
+        toCurrency = displayCurrency,
+        rates = rates
+    )) {
+        is ConversionResult.Success -> abs(result.amount)
+        else -> 0.0
+    }
+}
+
 @Composable
 fun DashboardScreen(
     authToken: String,
     userId: String,
     userName: String,
+    apiBaseUrl: String,
     transactions: List<TransactionData>,
     onConnectAccountClicked: () -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
@@ -235,15 +256,29 @@ fun DashboardScreen(
     var spendingPeriod by remember { mutableStateOf(SpendingPeriod.THIS_MONTH) }
     var selectedAccounts by remember { mutableStateOf(setOf<String>()) }
 
+    // Add rates state near other state declarations (line 232)
+    var exchangeRates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    var ratesWarning by remember { mutableStateOf<String?>(null) }
+
     suspend fun load() {
         isLoading = true
         errorMsg  = null
 
+        val rates = ExchangeRateService.getRates(api.client, apiBaseUrl)
+        exchangeRates = rates
+
+        if (rates.isEmpty() && CurrencyController.currentCurrency != "GBP") {
+            ratesWarning = AppStrings.get(
+                LocaleController.currentLanguageCode,
+                StringKey.CURRENCY_RATES_UNAVAILABLE
+            )
+        } else {
+            ratesWarning = null
+        }
+
         val a = api.getAccounts(authToken)
-        if (a is DashboardResult.Failure) { errorMsg = AppStrings.get(
-            LocaleController.currentLanguageCode,
-            a.message
-        )
+        if (a is DashboardResult.Failure) {
+            errorMsg = AppStrings.get(LocaleController.currentLanguageCode, a.message)
             isLoading = false
             return
         }
@@ -256,21 +291,25 @@ fun DashboardScreen(
         }
 
         val b = api.getBalances(authToken)
-        if (b is DashboardResult.Failure) { errorMsg = AppStrings.get(
-            LocaleController.currentLanguageCode,
-            b.message
-        )
+        if (b is DashboardResult.Failure) {
+            errorMsg = AppStrings.get(LocaleController.currentLanguageCode, b.message)
             isLoading = false
-            return }
+            return
+        }
         val balances = (b as DashboardResult.Success).data
 
-        // Transactions are non-critical — if they fail, show dashboard with empty list
-
-        state     = computeDashboardState(balances, transactions, accounts)
+        state = computeDashboardState(
+            balances        = balances,
+            transactions    = transactions,
+            accounts        = accounts,
+            displayCurrency = CurrencyController.currentCurrency,
+            rates           = rates
+        )
         isLoading = false
     }
 
-    LaunchedEffect(authToken, transactions) { load() }
+// Also recompute when currency changes
+    LaunchedEffect(authToken, transactions, CurrencyController.currentCurrency) { load() }
 
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -347,7 +386,9 @@ fun DashboardScreen(
                         onAccountsChanged = { selectedAccounts = it },
                         onPeriodSelected = { spendingPeriod = it },
                         onViewAllTransactionsClicked = onViewAllTransactionsClicked,
-                        budgetApi = budgetApi
+                        budgetApi = budgetApi,
+                        exchangeRates = exchangeRates,
+                        ratesWarning  = ratesWarning
                     )
                 } else {
                     DesktopDashboard(
@@ -361,7 +402,9 @@ fun DashboardScreen(
                         onAccountsChanged = { selectedAccounts = it },
                         onPeriodSelected = { spendingPeriod = it },
                         onViewAllTransactionsClicked = onViewAllTransactionsClicked,
-                        budgetApi = budgetApi
+                        budgetApi = budgetApi,
+                        exchangeRates = exchangeRates,
+                        ratesWarning  = ratesWarning
                     )
                 }
             }
@@ -381,7 +424,9 @@ private fun MobileDashboard(
     selectedAccounts: Set<String>,
     onAccountsChanged: (Set<String>) -> Unit,
     onPeriodSelected: (SpendingPeriod) -> Unit,
-    onViewAllTransactionsClicked: () -> Unit
+    onViewAllTransactionsClicked: () -> Unit,
+    exchangeRates: Map<String, Double>,
+    ratesWarning: String? = null,
 ) {
     val greeting = rememberGreeting()
     val scope    = rememberCoroutineScope()
@@ -609,6 +654,22 @@ private fun MobileDashboard(
         contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp),
         userScrollEnabled = !isDraggingHandle
     ) {
+        ratesWarning?.let { warning ->
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer
+                ) {
+                    Text(
+                        text = warning,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
         // Header block: greeting, subtitle, and controls all tightly grouped
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -722,11 +783,11 @@ private fun MobileDashboard(
         // ── Merged Balance + Income + Expenses card (fixed, not deletable/movable) ──
         item {
             FinancialOverviewCard(
-                balance = formatCurrency(displayBalance, getCurrencySymbol(state.currency)),
+                balance  = formatCurrency(displayBalance,        getCurrencySymbol(state.currency), state.currency),
                 balanceTrend = state.balanceChangePercent,
-                income = formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)),
+                income   = formatCurrency(state.monthlyIncome,   getCurrencySymbol(state.currency), state.currency),
                 incomeTrend = state.incomeChangePercent,
-                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)),
+                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency), state.currency),
                 expensesTrend = state.expenseChangePercent
             )
         }
@@ -888,7 +949,13 @@ private fun MobileDashboard(
                             },
                             modifier      = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            if (isChart) ChartCardContent(key, state, filteredRawTransactions)
+                            if (isChart) ChartCardContent(
+                                key             = key,
+                                state           = state,
+                                rawTransactions = filteredRawTransactions,
+                                displayCurrency = CurrencyController.currentCurrency,
+                                rates           = exchangeRates
+                            )
                             else HalfCardContent(key, state)
                         }
                     }
@@ -918,7 +985,13 @@ private fun MobileDashboard(
                             horizontalPosition = halfPositions[key] ?: 0f,
                             modifier      = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            if (isChart) ChartCardContent(key, state, filteredRawTransactions)
+                            if (isChart) ChartCardContent(
+                                key             = key,
+                                state           = state,
+                                rawTransactions = filteredRawTransactions,
+                                displayCurrency = CurrencyController.currentCurrency,
+                                rates           = exchangeRates
+                            )
                             else HalfCardContent(key, state)
                         }
                         Spacer(Modifier.weight(1f))
@@ -940,7 +1013,12 @@ private fun MobileDashboard(
                             "spending" -> {
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-                                    val filteredCategories = computeSpendingCategories(filteredRawTransactions, spendingPeriod, state.currency)
+                                    val filteredCategories = computeSpendingCategories(
+                                        transactions    = filteredRawTransactions,
+                                        period          = spendingPeriod,
+                                        displayCurrency = CurrencyController.currentCurrency,
+                                        rates           = exchangeRates
+                                    )
                                     val chartCategories = filteredCategories.filter { it.percent >= 0.01f }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -966,9 +1044,15 @@ private fun MobileDashboard(
                             }
                             "budget" -> BudgetProgressCardContent(
                                 api = budgetApi, authToken = authToken,
-                                transactions = state.rawTransactions, currency = state.currency
+                                transactions = state.rawTransactions, currency = state.currency,exchangeRates = exchangeRates
                             )
-                            else -> ChartCardContent(key, state, filteredRawTransactions)
+                            else -> ChartCardContent(
+                                key             = key,
+                                state           = state,
+                                rawTransactions = filteredRawTransactions,
+                                displayCurrency = CurrencyController.currentCurrency,
+                                rates           = exchangeRates
+                            )
                         }
                     }
                 }
@@ -1022,7 +1106,9 @@ private fun DesktopDashboard(
     selectedAccounts: Set<String>,
     onAccountsChanged: (Set<String>) -> Unit,
     onPeriodSelected: (SpendingPeriod) -> Unit,
-    onViewAllTransactionsClicked: () -> Unit
+    onViewAllTransactionsClicked: () -> Unit,
+    exchangeRates: Map<String, Double>,
+    ratesWarning: String? = null,
 ) {
     val greeting = rememberGreeting()
     val scope    = rememberCoroutineScope()
@@ -1181,6 +1267,20 @@ private fun DesktopDashboard(
         )
     }
 
+    ratesWarning?.let { warning ->
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.tertiaryContainer
+        ) {
+            Text(
+                text = warning,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -1298,11 +1398,11 @@ private fun DesktopDashboard(
         // ── Merged Balance + Income + Expenses card (fixed) ──
         item {
             FinancialOverviewCard(
-                balance = formatCurrency(displayBalance, getCurrencySymbol(state.currency)),
+                balance  = formatCurrency(displayBalance,        getCurrencySymbol(state.currency), state.currency),
                 balanceTrend = state.balanceChangePercent,
-                income = formatCurrency(state.monthlyIncome, getCurrencySymbol(state.currency)),
+                income   = formatCurrency(state.monthlyIncome,   getCurrencySymbol(state.currency), state.currency),
                 incomeTrend = state.incomeChangePercent,
-                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency)),
+                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency), state.currency),
                 expensesTrend = state.expenseChangePercent
             )
         }
@@ -1340,9 +1440,10 @@ private fun DesktopDashboard(
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
                                 val filteredCategories = computeSpendingCategories(
-                                    transactions = filteredRawTransactions,
-                                    period = spendingPeriod,
-                                    currency = state.currency
+                                    transactions    = filteredRawTransactions,
+                                    period          = spendingPeriod,
+                                    displayCurrency = CurrencyController.currentCurrency,
+                                    rates           = exchangeRates
                                 )
                                 val chartCategories = filteredCategories.filter { it.percent >= 0.01f }
 
@@ -1421,7 +1522,8 @@ private fun DesktopDashboard(
                                 api = budgetApi,
                                 authToken = authToken,
                                 transactions = state.rawTransactions,
-                                currency = state.currency
+                                currency = state.currency,
+                                exchangeRates = exchangeRates
                             )
                         }
                     }
@@ -1461,7 +1563,13 @@ private fun DesktopDashboard(
                             onMoveDown = { desktopMoveRowDown() },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            ChartCardContent(key, state, filteredRawTransactions)
+                            ChartCardContent(
+                                key             = key,
+                                state           = state,
+                                rawTransactions = filteredRawTransactions,
+                                displayCurrency = CurrencyController.currentCurrency,
+                                rates           = exchangeRates
+                            )
                         }
                     }
                 }
@@ -1484,7 +1592,13 @@ private fun DesktopDashboard(
                             onMoveDown = { desktopMoveRowDown() },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            ChartCardContent(key, state, filteredRawTransactions)
+                            ChartCardContent(
+                                key             = key,
+                                state           = state,
+                                rawTransactions = filteredRawTransactions,
+                                displayCurrency = CurrencyController.currentCurrency,
+                                rates           = exchangeRates
+                            )
                         }
                         Spacer(Modifier.weight(1f))
                     }
@@ -1501,7 +1615,13 @@ private fun DesktopDashboard(
                         onMoveDown = { desktopMoveRowDown() },
                         modifier = Modifier.fillMaxWidth().height(cardHeight)
                     ) {
-                        ChartCardContent(key, state, filteredRawTransactions)
+                        ChartCardContent(
+                            key             = key,
+                            state           = state,
+                            rawTransactions = filteredRawTransactions,
+                            displayCurrency = CurrencyController.currentCurrency,
+                            rates           = exchangeRates
+                        )
                     }
                 }
             }
@@ -1850,6 +1970,7 @@ private fun BudgetProgressCardContent(
     authToken: String,
     transactions: List<TransactionData>,
     currency: String,
+    exchangeRates: Map<String, Double>,
     api: BudgetApi
 ) {
     val scope  = rememberCoroutineScope()
@@ -1861,7 +1982,12 @@ private fun BudgetProgressCardContent(
     var errorMsg   by remember { mutableStateOf<String?>(null) }
 
     val budgetsWithSpending by derivedStateOf {
-        computeBudgetsWithSpending(budgets, transactions)
+        computeBudgetsWithSpending(
+            budgets         = budgets,
+            transactions    = transactions,
+            displayCurrency = CurrencyController.currentCurrency,
+            rates           = exchangeRates
+        )
     }
 
     suspend fun loadBudgets() {
@@ -1987,12 +2113,12 @@ private fun BudgetProgressCardContent(
                 editBudget = null
                 errorMsg = null
             },
-            onConfirm      = { category, amount, period ->
+            onConfirm      = { category, amount, period, currency ->
                 scope.launch {
                     val result = if (currentEdit != null) {
-                        api.updateBudget(authToken, currentEdit.id, amount, category, period)
+                        api.updateBudget(authToken, currentEdit.id, amount, category, period, currency)
                     } else {
-                        api.createBudget(authToken, BudgetRequest(category, amount, period))
+                        api.createBudget(authToken, BudgetRequest(category, amount, period, currency))
                     }
                     when (result) {
                         is BudgetResult.Success -> {
@@ -2652,14 +2778,16 @@ private fun HalfCardContent(
 
 @Composable
 private fun ChartCardContent(
-    cardKey: String,
+    key: String,
     state: DashboardState,
-    rawTransactions: List<TransactionData>
+    rawTransactions: List<TransactionData>,
+    displayCurrency: String,
+    rates: Map<String, Double>
 ) {
-    val sym = getCurrencySymbol(state.currency)
+    val sym = getCurrencySymbol(displayCurrency)
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
-    when (cardKey) {
+    when (key) {
 
         // ── Weekly Spending (full) ──
         "weekly_spending" -> {
@@ -2678,7 +2806,7 @@ private fun ChartCardContent(
                                 p[2].toIntOrNull() == targetDate.dayOfMonth &&
                                 tx.amount < 0
                     }
-                    .sumOf { abs(it.amount) }.toFloat()
+                    .sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.toFloat()
                 MonthlyTopCategory(month = dayLabel, category = "", amount = total, color = Color(0xFF6366F1))
             }
             // 1. Center the chart content vertically and horizontally inside the card
@@ -2712,10 +2840,10 @@ private fun ChartCardContent(
                     } catch (_: Exception) { return@filter false }
                     // DayOfWeek: MONDAY=1..SUNDAY=7, ordinal 0-based = 0..6
                     date.dayOfWeek.ordinal == idx && tx.amount < 0
-                }.sumOf { abs(it.amount) }.toFloat()
+                }.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.toFloat()
                 SpendingCategory(
                     name   = label,
-                    amount = formatCurrency(total.toDouble(), sym),
+                    amount = formatCurrency(total.toDouble(), sym, displayCurrency),
                     percent = total,   // raw total; DonutChart normalises internally
                     color  = dayColors[idx]
                 )
@@ -2775,7 +2903,7 @@ private fun ChartCardContent(
 //                                (tx.accountId == null || tx.accountId == acc.accountId)
                                 tx.accountId == acc.accountId
                     }
-                    .sumOf { abs(it.amount) }
+                    .sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }
                     .toFloat()
 
                 acc.bankName to total
@@ -2806,7 +2934,7 @@ private fun ChartCardContent(
                                         .background(barColors[i % barColors.size], RoundedCornerShape(4.dp)))
                                 }
                                 Text(
-                                    text = formatCurrency(amount.toDouble(), sym),
+                                    text = formatCurrency(amount.toDouble(), sym, displayCurrency),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                     fontWeight = FontWeight.Medium,
                                     maxLines = 1
@@ -2843,11 +2971,11 @@ private fun ChartCardContent(
                     val hour = tx.timestamp.drop(11).take(2).toIntOrNull() ?: 12
                     when { hour < 12 -> "Morning"; hour < 18 -> "Afternoon"; else -> "Night" }
                 }
-            val total = grouped.values.flatten().sumOf { abs(it.amount) }.takeIf { it > 0 } ?: 1.0
+            val total = grouped.values.flatten().sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.takeIf { it > 0 } ?: 1.0
             val cats = buckets.map { (key, pair) ->
                 val (label, color) = pair
-                val amt = grouped[key]?.sumOf { abs(it.amount) } ?: 0.0
-                SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym), color = color)
+                val amt = grouped[key]?.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } ?: 0.0
+                SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym, displayCurrency), color = color)
 
             }
             Box(
@@ -2892,7 +3020,7 @@ private fun ChartCardContent(
                             tx.amount < 0
                 }
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { abs(it.amount) } }
+                .map { (name, txList) -> name to txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } }
                 .sortedByDescending { it.second }
                 .take(5)
                 .toList()
@@ -2928,7 +3056,7 @@ private fun ChartCardContent(
                                     )
                                 }
                                 Text(
-                                    text = formatCurrency(amount, sym),
+                                    text = formatCurrency(amount, getCurrencySymbol(displayCurrency), displayCurrency),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color(0xFFEF4444),
@@ -2954,7 +3082,7 @@ private fun ChartCardContent(
                             tx.amount < 0
                 }
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { abs(it.amount) } }
+                .map { (name, txList) -> name to txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } }
                 .sortedBy { it.second }
                 .take(5)
                 .toList()
@@ -2990,7 +3118,7 @@ private fun ChartCardContent(
                                     )
                                 }
                                 Text(
-                                    text = formatCurrency(amount, sym),
+                                    text = formatCurrency(amount, getCurrencySymbol(displayCurrency), displayCurrency),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -3031,7 +3159,7 @@ private fun ChartCardContent(
                                 Text("$cadenceLabel · $expectedLabel ${bill.expectedDate}", style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Text(formatCurrency(bill.amount, sym), style = MaterialTheme.typography.bodySmall,
+                            Text(formatCurrency(bill.amount, sym, displayCurrency), style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -3063,7 +3191,7 @@ private fun ChartCardContent(
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
                 .map { (name, txList) ->
                     val count = txList.size
-                    val total = txList.sumOf { abs(it.amount) }
+                    val total = txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }
                     name to Triple(count, total / count, total)
                 }
                 .sortedByDescending { it.second.third }
@@ -3147,7 +3275,7 @@ private fun ChartCardContent(
                                     constraints = Constraints(maxWidth = w.toInt().coerceAtLeast(1))
                                 )
                                 val amountLayout = textMeasurer.measure(
-                                    formatCurrency(b.totalSpend, sym), amountStyle
+                                    formatCurrency(b.totalSpend, sym, displayCurrency), amountStyle
                                 )
 
                                 val totalTextH = nameLayout.size.height + amountLayout.size.height + 2.dp.toPx()

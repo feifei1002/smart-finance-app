@@ -34,7 +34,8 @@ data class RefreshTokenResponse(
     val name: String,
     val email: String,
     val consentAccepted: Boolean,
-    val language: String          // ← new
+    val language: String,
+    val currency: String
 )
 
 fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
@@ -77,7 +78,8 @@ fun Route.sessionRoutes(createAccessToken: (UUID) -> String) {
                 name = user.fullName,
                 email = user.email,
                 consentAccepted = user.consentAccepted,
-                language = user.language   // ← new
+                language = user.language,
+                currency = user.currency
             )
         )
     }
@@ -105,14 +107,15 @@ private data class SessionUser(
     val fullName: String,
     val email: String,
     val consentAccepted: Boolean,
-    val language: String          // ← new
+    val language: String,
+    val currency: String
 )
 
 private fun getSessionUser(userId: UUID): SessionUser? {
     return Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
-            SELECT full_name, email, language,
+            SELECT full_name, email, language, currency,
                    consent_accepted_at IS NOT NULL AS consent_accepted
             FROM users
             WHERE id = ?
@@ -125,7 +128,8 @@ private fun getSessionUser(userId: UUID): SessionUser? {
                     fullName = result.getString("full_name"),
                     email = result.getString("email"),
                     consentAccepted = result.getBoolean("consent_accepted"),
-                    language = result.getString("language") ?: "en"  // ← new
+                    language = result.getString("language") ?: "en",
+                    currency = result.getString("currency") ?: "GBP"
                 )
             }
         }

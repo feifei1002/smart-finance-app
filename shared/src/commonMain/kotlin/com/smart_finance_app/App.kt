@@ -42,6 +42,7 @@ import kotlinx.coroutines.sync.withLock
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import com.smart_finance_app.settings.UserPreferencesApi
+import com.smart_finance_app.currency.CurrencyController
 
 
 val LocalAppLanguage = compositionLocalOf { "en" }
@@ -210,6 +211,7 @@ fun App(
 
             if (refreshedSession != null) {
                 LocaleController.setLanguage(refreshedSession.language)
+                CurrencyController.setCurrency(refreshedSession.currency)
                 screen = if (refreshedSession.consentAccepted) {
                     Screen.Main
                 } else {
@@ -261,6 +263,7 @@ fun App(
                                         session = result.session
                                         tokenStorage.saveRefreshToken(result.session.refreshToken)
                                         LocaleController.setLanguage("en")
+                                        CurrencyController.setCurrency("GBP")
                                         screen = Screen.Consent
                                     }
                                     is RegistrationResult.Failure -> registrationError = AppStrings.get(
@@ -293,6 +296,7 @@ fun App(
                                         session = result.session
                                         tokenStorage.saveRefreshToken(result.session.refreshToken)
                                         LocaleController.setLanguage(result.session.language)
+                                        CurrencyController.setCurrency(result.session.currency)
 
                                         screen = if (result.session.consentAccepted) {
                                             Screen.Main

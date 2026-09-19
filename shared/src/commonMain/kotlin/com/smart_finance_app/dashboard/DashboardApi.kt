@@ -61,7 +61,7 @@ data class DashboardLayoutDto(
 
 // ── API client ────────────────────────────────────────────────────────────────
 
-class DashboardApi(private val baseUrl: String, private val client: HttpClient) {
+class DashboardApi(private val baseUrl: String, val client: HttpClient) {
 
     suspend fun getBalances(token: String): DashboardResult<List<BalanceData>> {
         return try {

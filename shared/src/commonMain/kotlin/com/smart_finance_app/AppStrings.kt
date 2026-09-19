@@ -284,6 +284,7 @@ object AppStrings {
         StringKey.SETTINGS_CANCEL to "Cancel",
         StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE to "Select Language",
         StringKey.SETTINGS_CURRENCY_DIALOG_TITLE to "Select Currency",
+        StringKey.SETTINGS_CURRENCY_SAVE_FAILED to "Failed to save currency preference. Please try again.",
         StringKey.LANG_EN to "English",
         StringKey.LANG_ES to "Español",
         StringKey.LANG_FR to "Français",
@@ -369,6 +370,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Could not open payment settings.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Could not load billing history.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Could not load billing information.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Exchange rates unavailable. Amounts shown in original currency.",
     )
 
     private val es = mapOf(
@@ -639,6 +641,7 @@ object AppStrings {
         StringKey.SETTINGS_CANCEL to "Cancelar",
         StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE to "Seleccionar idioma",
         StringKey.SETTINGS_CURRENCY_DIALOG_TITLE to "Seleccionar moneda",
+        StringKey.SETTINGS_CURRENCY_SAVE_FAILED to "No se pudo guardar la moneda. Por favor, inténtalo de nuevo.",
         StringKey.LANG_EN to "English",
         StringKey.LANG_ES to "Español",
         StringKey.LANG_FR to "Français",
@@ -724,6 +727,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "No se pudo abrir la configuración de pago.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "No se pudo cargar el historial de facturación.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "No se pudo cargar la información de facturación.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Tipos de cambio no disponibles. Los importes se muestran en la moneda original.",
     )
 
     private val fr = mapOf(
@@ -994,6 +998,7 @@ object AppStrings {
         StringKey.SETTINGS_CANCEL to "Annuler",
         StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE to "Sélectionner la langue",
         StringKey.SETTINGS_CURRENCY_DIALOG_TITLE to "Sélectionner la devise",
+        StringKey.SETTINGS_CURRENCY_SAVE_FAILED to "Impossible d'enregistrer la devise. Veuillez réessayer.",
         StringKey.LANG_EN to "English",
         StringKey.LANG_ES to "Español",
         StringKey.LANG_FR to "Français",
@@ -1079,6 +1084,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Impossible d’ouvrir les paramètres de paiement.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Impossible de charger l’historique de facturation.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Impossible de charger les informations de facturation.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Taux de change indisponibles. Les montants sont affichés dans la devise d'origine.",
     )
 
     private val nl = mapOf(
@@ -1349,6 +1355,7 @@ object AppStrings {
         StringKey.SETTINGS_CANCEL to "Annuleren",
         StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE to "Taal selecteren",
         StringKey.SETTINGS_CURRENCY_DIALOG_TITLE to "Valuta selecteren",
+        StringKey.SETTINGS_CURRENCY_SAVE_FAILED to "Valutavoorkeur kon niet worden opgeslagen. Probeer het opnieuw.",
         StringKey.LANG_EN to "English", StringKey.LANG_ES to "Español",
         StringKey.LANG_FR to "Français", StringKey.LANG_NL to "Nederlands",
         StringKey.LANG_DE to "Deutsch", StringKey.LANG_IT to "Italiano",
@@ -1428,6 +1435,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Betalingsinstellingen konden niet worden geopend.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Factuurgeschiedenis kon niet worden geladen.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Factuurgegevens konden niet worden geladen.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Wisselkoersen niet beschikbaar. Bedragen worden weergegeven in de oorspronkelijke valuta.",
     )
 
     private val de = mapOf(
@@ -1698,6 +1706,7 @@ object AppStrings {
         StringKey.SETTINGS_CANCEL to "Abbrechen",
         StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE to "Sprache auswählen",
         StringKey.SETTINGS_CURRENCY_DIALOG_TITLE to "Währung auswählen",
+        StringKey.SETTINGS_CURRENCY_SAVE_FAILED to "Währung konnte nicht gespeichert werden. Bitte versuche es erneut.",
         StringKey.LANG_EN to "English", StringKey.LANG_ES to "Español",
         StringKey.LANG_FR to "Français", StringKey.LANG_NL to "Nederlands",
         StringKey.LANG_DE to "Deutsch", StringKey.LANG_IT to "Italiano",
@@ -1777,6 +1786,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Zahlungseinstellungen konnten nicht geöffnet werden.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Abrechnungsverlauf konnte nicht geladen werden.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Abrechnungsinformationen konnten nicht geladen werden.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Wechselkurse nicht verfügbar. Beträge werden in der Originalwährung angezeigt.",
     )
 
     private val it = mapOf(
@@ -2047,6 +2057,7 @@ object AppStrings {
         StringKey.SETTINGS_CANCEL to "Annulla",
         StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE to "Seleziona lingua",
         StringKey.SETTINGS_CURRENCY_DIALOG_TITLE to "Seleziona valuta",
+        StringKey.SETTINGS_CURRENCY_SAVE_FAILED to "Impossibile salvare la valuta. Riprova.",
         StringKey.LANG_EN to "English", StringKey.LANG_ES to "Español",
         StringKey.LANG_FR to "Français", StringKey.LANG_NL to "Nederlands",
         StringKey.LANG_DE to "Deutsch", StringKey.LANG_IT to "Italiano",
@@ -2126,6 +2137,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Impossibile aprire le impostazioni di pagamento.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Impossibile caricare la cronologia di fatturazione.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Impossibile caricare le informazioni di fatturazione.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Tassi di cambio non disponibili. Gli importi sono mostrati nella valuta originale.",
     )
 
     private val pl = mapOf(
@@ -2396,6 +2408,7 @@ object AppStrings {
         StringKey.SETTINGS_CANCEL to "Anuluj",
         StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE to "Wybierz język",
         StringKey.SETTINGS_CURRENCY_DIALOG_TITLE to "Wybierz walutę",
+        StringKey.SETTINGS_CURRENCY_SAVE_FAILED to "Nie udało się zapisać waluty. Spróbuj ponownie.",
         StringKey.LANG_EN to "English", StringKey.LANG_ES to "Español",
         StringKey.LANG_FR to "Français", StringKey.LANG_NL to "Nederlands",
         StringKey.LANG_DE to "Deutsch", StringKey.LANG_IT to "Italiano",
@@ -2475,6 +2488,7 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "Nie udało się otworzyć ustawień płatności.",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Nie udało się załadować historii rozliczeń.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Nie udało się załadować informacji rozliczeniowych.",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "Kursy wymiany niedostępne. Kwoty wyświetlane w oryginalnej walucie.",
     )
 
     private val zhTW = mapOf(
@@ -2745,6 +2759,7 @@ object AppStrings {
         StringKey.SETTINGS_CANCEL to "取消",
         StringKey.SETTINGS_LANGUAGE_DIALOG_TITLE to "選擇語言",
         StringKey.SETTINGS_CURRENCY_DIALOG_TITLE to "選擇貨幣",
+        StringKey.SETTINGS_CURRENCY_SAVE_FAILED to "無法儲存貨幣偏好設定，請再試一次。",
         StringKey.LANG_EN to "English", StringKey.LANG_ES to "Español",
         StringKey.LANG_FR to "Français", StringKey.LANG_NL to "Nederlands",
         StringKey.LANG_DE to "Deutsch", StringKey.LANG_IT to "Italiano",
@@ -2824,5 +2839,6 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_PORTAL_FAILED to "無法開啟付款設定。",
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "無法載入帳單記錄。",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "無法載入帳單資料。",
+        StringKey.CURRENCY_RATES_UNAVAILABLE to "匯率無法取得。金額以原始貨幣顯示。",
     )
 }

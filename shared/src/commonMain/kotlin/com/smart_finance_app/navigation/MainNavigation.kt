@@ -40,6 +40,8 @@ import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
+import com.smart_finance_app.currency.CurrencyController
+import com.smart_finance_app.currency.ExchangeRateService
 
 @Composable
 fun MainNavigation(
@@ -152,6 +154,19 @@ private fun NavigationContent(
     var bankConnectionRefreshRequest by remember { mutableStateOf(0) }
     var categoryUpdateError by remember { mutableStateOf<String?>(null) }
     var updatingCategoryTransactionId by remember { mutableStateOf<String?>(null) }
+    var exchangeRates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+
+    LaunchedEffect(authToken) {
+        if (authToken.isNotBlank()) {
+            val rates = ExchangeRateService.getRates(
+                dashboardApi.client,
+                apiBaseUrl
+            )
+            if (rates.isNotEmpty()) {
+                exchangeRates = rates
+            }
+        }
+    }
 
     val transactionsPageSize = if (compact) 25 else 6
     val scope = rememberCoroutineScope()
@@ -312,9 +327,6 @@ private fun NavigationContent(
         }
     }
 
-    val resolvedCurrency = remember(transactions) {
-        transactions.firstOrNull { it.currency.isNotBlank() }?.currency ?: "GBP"
-    }
 
     suspend fun syncAndReloadTransactions() {
         transactionsSyncing = true
@@ -353,6 +365,7 @@ private fun NavigationContent(
             authToken                   = authToken,
             userName                    = userName,
             userId                       = userEmail,
+            apiBaseUrl                   = apiBaseUrl,
             transactions                = mappedTransactions,
             onConnectAccountClicked     = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,
@@ -568,7 +581,8 @@ private fun NavigationContent(
             BudgetScreen(
                 authToken    = authToken,
                 transactions = mappedTransactions,
-                currency     = resolvedCurrency,
+                currency     = CurrencyController.currentCurrency,
+                exchangeRates = exchangeRates,
                 api = budgetApi
             )
         }

@@ -21,7 +21,8 @@ data class BudgetData(
     val id: String,
     val category: String,
     val amount: Double,
-    val period: String,   // "monthly" or "weekly"
+    val period: String,
+    val currency: String = "GBP",   // ← add this
     val createdAt: String
 )
 
@@ -29,7 +30,8 @@ data class BudgetData(
 data class BudgetRequest(
     val category: String,
     val amount: Double,
-    val period: String
+    val period: String,
+    val currency: String = "GBP"    // ← add this
 )
 
 sealed interface BudgetResult<out T> {
@@ -73,12 +75,24 @@ class BudgetApi(private val baseUrl: String, private val client: HttpClient) {
         }
     }
 
-    suspend fun updateBudget(token: String, id: String, newAmount: Double, category: String, period: String): BudgetResult<Unit> {
+    suspend fun updateBudget(
+        token: String,
+        id: String,
+        newAmount: Double,
+        category: String,
+        period: String,
+        currency: String = "GBP"    // ← add this
+    ): BudgetResult<Unit> {
         return try {
             val response = client.put("${baseUrl.trimEnd('/')}/api/budgets/$id") {
                 bearerAuth(token)
                 contentType(ContentType.Application.Json)
-                setBody(BudgetRequest(category = category, amount = newAmount, period = period))
+                setBody(BudgetRequest(
+                    category = category,
+                    amount   = newAmount,
+                    period   = period,
+                    currency = currency   // ← add this
+                ))
             }
             when (response.status) {
                 HttpStatusCode.OK           -> BudgetResult.Success(Unit)
