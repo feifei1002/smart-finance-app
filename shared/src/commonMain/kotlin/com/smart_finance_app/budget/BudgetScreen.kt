@@ -56,7 +56,7 @@ private val categoryColors = mapOf(
 )
 
 private fun Double.formatCurrency(currencyCode: String = ""): String {
-    val absValue = kotlin.math.abs(this)
+    val absValue = abs(this)
     val prefix   = if (this < 0) "-" else ""
     val zeroDecimal = setOf("TWD", "JPY", "KRW")
     return if (currencyCode.uppercase() in zeroDecimal) {
@@ -86,19 +86,23 @@ fun computeBudgetsWithSpending(
     val now = Clock.System.now()
         .toLocalDateTime(kotlinx.datetime.TimeZone.UTC)
 
-    return budgets.map { budget ->
+    return budgets.mapNotNull { budget ->
         val relevant = transactions.filter { tx ->
             if (tx.amount >= 0) return@filter false
+
             val dateOnly = tx.timestamp.split("T").firstOrNull() ?: tx.timestamp
             val parts = dateOnly.split("-")
             if (parts.size < 3) return@filter false
-            val txYear  = parts[0].toIntOrNull() ?: return@filter false
+
+            val txYear = parts[0].toIntOrNull() ?: return@filter false
             val txMonth = parts[1].toIntOrNull() ?: return@filter false
-            val txDay   = parts[2].take(2).toIntOrNull() ?: return@filter false
+            val txDay = parts[2].take(2).toIntOrNull() ?: return@filter false
+
             val periodNormalized = budget.period.trim().lowercase()
+
             val inPeriod = when (periodNormalized) {
                 "monthly" -> txYear == now.year && txMonth == now.month.number
-                "weekly"  -> {
+                "weekly" -> {
                     val todayDayOfWeek = now.dayOfWeek.ordinal
                     val weekStart = now.date.minus(
                         kotlinx.datetime.DatePeriod(days = todayDayOfWeek)
@@ -108,35 +112,37 @@ fun computeBudgetsWithSpending(
                 }
                 else -> true
             }
+
             if (!inPeriod) return@filter false
+
             TransactionCategories.normalize(tx.category) == budget.category
         }
 
+        val convertedBudgetAmount = when (val result = ExchangeRateService.convert(
+            amount = budget.amount,
+            fromCurrency = budget.currency,
+            toCurrency = displayCurrency,
+            rates = rates
+        )) {
+            is ConversionResult.Success -> result.amount
+            else -> return@mapNotNull null
+        }
+
+        val spent = relevant.sumOf { tx ->
+            when (val result = ExchangeRateService.convert(
+                amount = tx.amount,
+                fromCurrency = tx.currency,
+                toCurrency = displayCurrency,
+                rates = rates
+            )) {
+                is ConversionResult.Success -> abs(result.amount)
+                else -> 0.0
+            }
+        }
+
         BudgetWithSpending(
-            budget = budget.copy(
-                // Convert the stored budget limit from its original currency
-                // to the display currency so progress calculation is currency-correct
-                amount = when (val result = ExchangeRateService.convert(
-                    amount       = budget.amount,
-                    fromCurrency = budget.currency,
-                    toCurrency   = displayCurrency,
-                    rates        = rates
-                )) {
-                    is ConversionResult.Success -> result.amount
-                    is ConversionResult.Failure -> budget.amount  // show raw if rates unavailable
-                }
-            ),
-            spent = relevant.sumOf { tx ->
-                when (val result = ExchangeRateService.convert(
-                    amount       = tx.amount,
-                    fromCurrency = tx.currency,
-                    toCurrency   = displayCurrency,
-                    rates        = rates
-                )) {
-                    is ConversionResult.Success -> abs(result.amount)
-                    is ConversionResult.Failure -> 0.0
-                }
-            },
+            budget = budget.copy(amount = convertedBudgetAmount),
+            spent = spent,
             color = categoryColors[budget.category] ?: Color(0xFF94A3B8)
         )
     }

@@ -73,6 +73,7 @@ import smart_finance_app.shared.generated.resources.add
 import smart_finance_app.shared.generated.resources.moving
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
+import com.smart_finance_app.currency.ConversionResult
 import com.smart_finance_app.localiseCategory
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
@@ -215,6 +216,23 @@ private fun rememberGreeting(): String {
         hour < 12 -> appStringResource(StringKey.DASHBOARD_GREETING_MORNING)
         hour < 18 -> appStringResource(StringKey.DASHBOARD_GREETING_AFTERNOON)
         else      -> appStringResource(StringKey.DASHBOARD_GREETING_NIGHT)
+    }
+}
+
+private fun convertedAbsAmount(
+    amount: Double,
+    fromCurrency: String,
+    displayCurrency: String,
+    rates: Map<String, Double>
+): Double {
+    return when (val result = ExchangeRateService.convert(
+        amount = amount,
+        fromCurrency = fromCurrency,
+        toCurrency = displayCurrency,
+        rates = rates
+    )) {
+        is ConversionResult.Success -> abs(result.amount)
+        else -> 0.0
     }
 }
 
@@ -2095,12 +2113,12 @@ private fun BudgetProgressCardContent(
                 editBudget = null
                 errorMsg = null
             },
-            onConfirm      = { category, amount, period ->
+            onConfirm      = { category, amount, period, currency ->
                 scope.launch {
                     val result = if (currentEdit != null) {
-                        api.updateBudget(authToken, currentEdit.id, amount, category, period)
+                        api.updateBudget(authToken, currentEdit.id, amount, category, period, currency)
                     } else {
-                        api.createBudget(authToken, BudgetRequest(category, amount, period))
+                        api.createBudget(authToken, BudgetRequest(category, amount, period, currency))
                     }
                     when (result) {
                         is BudgetResult.Success -> {
@@ -2788,7 +2806,7 @@ private fun ChartCardContent(
                                 p[2].toIntOrNull() == targetDate.dayOfMonth &&
                                 tx.amount < 0
                     }
-                    .sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) }.toFloat()
+                    .sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.toFloat()
                 MonthlyTopCategory(month = dayLabel, category = "", amount = total, color = Color(0xFF6366F1))
             }
             // 1. Center the chart content vertically and horizontally inside the card
@@ -2822,7 +2840,7 @@ private fun ChartCardContent(
                     } catch (_: Exception) { return@filter false }
                     // DayOfWeek: MONDAY=1..SUNDAY=7, ordinal 0-based = 0..6
                     date.dayOfWeek.ordinal == idx && tx.amount < 0
-                }.sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) }.toFloat()
+                }.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.toFloat()
                 SpendingCategory(
                     name   = label,
                     amount = formatCurrency(total.toDouble(), sym, displayCurrency),
@@ -2885,7 +2903,7 @@ private fun ChartCardContent(
 //                                (tx.accountId == null || tx.accountId == acc.accountId)
                                 tx.accountId == acc.accountId
                     }
-                    .sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) }
+                    .sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }
                     .toFloat()
 
                 acc.bankName to total
@@ -2953,10 +2971,10 @@ private fun ChartCardContent(
                     val hour = tx.timestamp.drop(11).take(2).toIntOrNull() ?: 12
                     when { hour < 12 -> "Morning"; hour < 18 -> "Afternoon"; else -> "Night" }
                 }
-            val total = grouped.values.flatten().sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) }.takeIf { it > 0 } ?: 1.0
+            val total = grouped.values.flatten().sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.takeIf { it > 0 } ?: 1.0
             val cats = buckets.map { (key, pair) ->
                 val (label, color) = pair
-                val amt = grouped[key]?.sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) } ?: 0.0
+                val amt = grouped[key]?.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } ?: 0.0
                 SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym, displayCurrency), color = color)
 
             }
@@ -3002,7 +3020,7 @@ private fun ChartCardContent(
                             tx.amount < 0
                 }
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) } }
+                .map { (name, txList) -> name to txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } }
                 .sortedByDescending { it.second }
                 .take(5)
                 .toList()
@@ -3064,7 +3082,7 @@ private fun ChartCardContent(
                             tx.amount < 0
                 }
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) } }
+                .map { (name, txList) -> name to txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } }
                 .sortedBy { it.second }
                 .take(5)
                 .toList()
@@ -3173,7 +3191,7 @@ private fun ChartCardContent(
                 .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
                 .map { (name, txList) ->
                     val count = txList.size
-                    val total = txList.sumOf { abs(ExchangeRateService.convert(it.amount, it.currency, displayCurrency, rates)) }
+                    val total = txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }
                     name to Triple(count, total / count, total)
                 }
                 .sortedByDescending { it.second.third }

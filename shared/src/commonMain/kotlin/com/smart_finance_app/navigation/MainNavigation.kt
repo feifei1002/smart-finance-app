@@ -41,6 +41,7 @@ import com.smart_finance_app.StringKey
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
 import com.smart_finance_app.currency.CurrencyController
+import com.smart_finance_app.currency.ExchangeRateService
 
 @Composable
 fun MainNavigation(
@@ -157,7 +158,7 @@ private fun NavigationContent(
 
     LaunchedEffect(authToken) {
         if (authToken.isNotBlank()) {
-            val rates = com.smart_finance_app.currency.ExchangeRateService.getRates(
+            val rates = ExchangeRateService.getRates(
                 dashboardApi.client,
                 apiBaseUrl
             )

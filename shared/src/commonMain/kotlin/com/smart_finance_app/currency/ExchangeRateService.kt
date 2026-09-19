@@ -17,13 +17,8 @@ data class ExchangeRatesResponse(val rates: Map<String, Double>)
  */
 sealed interface ConversionResult {
     data class Success(val amount: Double) : ConversionResult
-    data class Failure(val reason: ConversionFailureReason) : ConversionResult
-}
-
-enum class ConversionFailureReason {
-    RATES_UNAVAILABLE,      // rates map is empty — fetch failed
-    FROM_CURRENCY_MISSING,  // fromCurrency not in rates
-    TO_CURRENCY_MISSING     // toCurrency not in rates
+    data object RatesUnavailable : ConversionResult
+    data class MissingCurrency(val currency: String) : ConversionResult
 }
 
 object ExchangeRateService {
@@ -71,18 +66,16 @@ object ExchangeRateService {
         toCurrency: String,
         rates: Map<String, Double>
     ): ConversionResult {
-        if (fromCurrency.uppercase() == toCurrency.uppercase()) {
-            return ConversionResult.Success(amount)
-        }
-        if (rates.isEmpty()) {
-            return ConversionResult.Failure(ConversionFailureReason.RATES_UNAVAILABLE)
-        }
-        val fromRate = rates[fromCurrency.uppercase()]
-            ?: return ConversionResult.Failure(ConversionFailureReason.FROM_CURRENCY_MISSING)
-        val toRate = rates[toCurrency.uppercase()]
-            ?: return ConversionResult.Failure(ConversionFailureReason.TO_CURRENCY_MISSING)
+        val from = fromCurrency.uppercase()
+        val to = toCurrency.uppercase()
 
-        val inEUR = amount / fromRate
-        return ConversionResult.Success(inEUR * toRate)
+        if (from == to) return ConversionResult.Success(amount)
+        if (rates.isEmpty()) return ConversionResult.RatesUnavailable
+
+        val fromRate = rates[from] ?: return ConversionResult.MissingCurrency(from)
+        val toRate = rates[to] ?: return ConversionResult.MissingCurrency(to)
+
+        val amountInEur = amount / fromRate
+        return ConversionResult.Success(amountInEur * toRate)
     }
 }

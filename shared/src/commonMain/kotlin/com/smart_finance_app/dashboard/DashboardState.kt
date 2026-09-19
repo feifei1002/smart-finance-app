@@ -97,13 +97,14 @@ private fun TransactionData.convertedAmount(
     displayCurrency: String,
     rates: Map<String, Double>
 ): Double? = when (val result = ExchangeRateService.convert(
-    amount       = this.amount,
+    amount = this.amount,
     fromCurrency = this.currency,
-    toCurrency   = displayCurrency,
-    rates        = rates
+    toCurrency = displayCurrency,
+    rates = rates
 )) {
     is ConversionResult.Success -> result.amount
-    is ConversionResult.Failure -> null
+    ConversionResult.RatesUnavailable -> null
+    is ConversionResult.MissingCurrency -> null
 }
 
 /**
@@ -116,13 +117,14 @@ private fun convertBalance(
     displayCurrency: String,
     rates: Map<String, Double>
 ): Double? = when (val result = ExchangeRateService.convert(
-    amount       = amount,
+    amount = amount,
     fromCurrency = fromCurrency,
-    toCurrency   = displayCurrency,
-    rates        = rates
+    toCurrency = displayCurrency,
+    rates = rates
 )) {
     is ConversionResult.Success -> result.amount
-    is ConversionResult.Failure -> null
+    ConversionResult.RatesUnavailable -> null
+    is ConversionResult.MissingCurrency -> null
 }
 
 fun computeSpendingCategories(
