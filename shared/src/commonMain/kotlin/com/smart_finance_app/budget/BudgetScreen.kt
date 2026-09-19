@@ -37,6 +37,9 @@ import smart_finance_app.shared.generated.resources.edit
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.localiseCategory
+import com.smart_finance_app.currency.CurrencyController
+import com.smart_finance_app.currency.ExchangeRateService
+import com.smart_finance_app.currency.ConversionResult
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
@@ -52,11 +55,18 @@ private val categoryColors = mapOf(
     TransactionCategories.OTHERS to Color(0xFFEF4444)
 )
 
-private fun Double.formatCurrency(): String {
-    val totalCents = kotlin.math.round(this * 100).toLong()
-    val whole = totalCents / 100
-    val cents = abs(totalCents % 100)
-    return "$whole.${cents.toString().padStart(2, '0')}"
+private fun Double.formatCurrency(currencyCode: String = ""): String {
+    val absValue = abs(this)
+    val prefix   = if (this < 0) "-" else ""
+    val zeroDecimal = setOf("TWD", "JPY", "KRW")
+    return if (currencyCode.uppercase() in zeroDecimal) {
+        "$prefix${kotlin.math.round(absValue).toLong()}"
+    } else {
+        val totalCents = kotlin.math.round(absValue * 100).toLong()
+        val whole = totalCents / 100
+        val cents = abs(totalCents % 100)
+        "$prefix$whole.${cents.toString().padStart(2, '0')}"
+    }
 }
 
 // ── Computed budget with spending ─────────────────────────────────────────────
@@ -69,27 +79,30 @@ data class BudgetWithSpending(
 
 fun computeBudgetsWithSpending(
     budgets: List<BudgetData>,
-    transactions: List<TransactionData>
+    transactions: List<TransactionData>,
+    displayCurrency: String = "GBP",
+    rates: Map<String, Double> = emptyMap()
 ): List<BudgetWithSpending> {
     val now = Clock.System.now()
         .toLocalDateTime(kotlinx.datetime.TimeZone.UTC)
 
-    return budgets.map { budget ->
+    return budgets.mapNotNull { budget ->
         val relevant = transactions.filter { tx ->
             if (tx.amount >= 0) return@filter false
+
             val dateOnly = tx.timestamp.split("T").firstOrNull() ?: tx.timestamp
             val parts = dateOnly.split("-")
             if (parts.size < 3) return@filter false
 
-            val txYear  = parts[0].toIntOrNull() ?: return@filter false
+            val txYear = parts[0].toIntOrNull() ?: return@filter false
             val txMonth = parts[1].toIntOrNull() ?: return@filter false
-            val txDay   = parts[2].take(2).toIntOrNull() ?: return@filter false
+            val txDay = parts[2].take(2).toIntOrNull() ?: return@filter false
 
             val periodNormalized = budget.period.trim().lowercase()
 
             val inPeriod = when (periodNormalized) {
                 "monthly" -> txYear == now.year && txMonth == now.month.number
-                "weekly"  -> {
+                "weekly" -> {
                     val todayDayOfWeek = now.dayOfWeek.ordinal
                     val weekStart = now.date.minus(
                         kotlinx.datetime.DatePeriod(days = todayDayOfWeek)
@@ -101,13 +114,36 @@ fun computeBudgetsWithSpending(
             }
 
             if (!inPeriod) return@filter false
+
             TransactionCategories.normalize(tx.category) == budget.category
         }
 
+        val convertedBudgetAmount = when (val result = ExchangeRateService.convert(
+            amount = budget.amount,
+            fromCurrency = budget.currency,
+            toCurrency = displayCurrency,
+            rates = rates
+        )) {
+            is ConversionResult.Success -> result.amount
+            else -> return@mapNotNull null
+        }
+
+        val spent = relevant.sumOf { tx ->
+            when (val result = ExchangeRateService.convert(
+                amount = tx.amount,
+                fromCurrency = tx.currency,
+                toCurrency = displayCurrency,
+                rates = rates
+            )) {
+                is ConversionResult.Success -> abs(result.amount)
+                else -> 0.0
+            }
+        }
+
         BudgetWithSpending(
-            budget = budget,
-            spent  = relevant.sumOf { abs(it.amount) },
-            color  = categoryColors[budget.category] ?: Color(0xFF94A3B8)
+            budget = budget.copy(amount = convertedBudgetAmount),
+            spent = spent,
+            color = categoryColors[budget.category] ?: Color(0xFF94A3B8)
         )
     }
 }
@@ -119,6 +155,7 @@ fun BudgetScreen(
     authToken: String,
     transactions: List<TransactionData>,
     currency: String,
+    exchangeRates: Map<String, Double> = emptyMap(),
     api: BudgetApi
 ) {
     val scope  = rememberCoroutineScope()
@@ -132,7 +169,12 @@ fun BudgetScreen(
     var dialogError by remember { mutableStateOf<String?>(null) }
 
     val budgetsWithSpending by derivedStateOf {
-        computeBudgetsWithSpending(budgets, transactions)
+        computeBudgetsWithSpending(
+            budgets         = budgets,
+            transactions    = transactions,
+            displayCurrency = currency,
+            rates           = exchangeRates
+        )
     }
 
     suspend fun loadBudgets() {
@@ -263,13 +305,13 @@ fun BudgetScreen(
                 editBudget = null
                 dialogError = null
             },
-            onConfirm = { category, amount, period ->
+            onConfirm = { category, amount, period, currency ->
                 val currentEditing = editBudget
                 scope.launch {
                     val result = if (currentEditing != null) {
-                        api.updateBudget(authToken, currentEditing.id, amount, category, period)
+                        api.updateBudget(authToken, currentEditing.id, amount, category, period, currency)
                     } else {
-                        api.createBudget(authToken, BudgetRequest(category, amount, period))
+                        api.createBudget(authToken, BudgetRequest(category, amount, period, currency))
                     }
                     when (result) {
                         is BudgetResult.Success -> {
@@ -424,8 +466,7 @@ fun BudgetCard(
                         onClick = onDelete,
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
-                        Text(
-                            "Delete",
+                        Text(appStringResource(StringKey.BUDGETS_DELETE),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFFDC2626)
                         )
@@ -438,14 +479,14 @@ fun BudgetCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "$symbol${item.spent.formatCurrency()} $spentLabel",
+                    text = "$symbol${item.spent.formatCurrency(CurrencyController.currentCurrency)} $spentLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isOverBudget) Color(0xFFDC2626)
                     else MaterialTheme.colorScheme.onSurface,
                     fontWeight = if (isOverBudget) FontWeight.Bold else FontWeight.Normal
                 )
                 Text(
-                    text = "$ofLabel $symbol${item.budget.amount.formatCurrency()}",
+                    text = "$ofLabel $symbol${item.budget.amount.formatCurrency(CurrencyController.currentCurrency)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -460,14 +501,14 @@ fun BudgetCard(
 
             if (isOverBudget) {
                 Text(
-                    text = "$overByLabel $symbol${(item.spent - item.budget.amount).formatCurrency()}",
+                    text = "$overByLabel $symbol${(item.spent - item.budget.amount).formatCurrency(CurrencyController.currentCurrency)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFDC2626),
                     fontWeight = FontWeight.Medium
                 )
             } else {
                 Text(
-                    text = "$symbol${remaining.formatCurrency()} $remainingLabel",
+                    text = "$symbol${remaining.formatCurrency(CurrencyController.currentCurrency)} $remainingLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isWarning) Color(0xFFF59E0B)
                     else MaterialTheme.colorScheme.onSurfaceVariant
@@ -512,7 +553,7 @@ fun CompactBudgetProgressRow(
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = "$symbol${item.spent.formatCurrency()} / $symbol${item.budget.amount.formatCurrency()}",
+                    text = "$symbol${item.spent.formatCurrency(CurrencyController.currentCurrency)} / $symbol${item.budget.amount.formatCurrency(CurrencyController.currentCurrency)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isOver) Color(0xFFDC2626)
                     else MaterialTheme.colorScheme.onSurfaceVariant
@@ -554,7 +595,7 @@ fun AddBudgetDialog(
     usedCategories: List<String>,
     serverError: String?,
     onDismiss: () -> Unit,
-    onConfirm: (category: String, amount: Double, period: String) -> Unit
+    onConfirm: (category: String, amount: Double, period: String, currency: String) -> Unit
 ) {
     val isEdit = existing != null
 
@@ -775,7 +816,7 @@ fun AddBudgetDialog(
                             amountError = amountErrorMsg
                             return@Button
                         }
-                        onConfirm(selectedCategory, amount, selectedPeriod)
+                        onConfirm(selectedCategory, amount, selectedPeriod, CurrencyController.currentCurrency)
                     }) {
                         Text(
                             if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
