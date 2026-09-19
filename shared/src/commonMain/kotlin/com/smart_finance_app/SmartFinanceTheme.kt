@@ -9,6 +9,9 @@ import org.jetbrains.compose.resources.Font
 import smart_finance_app.shared.generated.resources.NotoSansTC_Bold
 import smart_finance_app.shared.generated.resources.NotoSansTC_Medium
 import smart_finance_app.shared.generated.resources.NotoSansTC_Regular
+import smart_finance_app.shared.generated.resources.NotoSans_Bold
+import smart_finance_app.shared.generated.resources.NotoSans_Medium
+import smart_finance_app.shared.generated.resources.NotoSans_Regular
 import smart_finance_app.shared.generated.resources.Res
 
 @Composable
@@ -16,7 +19,10 @@ fun SmartFinanceTheme(content: @Composable () -> Unit) {
     val appFontFamily = FontFamily(
         Font(Res.font.NotoSansTC_Regular, weight = FontWeight.Normal),
         Font(Res.font.NotoSansTC_Medium, weight = FontWeight.Medium),
-        Font(Res.font.NotoSansTC_Bold, weight = FontWeight.Bold)
+        Font(Res.font.NotoSansTC_Bold, weight = FontWeight.Bold),
+        Font(Res.font.NotoSans_Regular, weight = FontWeight.Normal),
+        Font(Res.font.NotoSans_Medium, weight = FontWeight.Medium),
+        Font(Res.font.NotoSans_Bold, weight = FontWeight.Bold)
     )
 
     val baseTypography = MaterialTheme.typography
