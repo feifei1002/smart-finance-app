@@ -10,6 +10,22 @@ import kotlin.time.Clock
 @Serializable
 data class ExchangeRatesResponse(val rates: Map<String, Double>)
 
+/**
+ * Result of a currency conversion attempt.
+ * Using a sealed type forces callers to explicitly handle the failure case
+ * rather than silently treating unconverted amounts as converted ones.
+ */
+sealed interface ConversionResult {
+    data class Success(val amount: Double) : ConversionResult
+    data class Failure(val reason: ConversionFailureReason) : ConversionResult
+}
+
+enum class ConversionFailureReason {
+    RATES_UNAVAILABLE,      // rates map is empty — fetch failed
+    FROM_CURRENCY_MISSING,  // fromCurrency not in rates
+    TO_CURRENCY_MISSING     // toCurrency not in rates
+}
+
 object ExchangeRateService {
 
     private var cachedRates: Map<String, Double> = emptyMap()
@@ -41,17 +57,32 @@ object ExchangeRateService {
         }
     }
 
+    /**
+     * Attempts to convert [amount] from [fromCurrency] to [toCurrency].
+     * Returns [ConversionResult.Success] with the converted value, or
+     * [ConversionResult.Failure] with the reason — never silently returns
+     * the original amount when conversion was required but failed.
+     *
+     * Same-currency conversion always succeeds immediately.
+     */
     fun convert(
         amount: Double,
         fromCurrency: String,
         toCurrency: String,
         rates: Map<String, Double>
-    ): Double {
-        if (fromCurrency.uppercase() == toCurrency.uppercase()) return amount
-        if (rates.isEmpty()) return amount
-        val fromRate = rates[fromCurrency.uppercase()] ?: return amount
-        val toRate   = rates[toCurrency.uppercase()]   ?: return amount
-        val inEUR    = amount / fromRate
-        return inEUR * toRate
+    ): ConversionResult {
+        if (fromCurrency.uppercase() == toCurrency.uppercase()) {
+            return ConversionResult.Success(amount)
+        }
+        if (rates.isEmpty()) {
+            return ConversionResult.Failure(ConversionFailureReason.RATES_UNAVAILABLE)
+        }
+        val fromRate = rates[fromCurrency.uppercase()]
+            ?: return ConversionResult.Failure(ConversionFailureReason.FROM_CURRENCY_MISSING)
+        val toRate = rates[toCurrency.uppercase()]
+            ?: return ConversionResult.Failure(ConversionFailureReason.TO_CURRENCY_MISSING)
+
+        val inEUR = amount / fromRate
+        return ConversionResult.Success(inEUR * toRate)
     }
 }

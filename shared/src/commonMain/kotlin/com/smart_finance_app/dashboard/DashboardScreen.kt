@@ -228,8 +228,7 @@ fun DashboardScreen(
     onConnectAccountClicked: () -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
     api: DashboardApi,
-    budgetApi: BudgetApi,
-    onRatesFetched: (Map<String, Double>) -> Unit ,
+    budgetApi: BudgetApi
 ) {
     val scope = rememberCoroutineScope()
 
@@ -241,6 +240,7 @@ fun DashboardScreen(
 
     // Add rates state near other state declarations (line 232)
     var exchangeRates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    var ratesWarning by remember { mutableStateOf<String?>(null) }
 
     suspend fun load() {
         isLoading = true
@@ -248,15 +248,14 @@ fun DashboardScreen(
 
         val rates = ExchangeRateService.getRates(api.client, apiBaseUrl)
         exchangeRates = rates
-        onRatesFetched(rates)
 
         if (rates.isEmpty() && CurrencyController.currentCurrency != "GBP") {
-            // Show a snackbar or note that rates couldn't be fetched
-            // and amounts are shown in original currency
-            errorMsg = AppStrings.get(
+            ratesWarning = AppStrings.get(
                 LocaleController.currentLanguageCode,
                 StringKey.CURRENCY_RATES_UNAVAILABLE
             )
+        } else {
+            ratesWarning = null
         }
 
         val a = api.getAccounts(authToken)
@@ -286,7 +285,7 @@ fun DashboardScreen(
             transactions    = transactions,
             accounts        = accounts,
             displayCurrency = CurrencyController.currentCurrency,
-            rates           = exchangeRates
+            rates           = rates
         )
         isLoading = false
     }
@@ -370,7 +369,8 @@ fun DashboardScreen(
                         onPeriodSelected = { spendingPeriod = it },
                         onViewAllTransactionsClicked = onViewAllTransactionsClicked,
                         budgetApi = budgetApi,
-                        exchangeRates = exchangeRates
+                        exchangeRates = exchangeRates,
+                        ratesWarning  = ratesWarning
                     )
                 } else {
                     DesktopDashboard(
@@ -385,7 +385,8 @@ fun DashboardScreen(
                         onPeriodSelected = { spendingPeriod = it },
                         onViewAllTransactionsClicked = onViewAllTransactionsClicked,
                         budgetApi = budgetApi,
-                        exchangeRates = exchangeRates
+                        exchangeRates = exchangeRates,
+                        ratesWarning  = ratesWarning
                     )
                 }
             }
@@ -406,7 +407,8 @@ private fun MobileDashboard(
     onAccountsChanged: (Set<String>) -> Unit,
     onPeriodSelected: (SpendingPeriod) -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
-    exchangeRates: Map<String, Double>
+    exchangeRates: Map<String, Double>,
+    ratesWarning: String? = null,
 ) {
     val greeting = rememberGreeting()
     val scope    = rememberCoroutineScope()
@@ -634,6 +636,22 @@ private fun MobileDashboard(
         contentPadding = PaddingValues(top = 48.dp, bottom = 24.dp),
         userScrollEnabled = !isDraggingHandle
     ) {
+        ratesWarning?.let { warning ->
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer
+                ) {
+                    Text(
+                        text = warning,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
         // Header block: greeting, subtitle, and controls all tightly grouped
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1072,6 +1090,7 @@ private fun DesktopDashboard(
     onPeriodSelected: (SpendingPeriod) -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
     exchangeRates: Map<String, Double>,
+    ratesWarning: String? = null,
 ) {
     val greeting = rememberGreeting()
     val scope    = rememberCoroutineScope()
@@ -1230,6 +1249,20 @@ private fun DesktopDashboard(
         )
     }
 
+    ratesWarning?.let { warning ->
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.tertiaryContainer
+        ) {
+            Text(
+                text = warning,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),

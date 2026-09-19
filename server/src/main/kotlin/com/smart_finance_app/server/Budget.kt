@@ -20,7 +20,8 @@ import java.util.UUID
 data class BudgetRequest(
     val category: String,
     val amount: Double,
-    val period: String   // "monthly" or "weekly"
+    val period: String,
+    val currency: String = "GBP"   // ← add this
 )
 
 @Serializable
@@ -29,32 +30,26 @@ data class BudgetResponse(
     val category: String,
     val amount: Double,
     val period: String,
+    val currency: String,          // ← add this
     val createdAt: String
 )
+
+private val allowedCurrencies = setOf("GBP", "USD", "EUR", "TWD", "PLN")
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 fun Route.budgetRoutes() {
     authenticate("auth-jwt") {
 
-        /**
-         * GET /api/budgets
-         * Returns all budgets for the authenticated user.
-         */
         get("/api/budgets") {
             val userId = getUserId(call.principal()) ?: run {
                 call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
                 return@get
             }
-
             val budgets = getBudgetsForUser(userId)
             call.respond(budgets)
         }
 
-        /**
-         * POST /api/budgets
-         * Creates a new budget. Returns 409 if category+period already exists.
-         */
         post("/api/budgets") {
             val userId = getUserId(call.principal()) ?: run {
                 call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
@@ -67,7 +62,6 @@ fun Route.budgetRoutes() {
                 return@post
             }
 
-            // ── Fix 2: Same validation as PUT ────────────────────────────────
             if (request.category.isBlank()) {
                 call.respond(HttpStatusCode.BadRequest, ErrorResponse("Category is required"))
                 return@post
@@ -82,7 +76,11 @@ fun Route.budgetRoutes() {
                 call.respond(HttpStatusCode.BadRequest, ErrorResponse("Period must be monthly or weekly"))
                 return@post
             }
-            // ─────────────────────────────────────────────────────────────────
+
+            if (request.currency !in allowedCurrencies) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid currency"))
+                return@post
+            }
 
             println("📥 RECEIVED BUDGET REQUEST: $request for userId: $userId")
 
@@ -92,7 +90,6 @@ fun Route.budgetRoutes() {
             } catch (e: Exception) {
                 println("CREATE BUDGET DATABASE ERROR:")
                 e.printStackTrace()
-
                 if (e.message?.contains("unique constraint", ignoreCase = true) == true ||
                     e.message?.contains("duplicate key", ignoreCase = true) == true
                 ) {
@@ -101,9 +98,6 @@ fun Route.budgetRoutes() {
                         ErrorResponse("A ${request.period} budget for ${request.category} already exists")
                     )
                 } else {
-                    println("CREATE BUDGET DATABASE ERROR:")
-                    e.printStackTrace()
-
                     call.respond(
                         HttpStatusCode.InternalServerError,
                         ErrorResponse("Something went wrong while saving your budget. Please try again.")
@@ -112,12 +106,8 @@ fun Route.budgetRoutes() {
             }
         }
 
-        /**
-         * PUT /api/budgets/{id}
-         * Updates the amount of an existing budget.
-         */
         put("/api/budgets/{id}") {
-            val userId   = getUserId(call.principal()) ?: run {
+            val userId = getUserId(call.principal()) ?: run {
                 call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
                 return@put
             }
@@ -148,6 +138,11 @@ fun Route.budgetRoutes() {
                 return@put
             }
 
+            if (request.currency !in allowedCurrencies) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid currency"))
+                return@put
+            }
+
             try {
                 val updated = updateBudget(userId, budgetId, request)
                 if (!updated) {
@@ -156,8 +151,7 @@ fun Route.budgetRoutes() {
                 }
                 call.respond(HttpStatusCode.OK, ErrorResponse("Budget updated"))
             } catch (e: Exception) {
-                if (
-                    e.message?.contains("unique constraint", ignoreCase = true) == true ||
+                if (e.message?.contains("unique constraint", ignoreCase = true) == true ||
                     e.message?.contains("duplicate key", ignoreCase = true) == true
                 ) {
                     call.respond(
@@ -165,9 +159,8 @@ fun Route.budgetRoutes() {
                         ErrorResponse("A ${request.period} budget for ${request.category} already exists")
                     )
                 } else {
-                    println("CREATE BUDGET DATABASE ERROR:")
+                    println("UPDATE BUDGET DATABASE ERROR:")
                     e.printStackTrace()
-
                     call.respond(
                         HttpStatusCode.InternalServerError,
                         ErrorResponse("Something went wrong while saving your budget. Please try again.")
@@ -176,12 +169,8 @@ fun Route.budgetRoutes() {
             }
         }
 
-        /**
-         * DELETE /api/budgets/{id}
-         * Deletes a budget. Only the owner can delete their budget.
-         */
         delete("/api/budgets/{id}") {
-            val userId   = getUserId(call.principal()) ?: run {
+            val userId = getUserId(call.principal()) ?: run {
                 call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
                 return@delete
             }
@@ -213,7 +202,6 @@ private fun getUserId(principal: JWTPrincipal?): UUID? =
 
 private fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
     Database.dataSource.connection.use { connection ->
-        // ── Fix 1: Create table if it doesn't exist yet ───────────────────────
         connection.createStatement().use { stmt ->
             stmt.execute(
                 """
@@ -223,6 +211,7 @@ private fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
                     category    TEXT NOT NULL,
                     amount      DECIMAL(10,2) NOT NULL,
                     period      TEXT NOT NULL CHECK (period IN ('monthly', 'weekly')),
+                    currency    TEXT NOT NULL DEFAULT 'GBP',
                     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                     UNIQUE (user_id, category, period)
@@ -230,11 +219,10 @@ private fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
                 """.trimIndent()
             )
         }
-        // ─────────────────────────────────────────────────────────────────────
 
         connection.prepareStatement(
             """
-            SELECT id, category, amount, period, created_at
+            SELECT id, category, amount, period, currency, created_at
             FROM budgets
             WHERE user_id = ?
             ORDER BY created_at ASC
@@ -250,6 +238,7 @@ private fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
                             category  = result.getString("category"),
                             amount    = result.getDouble("amount"),
                             period    = result.getString("period"),
+                            currency  = result.getString("currency") ?: "GBP",  // ← add
                             createdAt = result.getTimestamp("created_at").toString()
                         )
                     )
@@ -267,15 +256,16 @@ private fun createBudget(userId: UUID, request: BudgetRequest): BudgetResponse =
 
             val result = connection.prepareStatement(
                 """
-                INSERT INTO budgets (id, user_id, category, amount, period, created_at)
-                VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, NOW())
-                RETURNING id, category, amount, period, created_at
+                INSERT INTO budgets (id, user_id, category, amount, period, currency, created_at)
+                VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?, ?, NOW())
+                RETURNING id, category, amount, period, currency, created_at
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, userId.toString())
                 statement.setString(2, request.category)
                 statement.setDouble(3, request.amount)
                 statement.setString(4, request.period)
+                statement.setString(5, request.currency)  // ← add
 
                 statement.executeQuery().use { rs ->
                     check(rs.next()) { "Failed to insert row" }
@@ -284,6 +274,7 @@ private fun createBudget(userId: UUID, request: BudgetRequest): BudgetResponse =
                         category  = rs.getString("category"),
                         amount    = rs.getDouble("amount"),
                         period    = rs.getString("period"),
+                        currency  = rs.getString("currency"),  // ← add
                         createdAt = rs.getTimestamp("created_at").toString()
                     )
                 }
@@ -309,15 +300,16 @@ private fun updateBudget(userId: UUID, budgetId: UUID, request: BudgetRequest): 
             val rows = connection.prepareStatement(
                 """
                 UPDATE budgets
-                SET category = ?, amount = ?, period = ?, updated_at = NOW()
+                SET category = ?, amount = ?, period = ?, currency = ?, updated_at = NOW()
                 WHERE id = ?::uuid AND user_id = ?::uuid
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, request.category)
                 statement.setDouble(2, request.amount)
                 statement.setString(3, request.period)
-                statement.setString(4, budgetId.toString())
-                statement.setString(5, userId.toString())
+                statement.setString(4, request.currency)  // ← add
+                statement.setString(5, budgetId.toString())
+                statement.setString(6, userId.toString())
                 statement.executeUpdate()
             }
             connection.commit()

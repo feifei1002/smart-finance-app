@@ -155,6 +155,18 @@ private fun NavigationContent(
     var updatingCategoryTransactionId by remember { mutableStateOf<String?>(null) }
     var exchangeRates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
 
+    LaunchedEffect(authToken) {
+        if (authToken.isNotBlank()) {
+            val rates = com.smart_finance_app.currency.ExchangeRateService.getRates(
+                dashboardApi.client,
+                apiBaseUrl
+            )
+            if (rates.isNotEmpty()) {
+                exchangeRates = rates
+            }
+        }
+    }
+
     val transactionsPageSize = if (compact) 25 else 6
     val scope = rememberCoroutineScope()
 
@@ -314,9 +326,6 @@ private fun NavigationContent(
         }
     }
 
-    val resolvedCurrency = remember(transactions) {
-        transactions.firstOrNull { it.currency.isNotBlank() }?.currency ?: "GBP"
-    }
 
     suspend fun syncAndReloadTransactions() {
         transactionsSyncing = true
@@ -360,8 +369,7 @@ private fun NavigationContent(
             onConnectAccountClicked     = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,
             api = dashboardApi,
-            budgetApi = budgetApi,
-            onRatesFetched             = { rates -> exchangeRates = rates }
+            budgetApi = budgetApi
         )
 
         AppNavigation.Transactions -> {
@@ -572,7 +580,7 @@ private fun NavigationContent(
             BudgetScreen(
                 authToken    = authToken,
                 transactions = mappedTransactions,
-                currency     = resolvedCurrency,
+                currency     = CurrencyController.currentCurrency,
                 exchangeRates = exchangeRates,
                 api = budgetApi
             )
