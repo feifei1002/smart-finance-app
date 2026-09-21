@@ -15,9 +15,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
 import com.smart_finance_app.dashboard.TransactionData
@@ -198,19 +201,9 @@ fun BudgetScreen(
             .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = appStringResource(StringKey.BUDGETS_TITLE),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        AppPageHeader(
+            title = appStringResource(StringKey.BUDGETS_TITLE)
+        )
 
         when {
             isLoading -> {
@@ -224,11 +217,7 @@ fun BudgetScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            errorMsg ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center
-                        )
+                        errorMsg?.let { AppErrorMessage(it) }
                         Button(onClick = { scope.launch { loadBudgets() } }) {
                             Text(appStringResource(StringKey.COMMON_RETRY))
                         }
@@ -649,13 +638,7 @@ fun AddBudgetDialog(
                     }
                 }
 
-                if (serverError != null) {
-                    Text(
-                        text = serverError,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+                serverError?.let { AppErrorMessage(it) }
 
                 // Category selector
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -802,28 +785,63 @@ fun AddBudgetDialog(
                 }
 
                 // Action buttons
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
-                    }
-                    Button(onClick = {
-                        val cleanedAmountText = amountText.trim().replace(",", ".")
-                        val amount = cleanedAmountText.toDoubleOrNull()
-                        if (amount == null || amount <= 0) {
-                            amountError = amountErrorMsg
-                            return@Button
-                        }
-                        onConfirm(selectedCategory, amount, selectedPeriod, CurrencyController.currentCurrency)
-                    }) {
+                    Button(
+                        onClick = {
+                            val cleanedAmountText = amountText.trim().replace(",", ".")
+                            val amount = cleanedAmountText.toDoubleOrNull()
+                            if (amount == null || amount <= 0) {
+                                amountError = amountErrorMsg
+                                return@Button
+                            }
+                            onConfirm(selectedCategory, amount, selectedPeriod, CurrencyController.currentCurrency)
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) {
                         Text(
-                            if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
-                            else appStringResource(StringKey.BUDGETS_DIALOG_ADD_BUTTON)
+                            text = if (isEdit) {
+                                appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
+                            } else {
+                                appStringResource(StringKey.BUDGETS_DIALOG_ADD_BUTTON)
+                            },
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
                         )
                     }
+
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
+                    }
                 }
+//                Row(
+//                    modifier = Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+//                ) {
+//                    TextButton(onClick = onDismiss) {
+//                        Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
+//                    }
+//                    Button(onClick = {
+//                        val cleanedAmountText = amountText.trim().replace(",", ".")
+//                        val amount = cleanedAmountText.toDoubleOrNull()
+//                        if (amount == null || amount <= 0) {
+//                            amountError = amountErrorMsg
+//                            return@Button
+//                        }
+//                        onConfirm(selectedCategory, amount, selectedPeriod, CurrencyController.currentCurrency)
+//                    }) {
+//                        Text(
+//                            if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
+//                            else appStringResource(StringKey.BUDGETS_DIALOG_ADD_BUTTON)
+//                        )
+//                    }
+//                }
             }
         }
     }

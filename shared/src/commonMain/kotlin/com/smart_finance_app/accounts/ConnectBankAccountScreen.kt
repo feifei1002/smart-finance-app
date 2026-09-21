@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,8 +40,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
+import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.chevron_right
@@ -96,42 +102,12 @@ fun ConnectBankAccountScreen(
                     .widthIn(max = if (compact) 520.dp else 760.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onCancel) {
-                        Text("Back")
-                    }
 
-                    TextButton(onClick = {}) {
-                        Icon(
-                            painter = painterResource(Res.drawable.question_mark),
-                            contentDescription = "Question mark",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Connect your bank account",
-                        style = if (compact) {
-                            MaterialTheme.typography.headlineSmall
-                        } else {
-                            MaterialTheme.typography.headlineMedium
-                        },
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        text = "Choose your bank to continue the secure connection process.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                AppPageHeader(
+                    title = appStringResource(StringKey.CONNECT_BANK_TITLE),
+                    subtitle = appStringResource(StringKey.CONNECT_BANK_SUBTITLE),
+                    onBack = onCancel
+                )
 
                 OutlinedTextField(
                     value = search,
@@ -189,29 +165,10 @@ fun ConnectBankAccountScreen(
                         }
                     }
                 }
+                
+                Spacer(modifier = Modifier.width(8.dp))
 
-                OutlinedButton(
-                    onClick = {},
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                ) {
-                    Icon(
-                        painter = painterResource(Res.drawable.search),
-                        contentDescription = "Read-only access",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Text("Can't find your bank?")
-                }
-
-                errorMessage?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+                errorMessage?.let { AppErrorMessage(it) }
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -232,7 +189,13 @@ fun ConnectBankAccountScreen(
                                     FilterChip(
                                         selected = selectedVariant?.id == variant.id,
                                         onClick = { selectedVariant = variant },
-                                        label = { Text(variant.label, maxLines = 1) }
+                                        label = {
+                                            Text(
+                                                text = variant.label,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     )
                                 }
                             }
@@ -251,7 +214,7 @@ fun ConnectBankAccountScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                     ) {
                         Text(if (isLoading) "Connecting..." else "Continue securely")
                     }

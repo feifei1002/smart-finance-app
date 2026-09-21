@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -39,7 +40,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
 import com.smart_finance_app.StringKey
@@ -240,21 +243,9 @@ fun UpdatePasswordScreen(
                         )
                     }
 
-                    validationError?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    validationError?.let { AppErrorMessage(it) }
 
-                    errorMessage?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    errorMessage?.let { AppErrorMessage(it) }
 
                     Button(
                         enabled = !isSaving &&
@@ -264,7 +255,7 @@ fun UpdatePasswordScreen(
                         onClick = { submit() },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (compact) 52.dp else 44.dp),
+                            .heightIn(min = 48.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         if (isSaving) {
@@ -273,7 +264,11 @@ fun UpdatePasswordScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text(appStringResource(StringKey.UPDATE_PASSWORD_BUTTON))
+                            Text(
+                                text = appStringResource(StringKey.UPDATE_PASSWORD_BUTTON),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
 
@@ -281,10 +276,14 @@ fun UpdatePasswordScreen(
                         onClick = onBack,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp),
+                            .heightIn(min = 48.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(appStringResource(StringKey.UPDATE_PASSWORD_CANCEL))
+                        Text(
+                            appStringResource(StringKey.UPDATE_PASSWORD_CANCEL),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }

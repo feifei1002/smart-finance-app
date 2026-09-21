@@ -14,6 +14,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppSuccessMessage
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
@@ -195,37 +197,17 @@ private fun ResetPasswordContent(
                 ),
                 keyboardActions = KeyboardActions(onDone = { onSubmit() })
             )
-            validationError?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+            validationError?.let { AppErrorMessage(it) }
         }
 
-        errorMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center
-            )
-        }
+        errorMessage?.let { AppErrorMessage(it) }
 
-        successMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-                textAlign = TextAlign.Center
-            )
-        }
+        successMessage?.let { AppSuccessMessage(it) }
 
         Button(
             enabled = canSubmit,
             onClick = onSubmit,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             shape = RoundedCornerShape(8.dp)
         ) {
             if (isLoading) {

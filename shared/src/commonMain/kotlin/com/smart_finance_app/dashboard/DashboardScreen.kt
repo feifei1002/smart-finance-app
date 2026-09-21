@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
+import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
 import kotlinx.coroutines.launch
@@ -319,9 +320,11 @@ fun DashboardScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator()
-                        Text(appStringResource(StringKey.DASHBOARD_LOADING),
+                        Text(
+                            appStringResource(StringKey.DASHBOARD_LOADING),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -333,10 +336,9 @@ fun DashboardScreen(
                         Text(appStringResource(StringKey.DASHBOARD_ERROR_TITLE),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold)
-                        Text(errorMsg ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center)
+                        errorMsg?.let {
+                            AppErrorMessage(it)
+                        }
                         Button(onClick = { scope.launch { load() } }) { Text(appStringResource(StringKey.DASHBOARD_RETRY)) }
                     }
                 }
@@ -1079,6 +1081,9 @@ private fun MobileDashboard(
                         Text(text = appStringResource(StringKey.DASHBOARD_VIEW_ALL),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.clickable { onViewAllTransactionsClicked() }
                         )
                     }
@@ -2680,9 +2685,12 @@ private fun DashboardChartsButton(
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(text = appStringResource(StringKey.DASHBOARD_CHARTS_BUTTON),
+        Text(
+            text = appStringResource(StringKey.DASHBOARD_CHARTS_BUTTON),
             style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -2710,7 +2718,9 @@ private fun DashboardCustomizeButton(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(text = appStringResource(StringKey.DASHBOARD_DONE),
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             // Cancel button — appears to the right of Done, red background
@@ -2727,7 +2737,9 @@ private fun DashboardCustomizeButton(
                 ) {
                     Text(text = appStringResource(StringKey.SETTINGS_CANCEL),
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -2741,7 +2753,9 @@ private fun DashboardCustomizeButton(
         ) {
             Text(text = appStringResource(StringKey.DASHBOARD_CUSTOMISE),
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -2818,7 +2832,13 @@ private fun ChartCardContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     BarChart(data = weeklyData, modifier = Modifier.fillMaxWidth().height(160.dp))
                 }
             }
@@ -2854,9 +2874,12 @@ private fun ChartCardContent(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE),
+                Text(
+                    appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE),
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (totals.isEmpty()) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
@@ -2911,7 +2934,13 @@ private fun ChartCardContent(
             val maxAmt = accountSpend.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1f
             val barColors = listOf(Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B), Color(0xFFEC4899))
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Column(
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -2986,7 +3015,13 @@ private fun ChartCardContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     DonutChart(categories = cats, modifier = Modifier.size(80.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         cats.forEach { cat ->
@@ -3025,7 +3060,12 @@ private fun ChartCardContent(
                 .take(5)
                 .toList()
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(appStringResource(StringKey.CHART_LARGEST_TX_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    appStringResource(StringKey.CHART_LARGEST_TX_TITLE), style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
                 if (top5.isEmpty()) {
                     Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -3087,7 +3127,13 @@ private fun ChartCardContent(
                 .take(5)
                 .toList()
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(appStringResource(StringKey.CHART_SMALLEST_TX_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    appStringResource(StringKey.CHART_SMALLEST_TX_TITLE),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
                 if (bottom5.isEmpty()) {
                     Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -3135,7 +3181,13 @@ private fun ChartCardContent(
             val bills = remember(rawTransactions) { inferUpcomingBills(rawTransactions) }
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Text(appStringResource(StringKey.UPCOMING_BILLS_PREDICTED), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (bills.isEmpty()) {
@@ -3205,8 +3257,13 @@ private fun ChartCardContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Text(appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE), style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold)
+                    Text(
+                        appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Text(appStringResource(StringKey.CHART_AREA_TOTAL_SPEND),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -3360,27 +3417,12 @@ private fun ChartOptionRow(
     def: ChartCardDef,
     onAdd: () -> Unit
 ) {
-    val title = when (def.key) {
-        "weekly_spending"    -> appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE)
-        "spending_per_day"   -> appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE)
-        "bank_comparison"    -> appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE)
-        "time_of_day"        -> appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE)
-        "largest_tx"         -> appStringResource(StringKey.CHART_LARGEST_TX_TITLE)
-        "smallest_tx"        -> appStringResource(StringKey.CHART_SMALLEST_TX_TITLE)
-        "merchant_frequency" -> appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE)
-        "upcoming_bills"     -> appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE)
-        else                 -> def.title
-    }
-    val description = when (def.key) {
-        "weekly_spending"    -> appStringResource(StringKey.CHART_WEEKLY_SPENDING_DESC)
-        "spending_per_day"   -> appStringResource(StringKey.CHART_SPENDING_PER_DAY_DESC)
-        "bank_comparison"    -> appStringResource(StringKey.CHART_BANK_COMPARISON_DESC)
-        "time_of_day"        -> appStringResource(StringKey.CHART_TIME_OF_DAY_DESC)
-        "largest_tx"         -> appStringResource(StringKey.CHART_LARGEST_TX_DESC)
-        "smallest_tx"        -> appStringResource(StringKey.CHART_SMALLEST_TX_DESC)
-        "merchant_frequency" -> appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_DESC)
-        "upcoming_bills"     -> appStringResource(StringKey.CHART_UPCOMING_BILLS_DESC)
-        else                 -> def.description
+    val title = def.title
+    val description = def.description
+    val sizeLabel = if (def.size == CardSize.FULL) {
+        appStringResource(StringKey.DASHBOARD_CHART_SIZE_FULL)
+    } else {
+        appStringResource(StringKey.DASHBOARD_CHART_SIZE_HALF)
     }
 
     Surface(
@@ -3388,52 +3430,119 @@ private fun ChartOptionRow(
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        BoxWithConstraints(
+            modifier = Modifier.padding(14.dp)
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+            val veryNarrow = maxWidth < 360.dp
+
+            if (veryNarrow) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ChartOptionTextBlock(
+                        title = title,
+                        description = description,
+                        sizeLabel = sizeLabel,
+                        size = def.size,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = if (def.size == CardSize.FULL) Color(0xFF6366F1).copy(alpha = 0.15f)
-                        else Color(0xFF22C55E).copy(alpha = 0.15f)
+
+                    FilledTonalButton(
+                        onClick = onAdd,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 44.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = if (def.size == CardSize.FULL)
-                                appStringResource(StringKey.DASHBOARD_CHART_SIZE_FULL)
-                            else
-                                appStringResource(StringKey.DASHBOARD_CHART_SIZE_HALF),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (def.size == CardSize.FULL) Color(0xFF6366F1) else Color(0xFF16A34A),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            text = appStringResource(StringKey.DASHBOARD_ADD_BUTTON),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            FilledTonalButton(
-                onClick = onAdd,
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    appStringResource(StringKey.DASHBOARD_ADD_BUTTON),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ChartOptionTextBlock(
+                        title = title,
+                        description = description,
+                        sizeLabel = sizeLabel,
+                        size = def.size,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    FilledTonalButton(
+                        onClick = onAdd,
+                        modifier = Modifier.heightIn(min = 44.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = appStringResource(StringKey.DASHBOARD_ADD_BUTTON),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ChartOptionTextBlock(
+    title: String,
+    description: String,
+    sizeLabel: String,
+    size: CardSize,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Surface(
+            shape = RoundedCornerShape(4.dp),
+            color = if (size == CardSize.FULL) {
+                Color(0xFF6366F1).copy(alpha = 0.15f)
+            } else {
+                Color(0xFF22C55E).copy(alpha = 0.15f)
+            }
+        ) {
+            Text(
+                text = sizeLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (size == CardSize.FULL) Color(0xFF6366F1) else Color(0xFF16A34A),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

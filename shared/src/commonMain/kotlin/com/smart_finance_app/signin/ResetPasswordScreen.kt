@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppErrorMessage
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
@@ -172,18 +173,14 @@ fun ResetPasswordScreen(
                             keyboardActions = KeyboardActions(onDone = { submit() })
                         )
 
-                        validationError?.let {
-                            Text(it, color = MaterialTheme.colorScheme.error)
-                        }
+                        validationError?.let { AppErrorMessage(it) }
 
-                        errorMessage?.let {
-                            Text(it, color = MaterialTheme.colorScheme.error)
-                        }
+                        errorMessage?.let { AppErrorMessage(it) }
 
                         Button(
                             enabled = valid,
                             onClick = { submit() },
-                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             if (isLoading) {

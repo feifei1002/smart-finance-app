@@ -18,8 +18,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.smart_finance_app.AppPageHeader
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.add
@@ -50,47 +52,46 @@ fun AccountsScreen(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Spacer(modifier = Modifier.height(24.dp))
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compact = maxWidth < 700.dp
 
-        Text(
-            text =appStringResource(StringKey.ACCOUNTS_TITLE),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            text = appStringResource(StringKey.ACCOUNTS_SUBTITLE),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        ConnectBankCard(onConnectBank = { showConsentDialog = true })
-
-        Text(
-            text = appStringResource(StringKey.ACCOUNTS_YOUR_ACCOUNTS),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        if (accounts.isEmpty()) {
-            Text(
-                text = appStringResource(StringKey.ACCOUNTS_EMPTY),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = if (compact) 20.dp else 40.dp,
+                    end = if (compact) 20.dp else 40.dp,
+                    top = if (compact) 48.dp else 32.dp,
+                    bottom = if (compact) 24.dp else 32.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            AppPageHeader(
+                title = appStringResource(StringKey.ACCOUNTS_TITLE),
+                subtitle = appStringResource(StringKey.ACCOUNTS_SUBTITLE),
+                compact = compact
             )
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                accounts.forEach { account ->
-                    AccountCard(account)
+
+            ConnectBankCard(onConnectBank = { showConsentDialog = true })
+
+            Text(
+                text = appStringResource(StringKey.ACCOUNTS_YOUR_ACCOUNTS),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            if (accounts.isEmpty()) {
+                Text(
+                    text = appStringResource(StringKey.ACCOUNTS_EMPTY),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    accounts.forEach { account ->
+                        AccountCard(account)
+                    }
                 }
             }
         }
@@ -185,7 +186,7 @@ private fun BankConsentDialog(
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(44.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(appStringResource(StringKey.ACCOUNTS_CONSENT_CANCEL))
@@ -196,7 +197,11 @@ private fun BankConsentDialog(
                         modifier = Modifier.weight(1f).height(44.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(appStringResource(StringKey.ACCOUNTS_CONSENT_CONTINUE))
+                        Text(
+                            text = appStringResource(StringKey.ACCOUNTS_CONSENT_CONTINUE),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }

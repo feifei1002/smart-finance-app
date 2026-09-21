@@ -3,9 +3,7 @@ package com.smart_finance_app.payments
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -13,6 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
+import com.smart_finance_app.AppScreenContainer
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
@@ -51,74 +52,48 @@ fun PaymentScreen(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (compact) 24.dp else 40.dp),
-            contentAlignment = Alignment.Center
+        AppScreenContainer(
+            compact = compact,
+            maxWidth = if (compact) 560.dp else 760.dp
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = if (compact) 560.dp else 760.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    TextButton(onClick = onBack) {
-                        Text(appStringResource(StringKey.COMMON_BACK))
-                    }
-                }
+            AppPageHeader(
+                title = appStringResource(StringKey.PAYMENT_TITLE),
+                subtitle = appStringResource(StringKey.PAYMENT_SUBTITLE),
+                onBack = onBack
+            )
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = appStringResource(StringKey.PAYMENT_TITLE),
-                        style = if (compact) MaterialTheme.typography.headlineSmall
-                        else MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = appStringResource(StringKey.PAYMENT_SUBTITLE),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            if (isLoading) {
+                LoadingPaymentCard()
+            } else {
+                PaymentDetailsCard(
+                    paymentDetails = paymentDetails,
+                    isPaidPlan = isPaidPlan,
+                    isOpeningPortal = isOpeningPortal,
+                    onChangePaymentCard = onChangePaymentCard,
+                    onViewPlans = onViewPlans
+                )
+                BillingHistorySection(
+                    invoices = invoices,
+                    isLoading = invoicesLoading,
+                    errorMessage = invoicesError
+                )
+                BillingInformationSection(
+                    billingInformation = billingAddress,
+                    fallbackFullName = fullName,
+                    fallbackEmail = email,
+                    isLoading = billingAddressLoading,
+                    errorMessage = billingAddressError,
+                    onUpdateBillingInformation = onChangePaymentCard
+                )
+                CancelPlanSection(
+                    isPaidPlan = isPaidPlan,
+                    isOpeningPortal = isOpeningPortal,
+                    onCancelPlan = onChangePaymentCard
+                )
+            }
 
-                if (isLoading) {
-                    LoadingPaymentCard()
-                } else {
-                    PaymentDetailsCard(
-                        paymentDetails = paymentDetails,
-                        isPaidPlan = isPaidPlan,
-                        isOpeningPortal = isOpeningPortal,
-                        onChangePaymentCard = onChangePaymentCard,
-                        onViewPlans = onViewPlans
-                    )
-                    BillingHistorySection(
-                        invoices = invoices,
-                        isLoading = invoicesLoading,
-                        errorMessage = invoicesError
-                    )
-                    BillingInformationSection(
-                        billingInformation = billingAddress,
-                        fallbackFullName = fullName,
-                        fallbackEmail = email,
-                        isLoading = billingAddressLoading,
-                        errorMessage = billingAddressError,
-                        onUpdateBillingInformation = onChangePaymentCard
-                    )
-                    CancelPlanSection(
-                        isPaidPlan = isPaidPlan,
-                        isOpeningPortal = isOpeningPortal,
-                        onCancelPlan = onChangePaymentCard
-                    )
-                }
-
-                errorMessage?.let {
-                    Text(text = it, color = MaterialTheme.colorScheme.error)
-                }
+            errorMessage?.let {
+                AppErrorMessage(it)
             }
         }
     }
@@ -318,7 +293,7 @@ private fun BillingHistorySection(
             )
             when {
                 isLoading -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                errorMessage != null -> Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
+                errorMessage != null -> AppErrorMessage(errorMessage)
                 invoices.isEmpty() -> Text(
                     text = appStringResource(StringKey.PAYMENT_HISTORY_EMPTY),
                     style = MaterialTheme.typography.bodyMedium,
@@ -366,7 +341,7 @@ private fun BillingInformationSection(
             )
             when {
                 isLoading -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                errorMessage != null -> Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
+                errorMessage != null -> AppErrorMessage(errorMessage)
                 else -> {
                     BillingInfoRow(
                         label = appStringResource(StringKey.PAYMENT_BILLING_NAME),

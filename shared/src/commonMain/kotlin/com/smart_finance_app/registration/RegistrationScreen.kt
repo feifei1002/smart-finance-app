@@ -15,9 +15,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
+import com.smart_finance_app.AppScreenContainer
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.visibility
 import smart_finance_app.shared.generated.resources.visibility_off
@@ -99,9 +102,9 @@ fun RegistrationScreen(
                 .widthIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                appStringResource(StringKey.REGISTER_TITLE),
-                style = MaterialTheme.typography.headlineMedium
+            AppPageHeader(
+                title = appStringResource(StringKey.REGISTER_TITLE),
+                subtitle = null
             )
 
             OutlinedTextField(
@@ -180,9 +183,7 @@ fun RegistrationScreen(
                 singleLine = true
             )
 
-            errorMessage?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
+            errorMessage?.let { AppErrorMessage(it) }
 
             Button(
                 enabled = valid && !isLoading,
@@ -200,8 +201,13 @@ fun RegistrationScreen(
                     }
             ) {
                 Text(
-                    if (isLoading) appStringResource(StringKey.REGISTER_BUTTON_LOADING)
-                    else appStringResource(StringKey.REGISTER_BUTTON)
+                    text = if (isLoading) {
+                        appStringResource(StringKey.REGISTER_BUTTON_LOADING)
+                    } else {
+                        appStringResource(StringKey.REGISTER_BUTTON)
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 

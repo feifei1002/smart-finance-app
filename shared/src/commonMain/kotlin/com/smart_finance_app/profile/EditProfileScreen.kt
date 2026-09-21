@@ -36,7 +36,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
+import com.smart_finance_app.AppScreenContainer
 import com.smart_finance_app.AppStrings
+import com.smart_finance_app.AppSuccessMessage
 import com.smart_finance_app.LocaleController
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
@@ -152,13 +156,7 @@ fun EditProfileScreen(
                             }
                         }
                     )
-                    emailPasswordError?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
+                    emailPasswordError?.let { AppErrorMessage(it) }
                 }
             },
             confirmButton = {
@@ -187,122 +185,83 @@ fun EditProfileScreen(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (compact) 24.dp else 40.dp),
-            contentAlignment = Alignment.Center
+        AppScreenContainer(
+            compact = compact,
+            maxWidth = if (compact) 560.dp else 760.dp
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = if (compact) 560.dp else 760.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+            AppPageHeader(
+                title = appStringResource(StringKey.EDIT_PROFILE_TITLE),
+                subtitle = appStringResource(StringKey.EDIT_PROFILE_SUBTITLE),
+                onBack = onBack
+            )
+
+            OutlinedTextField(
+                value = fullName,
+                onValueChange = {
+                    fullName = it
+                    errorMessage = null
+                    successMessage = null
+                },
+                label = { Text(appStringResource(StringKey.EDIT_PROFILE_FULL_NAME)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = {
+                    email = it
+                    errorMessage = null
+                    successMessage = null
+                },
+                label = { Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL)) },
+                singleLine = true,
+                isError = email.isNotBlank() && !emailIsValid,
+                supportingText = {
+                    if (email.isNotBlank() && !emailIsValid) {
+                        Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL_INVALID))
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Button(
+                onClick = onUpdatePassword,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    TextButton(onClick = onBack) {
-                        Text(appStringResource(StringKey.EDIT_PROFILE_BACK))
-                    }
-                }
+                Icon(
+                    painter = painterResource(Res.drawable.lock),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(appStringResource(StringKey.EDIT_PROFILE_UPDATE_PASSWORD))
+            }
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = appStringResource(StringKey.EDIT_PROFILE_TITLE),
-                        style = if (compact) MaterialTheme.typography.headlineSmall
-                        else MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+            errorMessage?.let { AppErrorMessage(it) }
 
-                    Text(
-                        text = appStringResource(StringKey.EDIT_PROFILE_SUBTITLE),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            successMessage?.let { AppSuccessMessage(it) }
 
-                    OutlinedTextField(
-                        value = fullName,
-                        onValueChange = {
-                            fullName = it
-                            errorMessage = null
-                            successMessage = null
-                        },
-                        label = { Text(appStringResource(StringKey.EDIT_PROFILE_FULL_NAME)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+            Button(
+                enabled = canSave,
+                onClick = {
+                    if (emailChanged) showEmailPasswordDialog = true
+                    else saveProfile(currentPassword = null)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (isSaving) appStringResource(StringKey.EDIT_PROFILE_SAVING)
+                    else appStringResource(StringKey.EDIT_PROFILE_SAVE)
+                )
+            }
 
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = {
-                            email = it
-                            errorMessage = null
-                            successMessage = null
-                        },
-                        label = { Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL)) },
-                        singleLine = true,
-                        isError = email.isNotBlank() && !emailIsValid,
-                        supportingText = {
-                            if (email.isNotBlank() && !emailIsValid) {
-                                Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL_INVALID))
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Button(
-                        onClick = onUpdatePassword,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(Res.drawable.lock),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(appStringResource(StringKey.EDIT_PROFILE_UPDATE_PASSWORD))
-                    }
-
-                    errorMessage?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    successMessage?.let {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    Button(
-                        enabled = canSave,
-                        onClick = {
-                            if (emailChanged) showEmailPasswordDialog = true
-                            else saveProfile(currentPassword = null)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            if (isSaving) appStringResource(StringKey.EDIT_PROFILE_SAVING)
-                            else appStringResource(StringKey.EDIT_PROFILE_SAVE)
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = onBack,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(appStringResource(StringKey.EDIT_PROFILE_CANCEL))
-                    }
-                }
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(appStringResource(StringKey.EDIT_PROFILE_CANCEL))
             }
         }
     }

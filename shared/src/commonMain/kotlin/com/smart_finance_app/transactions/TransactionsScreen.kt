@@ -49,8 +49,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.download
@@ -228,20 +231,22 @@ private fun MobileTransactionsList(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(
+                start = 20.dp,
+                end = 20.dp,
+                top = 48.dp,
+                bottom = 16.dp
+            ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = appStringResource(StringKey.TRANSACTIONS_TITLE),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+            AppPageHeader(
+                title = appStringResource(StringKey.TRANSACTIONS_TITLE)
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = { showSearch = !showSearch }) {
@@ -283,17 +288,35 @@ private fun MobileTransactionsList(
             FilterChip(
                 selected = selectedFilter == "All",
                 onClick = { onFilterSelected("All") },
-                label = { Text(filterAllLabel) }
+                label = {
+                    Text(
+                        text = filterAllLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             )
             FilterChip(
                 selected = selectedFilter == "Income",
                 onClick = { onFilterSelected("Income") },
-                label = { Text(filterIncomeLabel) }
+                label = {
+                    Text(
+                        text = filterIncomeLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             )
             FilterChip(
                 selected = selectedFilter == "Expenses",
                 onClick = { onFilterSelected("Expenses") },
-                label = { Text(filterExpensesLabel) }
+                label = {
+                    Text(
+                        text = filterExpensesLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             )
         }
 
@@ -434,13 +457,17 @@ private fun DesktopTransactionsTable(
     val totalPages = ceil(totalCount / pageSize.toDouble()).toInt().coerceAtLeast(1)
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(
+            start = 40.dp,
+            end = 40.dp,
+            top = 32.dp,
+            bottom = 32.dp
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = appStringResource(StringKey.TRANSACTIONS_TITLE),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
+        AppPageHeader(
+            title = appStringResource(StringKey.TRANSACTIONS_TITLE),
+            compact = false
         )
 
         Row(
@@ -514,13 +541,7 @@ private fun DesktopTransactionsTable(
             )
         }
 
-        errorMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
+        errorMessage?.let { AppErrorMessage(it) }
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -716,13 +737,16 @@ private fun TransactionsInlineMessage(message: String, isError: Boolean = false)
         modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = message,
-            color = if (isError) MaterialTheme.colorScheme.error
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center
-        )
+        if (isError) {
+            AppErrorMessage(message)
+        } else {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
