@@ -246,7 +246,8 @@ private fun MobileTransactionsList(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AppPageHeader(
-                title = appStringResource(StringKey.TRANSACTIONS_TITLE)
+                title = appStringResource(StringKey.TRANSACTIONS_TITLE),
+                compact = true
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 IconButton(onClick = { showSearch = !showSearch }) {

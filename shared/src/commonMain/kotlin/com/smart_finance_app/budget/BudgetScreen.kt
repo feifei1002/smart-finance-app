@@ -195,84 +195,99 @@ fun BudgetScreen(
 
     LaunchedEffect(authToken) { loadBudgets() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        AppPageHeader(
-            title = appStringResource(StringKey.BUDGETS_TITLE)
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compact = maxWidth < 700.dp
 
-        when {
-            isLoading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = if (compact) 20.dp else 40.dp,
+                    end = if (compact) 20.dp else 40.dp,
+                    top = if (compact) 48.dp else 32.dp,
+                    bottom = if (compact) 24.dp else 32.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            AppPageHeader(
+                title = appStringResource(StringKey.BUDGETS_TITLE),
+                compact = compact
+            )
+
+            when {
+                isLoading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
-            }
-            errorMsg != null -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        errorMsg?.let { AppErrorMessage(it) }
-                        Button(onClick = { scope.launch { loadBudgets() } }) {
-                            Text(appStringResource(StringKey.COMMON_RETRY))
+
+                errorMsg != null -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            errorMsg?.let { AppErrorMessage(it) }
+                            Button(onClick = { scope.launch { loadBudgets() } }) {
+                                Text(appStringResource(StringKey.COMMON_RETRY))
+                            }
                         }
                     }
                 }
-            }
-            budgets.isEmpty() -> {
-                EmptyBudgetCard(onAddClick = {
-                    editBudget = null
-                    dialogError = null
-                    showDialog = true
-                })
-            }
-            else -> {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(budgetsWithSpending) { item ->
-                        BudgetCard(
-                            item   = item,
-                            symbol = symbol,
-                            onEdit = {
-                                editBudget = item.budget
-                                dialogError = null
-                                showDialog = true
-                            },
-                            onDelete = {
-                                scope.launch {
-                                    when (val res = api.deleteBudget(authToken, item.budget.id)) {
-                                        is BudgetResult.Success -> {
-                                            errorMsg = null
-                                            loadBudgets()
+
+                budgets.isEmpty() -> {
+                    EmptyBudgetCard(onAddClick = {
+                        editBudget = null
+                        dialogError = null
+                        showDialog = true
+                    })
+                }
+
+                else -> {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(budgetsWithSpending) { item ->
+                            BudgetCard(
+                                item = item,
+                                symbol = symbol,
+                                onEdit = {
+                                    editBudget = item.budget
+                                    dialogError = null
+                                    showDialog = true
+                                },
+                                onDelete = {
+                                    scope.launch {
+                                        when (val res =
+                                            api.deleteBudget(authToken, item.budget.id)) {
+                                            is BudgetResult.Success -> {
+                                                errorMsg = null
+                                                loadBudgets()
+                                            }
+
+                                            is BudgetResult.Failure -> errorMsg = AppStrings.get(
+                                                LocaleController.currentLanguageCode,
+                                                res.message
+                                            )
                                         }
-                                        is BudgetResult.Failure -> errorMsg = AppStrings.get(
-                                            LocaleController.currentLanguageCode,
-                                            res.message
-                                        )
                                     }
                                 }
-                            }
-                        )
-                    }
-                    item {
-                        OutlinedButton(
-                            onClick = {
-                                editBudget = null
-                                dialogError = null
-                                showDialog = true
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                appStringResource(StringKey.BUDGETS_ADD),
-                                style = MaterialTheme.typography.labelMedium
                             )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
+                        item {
+                            OutlinedButton(
+                                onClick = {
+                                    editBudget = null
+                                    dialogError = null
+                                    showDialog = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    appStringResource(StringKey.BUDGETS_ADD),
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
                     }
                 }
             }
@@ -820,28 +835,6 @@ fun AddBudgetDialog(
                         Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
                     }
                 }
-//                Row(
-//                    modifier = Modifier.fillMaxWidth(),
-//                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
-//                ) {
-//                    TextButton(onClick = onDismiss) {
-//                        Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
-//                    }
-//                    Button(onClick = {
-//                        val cleanedAmountText = amountText.trim().replace(",", ".")
-//                        val amount = cleanedAmountText.toDoubleOrNull()
-//                        if (amount == null || amount <= 0) {
-//                            amountError = amountErrorMsg
-//                            return@Button
-//                        }
-//                        onConfirm(selectedCategory, amount, selectedPeriod, CurrencyController.currentCurrency)
-//                    }) {
-//                        Text(
-//                            if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
-//                            else appStringResource(StringKey.BUDGETS_DIALOG_ADD_BUTTON)
-//                        )
-//                    }
-//                }
             }
         }
     }

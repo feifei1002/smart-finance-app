@@ -104,7 +104,8 @@ fun ConnectBankAccountScreen(
                 AppPageHeader(
                     title = appStringResource(StringKey.CONNECT_BANK_TITLE),
                     subtitle = appStringResource(StringKey.CONNECT_BANK_SUBTITLE),
-                    onBack = onCancel
+                    onBack = onCancel,
+                    compact = compact
                 )
 
                 OutlinedTextField(

@@ -366,7 +366,7 @@ fun DashboardScreen(
                             onClick = { onConnectAccountClicked() },
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                         ) {
-                            Text(text = appStringResource(StringKey.DASHBOARD_CONNECTED_ACCOUNTS),
+                            Text(text = appStringResource(StringKey.DASHBOARD_CONNECT_ACCOUNT),
                                 style = MaterialTheme.typography.labelLarge
                             )
                         }

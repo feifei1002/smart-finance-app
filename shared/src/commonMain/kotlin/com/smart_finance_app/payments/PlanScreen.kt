@@ -72,7 +72,8 @@ fun PlanScreen(
         ) {
             AppPageHeader(
                 title = appStringResource(StringKey.PLAN_TITLE),
-                onBack = onBack
+                onBack = onBack,
+                compact = compact
             )
 
             errorMessage?.let {

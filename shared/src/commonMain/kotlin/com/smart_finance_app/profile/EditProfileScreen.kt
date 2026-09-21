@@ -184,7 +184,8 @@ fun EditProfileScreen(
             AppPageHeader(
                 title = appStringResource(StringKey.EDIT_PROFILE_TITLE),
                 subtitle = appStringResource(StringKey.EDIT_PROFILE_SUBTITLE),
-                onBack = onBack
+                onBack = onBack,
+                compact = compact
             )
 
             OutlinedTextField(

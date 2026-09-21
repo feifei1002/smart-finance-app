@@ -59,7 +59,8 @@ fun PaymentScreen(
             AppPageHeader(
                 title = appStringResource(StringKey.PAYMENT_TITLE),
                 subtitle = appStringResource(StringKey.PAYMENT_SUBTITLE),
-                onBack = onBack
+                onBack = onBack,
+                compact = compact
             )
 
             if (isLoading) {
