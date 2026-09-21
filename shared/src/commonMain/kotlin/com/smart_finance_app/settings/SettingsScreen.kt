@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -491,7 +492,7 @@ private fun SettingsMainContent(
 
                 Button(
                     onClick = onManageSubscription,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(
@@ -511,7 +512,7 @@ private fun SettingsMainContent(
 
                 OutlinedButton(
                     onClick = onSignOutClick,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(56.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(

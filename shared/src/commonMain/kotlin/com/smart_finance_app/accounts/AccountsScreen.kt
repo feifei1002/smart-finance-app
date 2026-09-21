@@ -198,7 +198,7 @@ private fun BankConsentDialog(
 
                     Button(
                         onClick = onConsent,
-                        modifier = Modifier.weight(1f).height(44.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(

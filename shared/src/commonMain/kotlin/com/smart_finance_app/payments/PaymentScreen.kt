@@ -205,7 +205,7 @@ private fun PaymentDetailsCard(
                     )
                     OutlinedButton(
                         onClick = onViewPlans,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(

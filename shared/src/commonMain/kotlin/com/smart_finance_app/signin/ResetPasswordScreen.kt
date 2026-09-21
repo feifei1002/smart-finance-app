@@ -260,7 +260,7 @@ private fun ResetPasswordStatusContent(
 
         Button(
             onClick = onBackToSignIn,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             shape = RoundedCornerShape(8.dp)
         ) {
             Text(backLabel)
