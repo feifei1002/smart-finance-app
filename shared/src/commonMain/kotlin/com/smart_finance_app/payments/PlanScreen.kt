@@ -2,9 +2,7 @@ package com.smart_finance_app.payments
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,7 +15,6 @@ import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppPageHeader
 import com.smart_finance_app.AppScreenContainer
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.star

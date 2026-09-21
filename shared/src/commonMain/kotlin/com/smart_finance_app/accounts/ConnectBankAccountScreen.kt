@@ -25,7 +25,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -51,7 +50,6 @@ import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.chevron_right
 import smart_finance_app.shared.generated.resources.lock
-import smart_finance_app.shared.generated.resources.question_mark
 import smart_finance_app.shared.generated.resources.search
 
 data class BankProviderVariant(
@@ -165,7 +163,7 @@ fun ConnectBankAccountScreen(
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.width(8.dp))
 
                 errorMessage?.let { AppErrorMessage(it) }
