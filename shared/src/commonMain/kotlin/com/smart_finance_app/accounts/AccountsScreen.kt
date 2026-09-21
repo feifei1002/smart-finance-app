@@ -189,7 +189,11 @@ private fun BankConsentDialog(
                         modifier = Modifier.weight(1f).heightIn(min = 44.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(appStringResource(StringKey.ACCOUNTS_CONSENT_CANCEL))
+                        Text(
+                            text = appStringResource(StringKey.ACCOUNTS_CONSENT_CANCEL),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                            )
                     }
 
                     Button(

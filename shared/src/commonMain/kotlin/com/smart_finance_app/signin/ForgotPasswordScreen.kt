@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppSuccessMessage
@@ -217,7 +218,11 @@ private fun ResetPasswordContent(
         }
 
         TextButton(onClick = onBackToSignIn) {
-            Text(appStringResource(StringKey.FORGOT_PASSWORD_BACK))
+            Text(
+                text = appStringResource(StringKey.FORGOT_PASSWORD_BACK),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
 
         HorizontalDivider(modifier = Modifier.padding(top = 8.dp))

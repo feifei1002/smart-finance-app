@@ -229,7 +229,11 @@ fun BudgetScreen(
                         ) {
                             errorMsg?.let { AppErrorMessage(it) }
                             Button(onClick = { scope.launch { loadBudgets() } }) {
-                                Text(appStringResource(StringKey.COMMON_RETRY))
+                                Text(
+                                    text = appStringResource(StringKey.COMMON_RETRY),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
@@ -282,8 +286,10 @@ fun BudgetScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    appStringResource(StringKey.BUDGETS_ADD),
-                                    style = MaterialTheme.typography.labelMedium
+                                    text = appStringResource(StringKey.BUDGETS_ADD),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Spacer(modifier = Modifier.height(16.dp))
@@ -461,18 +467,23 @@ fun BudgetCard(
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
                         Text(
-                            appStringResource(StringKey.BUDGETS_DIALOG_SAVE),
+                            text = appStringResource(StringKey.BUDGETS_DIALOG_SAVE),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     TextButton(
                         onClick = onDelete,
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
-                        Text(appStringResource(StringKey.BUDGETS_DELETE),
+                        Text(
+                            text = appStringResource(StringKey.BUDGETS_DELETE),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFDC2626)
+                            color = Color(0xFFDC2626),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -832,7 +843,11 @@ fun AddBudgetDialog(
                         onClick = onDismiss,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
+                        Text(
+                            text = appStringResource(StringKey.BUDGETS_DIALOG_CANCEL),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                            )
                     }
                 }
             }

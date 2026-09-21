@@ -129,7 +129,11 @@ fun UpdatePasswordScreen(
                     showSuccessDialog = false
                     onPasswordUpdated()
                 }) {
-                    Text(appStringResource(StringKey.UPDATE_PASSWORD_OK))
+                    Text(
+                        text = appStringResource(StringKey.UPDATE_PASSWORD_OK),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                        )
                 }
             }
         )
@@ -161,7 +165,11 @@ fun UpdatePasswordScreen(
                         onClick = onBack,
                         modifier = Modifier.align(Alignment.Start)
                     ) {
-                        Text(appStringResource(StringKey.UPDATE_PASSWORD_BACK))
+                        Text(
+                            text = appStringResource(StringKey.UPDATE_PASSWORD_BACK),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                            )
                     }
 
                     Surface(

@@ -134,21 +134,61 @@ private fun isHalfCardKey(key: String): Boolean =
 
 data class ChartCardDef(
     val key: String,
-    val title: String,
-    val description: String,
+    val title: StringKey,
+    val description: StringKey,
     val size: CardSize
 )
 
 /** All chart cards available to add via the + Charts sheet. */
 val ALL_CHART_CARDS = listOf(
-    ChartCardDef("weekly_spending",    "Weekly Spending",             "Day-by-day bar chart of your spending this week.",             CardSize.FULL),
-    ChartCardDef("spending_per_day",   "Spending per Day of Week",    "Donut chart showing which days you spend the most.",           CardSize.HALF),
-    ChartCardDef("bank_comparison",    "Bank Account Comparison",     "Monthly spending per bank account, side by side.",             CardSize.HALF),
-    ChartCardDef("time_of_day",        "Spending by Time of Day",     "Morning, afternoon and night breakdown as a donut chart.",     CardSize.HALF),
-    ChartCardDef("largest_tx",         "Largest Transactions",        "Top 5 biggest outgoing transactions this month.",             CardSize.HALF),
-    ChartCardDef("smallest_tx",        "Smallest Transactions",       "Top 5 smallest outgoing transactions this month.",            CardSize.HALF),
-    ChartCardDef("merchant_frequency", "Merchant Spending Treemap",   "Your top merchants this month shown as a spending treemap.",  CardSize.FULL),
-    ChartCardDef("upcoming_bills",     "Upcoming Bills",              "Predicted recurring payments from your transaction history.", CardSize.FULL)
+    ChartCardDef(
+        "weekly_spending",
+        StringKey.CHART_WEEKLY_SPENDING_TITLE,
+        StringKey.CHART_WEEKLY_SPENDING_DESC,
+        CardSize.FULL
+    ),
+    ChartCardDef(
+        "spending_per_day",
+        StringKey.CHART_SPENDING_PER_DAY_TITLE,
+        StringKey.CHART_SPENDING_PER_DAY_DESC,
+        CardSize.HALF
+    ),
+    ChartCardDef(
+        "bank_comparison",
+        StringKey.CHART_BANK_COMPARISON_TITLE,
+        StringKey.CHART_BANK_COMPARISON_DESC,
+        CardSize.HALF
+    ),
+    ChartCardDef(
+        "time_of_day",
+        StringKey.CHART_TIME_OF_DAY_TITLE,
+        StringKey.CHART_TIME_OF_DAY_DESC,
+        CardSize.HALF
+    ),
+    ChartCardDef(
+        "largest_tx",
+        StringKey.CHART_LARGEST_TX_TITLE,
+        StringKey.CHART_LARGEST_TX_DESC,
+        CardSize.HALF
+    ),
+    ChartCardDef(
+        "smallest_tx",
+        StringKey.CHART_SMALLEST_TX_TITLE,
+        StringKey.CHART_SMALLEST_TX_DESC,
+        CardSize.HALF
+    ),
+    ChartCardDef(
+        "merchant_frequency",
+        StringKey.CHART_MERCHANT_FREQUENCY_TITLE,
+        StringKey.CHART_MERCHANT_FREQUENCY_DESC,
+        CardSize.FULL
+    ),
+    ChartCardDef(
+        "upcoming_bills",
+        StringKey.CHART_UPCOMING_BILLS_TITLE,
+        StringKey.CHART_UPCOMING_BILLS_DESC,
+        CardSize.FULL
+    )
 )
 
 /** Fixed height for every half-size card (side-by-side pair). */
@@ -339,7 +379,13 @@ fun DashboardScreen(
                         errorMsg?.let {
                             AppErrorMessage(it)
                         }
-                        Button(onClick = { scope.launch { load() } }) { Text(appStringResource(StringKey.DASHBOARD_RETRY)) }
+                        Button(onClick = { scope.launch { load() } }) {
+                            Text(
+                                text = appStringResource(StringKey.DASHBOARD_RETRY),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -366,8 +412,11 @@ fun DashboardScreen(
                             onClick = { onConnectAccountClicked() },
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
                         ) {
-                            Text(text = appStringResource(StringKey.DASHBOARD_CONNECT_ACCOUNT),
-                                style = MaterialTheme.typography.labelLarge
+                            Text(
+                                text = appStringResource(StringKey.DASHBOARD_CONNECT_ACCOUNT),
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -1719,7 +1768,12 @@ private fun DesktopDashboard(
                             }
                             Spacer(Modifier.height(4.dp))
                             OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
-                                Text(appStringResource(StringKey.DASHBOARD_ADD_ACCOUNT), style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    text = appStringResource(StringKey.DASHBOARD_ADD_ACCOUNT),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
@@ -1734,10 +1788,20 @@ private fun DesktopDashboard(
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             SectionTitle(appStringResource(StringKey.DASHBOARD_QUICK_ACTIONS))
                             Button(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                                Text(appStringResource(StringKey.DASHBOARD_CONNECTED_ACCOUNTS), style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    text = appStringResource(StringKey.DASHBOARD_CONNECTED_ACCOUNTS),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                    )
                             }
                             OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
-                                Text(appStringResource(StringKey.BUDGETS_ADD), style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    text = appStringResource(StringKey.BUDGETS_ADD),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                             Spacer(Modifier.height(8.dp))
                             SectionTitle(appStringResource(StringKey.DASHBOARD_UPCOMING_BILLS))
@@ -2100,7 +2164,12 @@ private fun BudgetProgressCardContent(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(appStringResource(StringKey.BUDGETS_ADD), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = appStringResource(StringKey.BUDGETS_ADD),
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -3417,8 +3486,8 @@ private fun ChartOptionRow(
     def: ChartCardDef,
     onAdd: () -> Unit
 ) {
-    val title = def.title
-    val description = def.description
+    val title = appStringResource(def.title)
+    val description = appStringResource(def.description)
     val sizeLabel = if (def.size == CardSize.FULL) {
         appStringResource(StringKey.DASHBOARD_CHART_SIZE_FULL)
     } else {

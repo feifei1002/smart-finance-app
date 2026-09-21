@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppPageHeader
@@ -174,20 +175,26 @@ private fun PaymentDetailsCard(
                 Button(
                     enabled = isPaidPlan && !isOpeningPortal,
                     onClick = onChangePaymentCard,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        if (isOpeningPortal) appStringResource(StringKey.PAYMENT_UPDATING_BUTTON)
-                        else appStringResource(StringKey.PAYMENT_UPDATE_BUTTON)
+                        text = if (isOpeningPortal) appStringResource(StringKey.PAYMENT_UPDATING_BUTTON)
+                        else appStringResource(StringKey.PAYMENT_UPDATE_BUTTON),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 OutlinedButton(
                     onClick = onViewPlans,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(appStringResource(StringKey.PAYMENT_CHANGE_PLAN))
+                    Text(
+                        text = appStringResource(StringKey.PAYMENT_CHANGE_PLAN),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                        )
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -201,7 +208,11 @@ private fun PaymentDetailsCard(
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(appStringResource(StringKey.PAYMENT_VIEW_PLANS))
+                        Text(
+                            appStringResource(StringKey.PAYMENT_VIEW_PLANS),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -363,7 +374,11 @@ private fun BillingInformationSection(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text(appStringResource(StringKey.PAYMENT_BILLING_UPDATE))
+                Text(
+                    appStringResource(StringKey.PAYMENT_BILLING_UPDATE),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -450,8 +465,10 @@ private fun CancelPlanSection(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
-                    if (isOpeningPortal) appStringResource(StringKey.PAYMENT_CANCEL_OPENING)
-                    else appStringResource(StringKey.PAYMENT_CANCEL_BUTTON)
+                    text = if (isOpeningPortal) appStringResource(StringKey.PAYMENT_CANCEL_OPENING)
+                    else appStringResource(StringKey.PAYMENT_CANCEL_BUTTON),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

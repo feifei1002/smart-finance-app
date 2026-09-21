@@ -15,6 +15,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.smart_finance_app.AppErrorMessage
 import org.jetbrains.compose.resources.painterResource
@@ -193,7 +194,11 @@ fun ResetPasswordScreen(
                         }
 
                         TextButton(onClick = onBackToSignIn) {
-                            Text(appStringResource(StringKey.RESET_PASSWORD_BACK))
+                            Text(
+                                text = appStringResource(StringKey.RESET_PASSWORD_BACK),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }

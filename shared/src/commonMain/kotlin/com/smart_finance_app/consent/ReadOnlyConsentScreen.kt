@@ -306,7 +306,11 @@ fun ReadOnlyConsentScreen(
             onClick = onCancel,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Cancel")
+            Text(
+                text = "Cancel",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+                )
         }
     }
 }

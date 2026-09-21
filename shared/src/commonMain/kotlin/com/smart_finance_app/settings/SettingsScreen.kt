@@ -219,12 +219,20 @@ fun SettingsScreen(
             text = { Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_MESSAGE)) },
             confirmButton = {
                 Button(onClick = onSignOut) {
-                    Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_BUTTON))
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_BUTTON),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text(appStringResource(StringKey.SETTINGS_CANCEL))
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_CANCEL),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         )
@@ -434,7 +442,11 @@ private fun SettingsMainContent(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text(appStringResource(StringKey.SETTINGS_PROFILE))
+                            Text(
+                                text = appStringResource(StringKey.SETTINGS_PROFILE),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -488,7 +500,11 @@ private fun SettingsMainContent(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(10.dp))
-                    Text(appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION))
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -740,7 +756,11 @@ private fun LanguageDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(appStringResource(StringKey.SETTINGS_CANCEL))
+                Text(
+                    text = appStringResource(StringKey.SETTINGS_CANCEL),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     )
@@ -778,7 +798,11 @@ private fun SettingOptionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(appStringResource(StringKey.SETTINGS_CANCEL))
+                Text(
+                    text = appStringResource(StringKey.SETTINGS_CANCEL),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     )

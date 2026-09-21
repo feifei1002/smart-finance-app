@@ -223,7 +223,11 @@ fun RegistrationScreen(
                     onClick = onSignIn,
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Text(appStringResource(StringKey.REGISTER_SIGN_IN))
+                    Text(
+                        text = appStringResource(StringKey.REGISTER_SIGN_IN),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppPageHeader
@@ -141,7 +142,11 @@ fun SignInScreen(
                     onClick = onForgotPassword,
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text(appStringResource(StringKey.SIGNIN_FORGOT_PASSWORD))
+                    Text(
+                        text = appStringResource(StringKey.SIGNIN_FORGOT_PASSWORD),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 
@@ -153,8 +158,10 @@ fun SignInScreen(
                 modifier = Modifier.fillMaxWidth().focusRequester(buttonFocus)
             ) {
                 Text(
-                    if (isLoading) appStringResource(StringKey.SIGNIN_BUTTON_LOADING)
-                    else appStringResource(StringKey.SIGNIN_BUTTON)
+                    text = if (isLoading) appStringResource(StringKey.SIGNIN_BUTTON_LOADING)
+                    else appStringResource(StringKey.SIGNIN_BUTTON),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -168,7 +175,11 @@ fun SignInScreen(
                     onClick = onCreateAccount,
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Text(appStringResource(StringKey.SIGNIN_CREATE_ACCOUNT))
+                    Text(
+                        text = appStringResource(StringKey.SIGNIN_CREATE_ACCOUNT),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

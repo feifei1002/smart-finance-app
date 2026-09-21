@@ -834,9 +834,7 @@ private fun EditTransactionCategoryDialog(
                     )
                 }
 
-                errorMessage?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                }
+                errorMessage?.let { AppErrorMessage(it) }
 
                 categories.forEach { category ->
                     val isCurrent = category == transaction.category
@@ -875,7 +873,11 @@ private fun EditTransactionCategoryDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isSaving) {
-                Text(appStringResource(StringKey.COMMON_CANCEL))
+                Text(
+                    text = appStringResource(StringKey.COMMON_CANCEL),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     )

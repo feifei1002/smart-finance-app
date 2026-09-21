@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppPageHeader
@@ -156,7 +157,11 @@ fun EditProfileScreen(
                     enabled = emailPassword.isNotBlank() && !isSaving,
                     onClick = { saveProfile(currentPassword = emailPassword, isEmailPasswordDialog = true) }
                 ) {
-                    Text(appStringResource(StringKey.EDIT_PROFILE_CONFIRM))
+                    Text(
+                        text = appStringResource(StringKey.EDIT_PROFILE_CONFIRM),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                        )
                 }
             },
             dismissButton = {
@@ -168,7 +173,11 @@ fun EditProfileScreen(
                         emailPasswordError = null
                     }
                 ) {
-                    Text(appStringResource(StringKey.EDIT_PROFILE_CANCEL))
+                    Text(
+                        text = appStringResource(StringKey.EDIT_PROFILE_CANCEL),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         )
@@ -229,7 +238,11 @@ fun EditProfileScreen(
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(Modifier.width(10.dp))
-                Text(appStringResource(StringKey.EDIT_PROFILE_UPDATE_PASSWORD))
+                Text(
+                    text = appStringResource(StringKey.EDIT_PROFILE_UPDATE_PASSWORD),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
             errorMessage?.let { AppErrorMessage(it) }
@@ -245,8 +258,10 @@ fun EditProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    if (isSaving) appStringResource(StringKey.EDIT_PROFILE_SAVING)
-                    else appStringResource(StringKey.EDIT_PROFILE_SAVE)
+                    text = if (isSaving) appStringResource(StringKey.EDIT_PROFILE_SAVING)
+                    else appStringResource(StringKey.EDIT_PROFILE_SAVE),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -254,7 +269,11 @@ fun EditProfileScreen(
                 onClick = onBack,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(appStringResource(StringKey.EDIT_PROFILE_CANCEL))
+                Text(
+                    text = appStringResource(StringKey.EDIT_PROFILE_CANCEL),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
