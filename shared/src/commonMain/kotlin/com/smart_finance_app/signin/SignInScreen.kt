@@ -11,7 +11,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -21,9 +20,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.visibility
 import smart_finance_app.shared.generated.resources.visibility_off
@@ -62,33 +63,20 @@ fun SignInScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 440.dp)
-                .onPreviewKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown && event.key == Key.Tab) {
-                        focusManager.moveFocus(
-                            if (event.isShiftPressed) FocusDirection.Previous
-                            else FocusDirection.Next
-                        )
-                        true
-                    } else false
-                },
+                .widthIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = appStringResource(StringKey.SIGNIN_TITLE),
-                style = MaterialTheme.typography.headlineMedium
-            )
-
-            Text(
-                text = appStringResource(StringKey.SIGNIN_SUBTITLE),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            AppPageHeader(
+                title = appStringResource(StringKey.SIGNIN_TITLE),
+                subtitle = appStringResource(StringKey.SIGNIN_SUBTITLE)
             )
 
             OutlinedTextField(
@@ -154,17 +142,15 @@ fun SignInScreen(
                     onClick = onForgotPassword,
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text(appStringResource(StringKey.SIGNIN_FORGOT_PASSWORD))
+                    Text(
+                        text = appStringResource(StringKey.SIGNIN_FORGOT_PASSWORD),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 
-            errorMessage?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+            errorMessage?.let { AppErrorMessage(it) }
 
             Button(
                 enabled = valid && !isLoading,
@@ -172,8 +158,10 @@ fun SignInScreen(
                 modifier = Modifier.fillMaxWidth().focusRequester(buttonFocus)
             ) {
                 Text(
-                    if (isLoading) appStringResource(StringKey.SIGNIN_BUTTON_LOADING)
-                    else appStringResource(StringKey.SIGNIN_BUTTON)
+                    text = if (isLoading) appStringResource(StringKey.SIGNIN_BUTTON_LOADING)
+                    else appStringResource(StringKey.SIGNIN_BUTTON),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
@@ -187,7 +175,11 @@ fun SignInScreen(
                     onClick = onCreateAccount,
                     contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Text(appStringResource(StringKey.SIGNIN_CREATE_ACCOUNT))
+                    Text(
+                        text = appStringResource(StringKey.SIGNIN_CREATE_ACCOUNT),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

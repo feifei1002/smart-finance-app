@@ -13,14 +13,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -80,9 +78,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
+import androidx.compose.ui.text.style.TextOverflow
+import com.smart_finance_app.AppPageHeader
+import com.smart_finance_app.AppScreenContainer
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.currency.CurrencyController
-import com.smart_finance_app.settings.UpdateCurrencyResult
 
 // ── Fix 1: removed duplicate enum entries from the merge conflict ─────────────
 private enum class SettingsPanel {
@@ -220,12 +220,20 @@ fun SettingsScreen(
             text = { Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_MESSAGE)) },
             confirmButton = {
                 Button(onClick = onSignOut) {
-                    Text(appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_BUTTON))
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_SIGN_OUT_CONFIRM_BUTTON),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text(appStringResource(StringKey.SETTINGS_CANCEL))
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_CANCEL),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         )
@@ -396,147 +404,131 @@ private fun SettingsMainContent(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (compact) 24.dp else 40.dp),
-            contentAlignment = Alignment.TopCenter
+        AppScreenContainer(
+            compact = compact,
+            maxWidth = if (compact) 560.dp else 900.dp
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = if (compact) 560.dp else 900.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                Spacer(modifier = Modifier.height(24.dp))
+            AppPageHeader(
+                title = appStringResource(StringKey.SETTINGS_TITLE),
+                subtitle = if (compact) null else "Manage your account, preferences and subscription.",
+                compact = compact
+            )
 
+
+            SettingsCard {
                 if (compact) {
-                    Text(
-                        text = appStringResource(StringKey.SETTINGS_TITLE),
-                        modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        ProfileHeader(userName, userEmail)
+                        SettingsActionRow(
+                            icon = Res.drawable.person,
+                            title = appStringResource(StringKey.SETTINGS_PROFILE),
+                            value = null,
+                            onClick = onUpdateProfile
+                        )
+                    }
                 } else {
-                    Column {
-                        Text(
-                            text = appStringResource(StringKey.SETTINGS_TITLE),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Manage your account, preferences and subscription.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        ProfileHeader(userName, userEmail)
+                        OutlinedButton(
+                            onClick = onUpdateProfile,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(Res.drawable.person),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = appStringResource(StringKey.SETTINGS_PROFILE),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
-                SettingsCard {
-                    if (compact) {
-                        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                            ProfileHeader(userName, userEmail)
-                            SettingsActionRow(
-                                icon = Res.drawable.person,
-                                title = appStringResource(StringKey.SETTINGS_PROFILE),
-                                value = null,
-                                onClick = onUpdateProfile
-                            )
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            ProfileHeader(userName, userEmail)
-                            OutlinedButton(
-                                onClick = onUpdateProfile,
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(Res.drawable.person),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(appStringResource(StringKey.SETTINGS_PROFILE))
-                            }
-                        }
-                    }
+                Spacer(Modifier.height(20.dp))
 
-                    Spacer(Modifier.height(20.dp))
+                SettingsGroup {
+                    SettingsActionRow(
+                        icon = Res.drawable.credit_card,
+                        title = appStringResource(StringKey.PAYMENT_TITLE),
+                        value = null,
+                        onClick = onSubscriptionPaymentsClick
+                    )
 
-                    SettingsGroup {
-                        SettingsActionRow(
-                            icon = Res.drawable.credit_card,
-                            title = appStringResource(StringKey.PAYMENT_TITLE),
-                            value = null,
-                            onClick = onSubscriptionPaymentsClick
-                        )
+                    SettingsDivider()
 
-                        SettingsDivider()
+                    SettingsActionRow(
+                        icon = Res.drawable.language,
+                        title = appStringResource(StringKey.SETTINGS_LANGUAGE),
+                        value = selectedLanguage,
+                        onClick = onLanguageClick
+                    )
 
-                        SettingsActionRow(
-                            icon = Res.drawable.language,
-                            title = appStringResource(StringKey.SETTINGS_LANGUAGE),
-                            value = selectedLanguage,
-                            onClick = onLanguageClick
-                        )
+                    SettingsDivider()
 
-                        SettingsDivider()
+                    SettingsActionRow(
+                        icon = Res.drawable.currency,
+                        title = appStringResource(StringKey.SETTINGS_CURRENCY),
+                        value = selectedCurrency,
+                        onClick = onCurrencyClick
+                    )
 
-                        SettingsActionRow(
-                            icon = Res.drawable.currency,
-                            title = appStringResource(StringKey.SETTINGS_CURRENCY),
-                            value = selectedCurrency,
-                            onClick = onCurrencyClick
-                        )
+                    SettingsDivider()
 
-                        SettingsDivider()
+                    AppearanceRow(
+                        selectedAppearance = selectedAppearance,
+                        onAppearanceSelected = onAppearanceSelected
+                    )
+                }
 
-                        AppearanceRow(
-                            selectedAppearance = selectedAppearance,
-                            onAppearanceSelected = onAppearanceSelected
-                        )
-                    }
+                Spacer(Modifier.height(20.dp))
 
-                    Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = onManageSubscription,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(Res.drawable.crown),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
-                    Button(
-                        onClick = onManageSubscription,
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(Res.drawable.crown),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION))
-                    }
+                Spacer(Modifier.height(16.dp))
 
-                    Spacer(Modifier.height(16.dp))
-
-                    OutlinedButton(
-                        onClick = onSignOutClick,
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(Res.drawable.logout),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = appStringResource(StringKey.SETTINGS_SIGN_OUT),
-                            color = MaterialTheme.colorScheme.error,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                OutlinedButton(
+                    onClick = onSignOutClick,
+                    modifier = Modifier.fillMaxWidth().heightIn(56.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(Res.drawable.logout),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_SIGN_OUT),
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -765,7 +757,11 @@ private fun LanguageDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(appStringResource(StringKey.SETTINGS_CANCEL))
+                Text(
+                    text = appStringResource(StringKey.SETTINGS_CANCEL),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     )
@@ -803,7 +799,11 @@ private fun SettingOptionDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text(appStringResource(StringKey.SETTINGS_CANCEL))
+                Text(
+                    text = appStringResource(StringKey.SETTINGS_CANCEL),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     )

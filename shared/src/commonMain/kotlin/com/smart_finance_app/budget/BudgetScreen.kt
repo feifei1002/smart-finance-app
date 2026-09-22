@@ -15,9 +15,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
 import com.smart_finance_app.dashboard.TransactionData
@@ -192,98 +195,105 @@ fun BudgetScreen(
 
     LaunchedEffect(authToken) { loadBudgets() }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Spacer(modifier = Modifier.height(16.dp))
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compact = maxWidth < 700.dp
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = if (compact) 20.dp else 40.dp,
+                    end = if (compact) 20.dp else 40.dp,
+                    top = if (compact) 48.dp else 32.dp,
+                    bottom = if (compact) 24.dp else 32.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = appStringResource(StringKey.BUDGETS_TITLE),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+            AppPageHeader(
+                title = appStringResource(StringKey.BUDGETS_TITLE),
+                compact = compact
             )
-        }
 
-        when {
-            isLoading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            when {
+                isLoading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
-            }
-            errorMsg != null -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            errorMsg ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center
-                        )
-                        Button(onClick = { scope.launch { loadBudgets() } }) {
-                            Text(appStringResource(StringKey.COMMON_RETRY))
+
+                errorMsg != null -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            errorMsg?.let { AppErrorMessage(it) }
+                            Button(onClick = { scope.launch { loadBudgets() } }) {
+                                Text(
+                                    text = appStringResource(StringKey.COMMON_RETRY),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
-            }
-            budgets.isEmpty() -> {
-                EmptyBudgetCard(onAddClick = {
-                    editBudget = null
-                    dialogError = null
-                    showDialog = true
-                })
-            }
-            else -> {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(budgetsWithSpending) { item ->
-                        BudgetCard(
-                            item   = item,
-                            symbol = symbol,
-                            onEdit = {
-                                editBudget = item.budget
-                                dialogError = null
-                                showDialog = true
-                            },
-                            onDelete = {
-                                scope.launch {
-                                    when (val res = api.deleteBudget(authToken, item.budget.id)) {
-                                        is BudgetResult.Success -> {
-                                            errorMsg = null
-                                            loadBudgets()
+
+                budgets.isEmpty() -> {
+                    EmptyBudgetCard(onAddClick = {
+                        editBudget = null
+                        dialogError = null
+                        showDialog = true
+                    })
+                }
+
+                else -> {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(budgetsWithSpending) { item ->
+                            BudgetCard(
+                                item = item,
+                                symbol = symbol,
+                                onEdit = {
+                                    editBudget = item.budget
+                                    dialogError = null
+                                    showDialog = true
+                                },
+                                onDelete = {
+                                    scope.launch {
+                                        when (val res =
+                                            api.deleteBudget(authToken, item.budget.id)) {
+                                            is BudgetResult.Success -> {
+                                                errorMsg = null
+                                                loadBudgets()
+                                            }
+
+                                            is BudgetResult.Failure -> errorMsg = AppStrings.get(
+                                                LocaleController.currentLanguageCode,
+                                                res.message
+                                            )
                                         }
-                                        is BudgetResult.Failure -> errorMsg = AppStrings.get(
-                                            LocaleController.currentLanguageCode,
-                                            res.message
-                                        )
                                     }
                                 }
-                            }
-                        )
-                    }
-                    item {
-                        OutlinedButton(
-                            onClick = {
-                                editBudget = null
-                                dialogError = null
-                                showDialog = true
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                appStringResource(StringKey.BUDGETS_ADD),
-                                style = MaterialTheme.typography.labelMedium
                             )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
+                        item {
+                            OutlinedButton(
+                                onClick = {
+                                    editBudget = null
+                                    dialogError = null
+                                    showDialog = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = appStringResource(StringKey.BUDGETS_ADD),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
                     }
                 }
             }
@@ -457,18 +467,23 @@ fun BudgetCard(
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
                         Text(
-                            appStringResource(StringKey.BUDGETS_DIALOG_SAVE),
+                            text = appStringResource(StringKey.BUDGETS_DIALOG_SAVE),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     TextButton(
                         onClick = onDelete,
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
-                        Text(appStringResource(StringKey.BUDGETS_DELETE),
+                        Text(
+                            text = appStringResource(StringKey.BUDGETS_DELETE),
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFDC2626)
+                            color = Color(0xFFDC2626),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -649,13 +664,7 @@ fun AddBudgetDialog(
                     }
                 }
 
-                if (serverError != null) {
-                    Text(
-                        text = serverError,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+                serverError?.let { AppErrorMessage(it) }
 
                 // Category selector
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -802,26 +811,43 @@ fun AddBudgetDialog(
                 }
 
                 // Action buttons
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text(appStringResource(StringKey.BUDGETS_DIALOG_CANCEL))
-                    }
-                    Button(onClick = {
-                        val cleanedAmountText = amountText.trim().replace(",", ".")
-                        val amount = cleanedAmountText.toDoubleOrNull()
-                        if (amount == null || amount <= 0) {
-                            amountError = amountErrorMsg
-                            return@Button
-                        }
-                        onConfirm(selectedCategory, amount, selectedPeriod, CurrencyController.currentCurrency)
-                    }) {
+                    Button(
+                        onClick = {
+                            val cleanedAmountText = amountText.trim().replace(",", ".")
+                            val amount = cleanedAmountText.toDoubleOrNull()
+                            if (amount == null || amount <= 0) {
+                                amountError = amountErrorMsg
+                                return@Button
+                            }
+                            onConfirm(selectedCategory, amount, selectedPeriod, CurrencyController.currentCurrency)
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) {
                         Text(
-                            if (isEdit) appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
-                            else appStringResource(StringKey.BUDGETS_DIALOG_ADD_BUTTON)
+                            text = if (isEdit) {
+                                appStringResource(StringKey.BUDGETS_DIALOG_SAVE)
+                            } else {
+                                appStringResource(StringKey.BUDGETS_DIALOG_ADD_BUTTON)
+                            },
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
                         )
+                    }
+
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = appStringResource(StringKey.BUDGETS_DIALOG_CANCEL),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                            )
                     }
                 }
             }

@@ -732,7 +732,7 @@ object AppStrings {
 
     private val fr = mapOf(
         StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "Impossible d'enregistrer la langue. Veuillez réessayer.",
-        StringKey.NAV_DASHBOARD to "Tableau de bord",
+        StringKey.NAV_DASHBOARD to "Accueil",
         StringKey.NAV_TRANSACTIONS to "Transactions",
         StringKey.NAV_ACCOUNTS to "Comptes",
         StringKey.NAV_BUDGETS to "Budgets",
@@ -740,7 +740,7 @@ object AppStrings {
         StringKey.NAV_GOALS to "Objectifs",
         StringKey.NAV_SETTINGS to "Paramètres",
         StringKey.SIGNIN_TITLE to "Bon retour",
-        StringKey.SIGNIN_SUBTITLE to "Connectez-vous pour accéder à votre tableau de bord financier.",
+        StringKey.SIGNIN_SUBTITLE to "Connectez-vous pour accéder à votre accueil financier.",
         StringKey.SIGNIN_EMAIL to "Adresse e-mail",
         StringKey.SIGNIN_PASSWORD to "Mot de passe",
         StringKey.SIGNIN_FORGOT_PASSWORD to "Mot de passe oublié ?",
@@ -798,7 +798,7 @@ object AppStrings {
         StringKey.DASHBOARD_CONNECT_ACCOUNT to "Connecter un compte",
         StringKey.DASHBOARD_ALL_ACCOUNTS to "Tous les comptes",
         StringKey.DASHBOARD_ADD_CHARTS to "Ajouter des graphiques",
-        StringKey.DASHBOARD_ALL_CHARTS_ADDED to "Tous les graphiques sont déjà sur votre tableau de bord.\nSupprimez-en un avec le bouton − pour libérer un emplacement.",
+        StringKey.DASHBOARD_ALL_CHARTS_ADDED to "Tous les graphiques sont déjà sur votre accueil.\nSupprimez-en un avec le bouton − pour libérer un emplacement.",
         StringKey.DASHBOARD_CHART_SIZE_FULL to "Complet",
         StringKey.DASHBOARD_CHART_SIZE_HALF to "Demi",
         StringKey.DASHBOARD_ADD_BUTTON to "+ Ajouter",

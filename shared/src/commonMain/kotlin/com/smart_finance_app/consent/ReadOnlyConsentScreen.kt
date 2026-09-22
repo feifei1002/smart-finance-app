@@ -16,8 +16,10 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.smart_finance_app.AppErrorMessage
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.lock
@@ -280,13 +282,7 @@ fun ReadOnlyConsentScreen(
         Spacer(modifier = Modifier.height(4.dp))
 
         errorMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.fillMaxWidth()
-            )
-
+            AppErrorMessage(it)
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -295,9 +291,13 @@ fun ReadOnlyConsentScreen(
             enabled = agreed,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .heightIn(min = 48.dp)
         ) {
-            Text("Continue")
+            Text(
+                text = "Continue",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -306,7 +306,11 @@ fun ReadOnlyConsentScreen(
             onClick = onCancel,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Cancel")
+            Text(
+                text = "Cancel",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+                )
         }
     }
 }

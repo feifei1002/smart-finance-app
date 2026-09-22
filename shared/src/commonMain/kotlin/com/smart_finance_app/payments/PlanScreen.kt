@@ -2,18 +2,19 @@ package com.smart_finance_app.payments
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smart_finance_app.AppErrorMessage
+import com.smart_finance_app.AppPageHeader
+import com.smart_finance_app.AppScreenContainer
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.check
 import smart_finance_app.shared.generated.resources.star
@@ -65,63 +66,46 @@ fun PlanScreen(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (compact) 24.dp else 40.dp),
-            contentAlignment = Alignment.TopCenter
+        AppScreenContainer(
+            compact = compact,
+            maxWidth = if (compact) 560.dp else 900.dp
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = if (compact) 560.dp else 900.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    TextButton(onClick = onBack) {
-                        Text(appStringResource(StringKey.PLAN_BACK))
-                    }
-                }
+            AppPageHeader(
+                title = appStringResource(StringKey.PLAN_TITLE),
+                onBack = onBack,
+                compact = compact
+            )
 
-                Text(
-                    text = appStringResource(StringKey.PLAN_TITLE),
-                    modifier = Modifier.fillMaxWidth(),
-                    style = if (compact) MaterialTheme.typography.headlineSmall
-                    else MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                PlanCard(
-                    title          = freeTitleStr,
-                    subtitle       = "",
-                    price          = freePriceStr,
-                    priceDetailTop = freeDetailTopStr,
-                    priceDetailBottom = freeDetailBotStr,
-                    buttonText     = freeButtonStr,
-                    enabled        = false,
-                    starCount      = 1,
-                    features       = freeFeatures
-                )
-
-                PlanCard(
-                    title          = basicTitleStr,
-                    subtitle       = basicSubtitleStr,
-                    price          = basicPriceStr,
-                    priceDetailTop = basicDetailTopStr,
-                    priceDetailBottom = basicDetailBotStr,
-                    buttonText     = basicButtonStr,
-                    enabled        = !isPaidPlan && !isLoading,
-                    onClick        = onSubscribeToBasic,
-                    starCount      = 2,
-                    features       = basicFeatures
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
+            errorMessage?.let {
+                AppErrorMessage(it)
             }
+
+            PlanCard(
+                title          = freeTitleStr,
+                subtitle       = "",
+                price          = freePriceStr,
+                priceDetailTop = freeDetailTopStr,
+                priceDetailBottom = freeDetailBotStr,
+                buttonText     = freeButtonStr,
+                enabled        = false,
+                starCount      = 1,
+                features       = freeFeatures
+            )
+
+            PlanCard(
+                title          = basicTitleStr,
+                subtitle       = basicSubtitleStr,
+                price          = basicPriceStr,
+                priceDetailTop = basicDetailTopStr,
+                priceDetailBottom = basicDetailBotStr,
+                buttonText     = basicButtonStr,
+                enabled        = !isPaidPlan && !isLoading,
+                onClick        = onSubscribeToBasic,
+                starCount      = 2,
+                features       = basicFeatures
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -217,14 +201,19 @@ fun PlanCard(
                 OutlinedButton(
                     enabled = enabled,
                     onClick = onClick,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.onSurface
                     )
                 ) {
-                    Text(text = buttonText, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(
+                        text = buttonText,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 
