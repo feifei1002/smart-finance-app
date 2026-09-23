@@ -22,7 +22,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -48,18 +47,9 @@ import com.smart_finance_app.settings.UpdateLanguageResult
 import com.smart_finance_app.settings.UserPreferencesApi
 import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
+import kotlinx.coroutines.delay
+import com.smart_finance_app.dashboard.getCurrencySymbol
 
-private fun getCurrencyDisplayText(code: String): String {
-    val symbol = when (code) {
-        "GBP" -> "£"
-        "EUR" -> "€"
-        "USD" -> "$"
-        "TWD" -> "NT$"
-        "PLN" -> "z\u0142"
-        else  -> code
-    }
-    return "$code  $symbol"
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +70,9 @@ fun PreferencesScreen(
 
     val selectedLanguage = LocaleController.supportedLanguages
         .find { it.code == selectedLanguageCode }
+
+    val initialLanguageCode = remember { LocaleController.currentLanguageCode }
+    val initialCurrency     = remember { CurrencyController.currentCurrency }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -220,7 +213,7 @@ fun PreferencesScreen(
                         onExpandedChange = { currencyExpanded = it }
                     ) {
                         OutlinedTextField(
-                            value         = getCurrencyDisplayText(selectedCurrency),
+                            value         = "$selectedCurrency  ${getCurrencySymbol(selectedCurrency)}",
                             onValueChange = {},
                             readOnly      = true,
                             modifier      = Modifier
@@ -267,9 +260,8 @@ fun PreferencesScreen(
                                                     )
                                             )
                                             Text(
-                                                text       = getCurrencyDisplayText(code),
-                                                fontWeight = if (isSelected) FontWeight.SemiBold
-                                                else FontWeight.Normal
+                                                text = "$code  ${getCurrencySymbol(code)}",
+                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                                             )
                                         }
                                     },
@@ -293,7 +285,7 @@ fun PreferencesScreen(
                 ) {
                     Button(
                         enabled  = !isSaving,
-                        onClick  = {
+                        onClick = {
                             scope.launch {
                                 isSaving     = true
                                 errorMessage = null
@@ -315,14 +307,16 @@ fun PreferencesScreen(
                                 val langFailed = langResult is UpdateLanguageResult.Failure
                                 val currFailed = currResult is UpdateCurrencyResult.Failure
 
-                                if (langFailed && currFailed) {
+                                if (langFailed || currFailed) {
                                     errorMessage = AppStrings.get(
                                         selectedLanguageCode,
                                         StringKey.PREFERENCES_SAVE_FAILED
                                     )
+                                    // Let user see the warning briefly before navigating
+                                    delay(2500)
                                 }
 
-                                // Navigate regardless — preferences applied locally
+                                // Navigate regardless — preferences already applied locally
                                 onContinue()
                             }
                         },
@@ -339,7 +333,11 @@ fun PreferencesScreen(
                     }
 
                     TextButton(
-                        onClick  = onSkip,
+                        onClick = {
+                            LocaleController.setLanguage(initialLanguageCode)
+                            CurrencyController.setCurrency(initialCurrency)
+                            onSkip()
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
