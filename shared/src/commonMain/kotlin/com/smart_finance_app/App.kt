@@ -43,7 +43,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.currency.CurrencyController
-
+import com.smart_finance_app.preferences.PreferencesScreen
 
 val LocalAppLanguage = compositionLocalOf { "en" }
 
@@ -54,6 +54,7 @@ private enum class Screen {
     ForgotPassword,
     ResetPassword,
     Consent,
+    Preferences,
     Main
 }
 
@@ -427,7 +428,7 @@ fun App(
                             consentError = null
                             when (val result = consentApi.acceptConsent(currentSession.token)) {
                                 ConsentResult.Success -> {
-                                    screen = Screen.Main
+                                    screen = Screen.Preferences
                                 }
 
                                 is ConsentResult.Failure -> {
@@ -444,6 +445,15 @@ fun App(
                     }
                 )
             }
+            Screen.Preferences -> {
+                PreferencesScreen(
+                    authToken          = session?.token.orEmpty(),
+                    userPreferencesApi = userPreferencesApi,
+                    onContinue         = { screen = Screen.Main },
+                    onSkip             = { screen = Screen.Main }
+                )
+            }
+
             Screen.Main -> {
                 val resolvedName = session?.name.orEmpty()
                 val resolvedEmail = session?.email.orEmpty()
