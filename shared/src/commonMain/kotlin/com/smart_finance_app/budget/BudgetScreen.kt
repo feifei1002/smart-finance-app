@@ -24,7 +24,7 @@ import com.smart_finance_app.AppPageHeader
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
 import com.smart_finance_app.dashboard.TransactionData
-import com.smart_finance_app.dashboard.getCurrencySymbol
+import com.smart_finance_app.currency.getCurrencySymbol
 import com.smart_finance_app.transactions.TransactionCategories
 import kotlinx.coroutines.launch
 import kotlin.math.abs

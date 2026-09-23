@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -79,7 +80,13 @@ fun AppPageHeader(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (onBack != null) {
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = onBack) {
+                Text(
+                    text = appStringResource(StringKey.COMMON_BACK),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         Text(
             text = title,

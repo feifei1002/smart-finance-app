@@ -371,6 +371,13 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Could not load billing history.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Could not load billing information.",
         StringKey.CURRENCY_RATES_UNAVAILABLE to "Exchange rates unavailable. Amounts shown in original currency.",
+        StringKey.PREFERENCES_TITLE to "Set Your Preferences",
+        StringKey.PREFERENCES_SUBTITLE to "Choose your language and currency. You can change these anytime in Settings.",
+        StringKey.PREFERENCES_LANGUAGE_LABEL to "Language",
+        StringKey.PREFERENCES_CURRENCY_LABEL to "Currency",
+        StringKey.PREFERENCES_CONTINUE to "Continue",
+        StringKey.PREFERENCES_SKIP to "Skip for now",
+        StringKey.PREFERENCES_SAVE_FAILED to "Preferences saved locally but couldn't sync to server. You can update them in Settings.",
     )
 
     private val es = mapOf(
@@ -728,7 +735,14 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "No se pudo cargar el historial de facturación.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "No se pudo cargar la información de facturación.",
         StringKey.CURRENCY_RATES_UNAVAILABLE to "Tipos de cambio no disponibles. Los importes se muestran en la moneda original.",
-    )
+        StringKey.PREFERENCES_TITLE to "Configura tus preferencias",
+        StringKey.PREFERENCES_SUBTITLE to "Elige tu idioma y moneda. Puedes cambiarlos en cualquier momento en Ajustes.",
+        StringKey.PREFERENCES_LANGUAGE_LABEL to "Idioma",
+        StringKey.PREFERENCES_CURRENCY_LABEL to "Moneda",
+        StringKey.PREFERENCES_CONTINUE to "Continuar",
+        StringKey.PREFERENCES_SKIP to "Omitir por ahora",
+        StringKey.PREFERENCES_SAVE_FAILED to "Preferencias guardadas localmente pero no se pudieron sincronizar. Puedes actualizarlas en Ajustes.",
+        )
 
     private val fr = mapOf(
         StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "Impossible d'enregistrer la langue. Veuillez réessayer.",
@@ -1085,6 +1099,13 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Impossible de charger l’historique de facturation.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Impossible de charger les informations de facturation.",
         StringKey.CURRENCY_RATES_UNAVAILABLE to "Taux de change indisponibles. Les montants sont affichés dans la devise d'origine.",
+        StringKey.PREFERENCES_TITLE to "Définissez vos préférences",
+        StringKey.PREFERENCES_SUBTITLE to "Choisissez votre langue et votre devise. Vous pouvez les modifier à tout moment dans Paramètres.",
+        StringKey.PREFERENCES_LANGUAGE_LABEL to "Langue",
+        StringKey.PREFERENCES_CURRENCY_LABEL to "Devise",
+        StringKey.PREFERENCES_CONTINUE to "Continuer",
+        StringKey.PREFERENCES_SKIP to "Passer pour l'instant",
+        StringKey.PREFERENCES_SAVE_FAILED to "Préférences enregistrées localement mais non synchronisées. Vous pouvez les mettre à jour dans Paramètres.",
     )
 
     private val nl = mapOf(
@@ -1436,6 +1457,13 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Factuurgeschiedenis kon niet worden geladen.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Factuurgegevens konden niet worden geladen.",
         StringKey.CURRENCY_RATES_UNAVAILABLE to "Wisselkoersen niet beschikbaar. Bedragen worden weergegeven in de oorspronkelijke valuta.",
+        StringKey.PREFERENCES_TITLE to "Stel je voorkeuren in",
+        StringKey.PREFERENCES_SUBTITLE to "Kies je taal en valuta. Je kunt deze altijd wijzigen in Instellingen.",
+        StringKey.PREFERENCES_LANGUAGE_LABEL to "Taal",
+        StringKey.PREFERENCES_CURRENCY_LABEL to "Valuta",
+        StringKey.PREFERENCES_CONTINUE to "Doorgaan",
+        StringKey.PREFERENCES_SKIP to "Nu overslaan",
+        StringKey.PREFERENCES_SAVE_FAILED to "Voorkeuren lokaal opgeslagen maar niet gesynchroniseerd. Je kunt ze bijwerken in Instellingen.",
     )
 
     private val de = mapOf(
@@ -1787,6 +1815,13 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Abrechnungsverlauf konnte nicht geladen werden.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Abrechnungsinformationen konnten nicht geladen werden.",
         StringKey.CURRENCY_RATES_UNAVAILABLE to "Wechselkurse nicht verfügbar. Beträge werden in der Originalwährung angezeigt.",
+        StringKey.PREFERENCES_TITLE to "Einstellungen festlegen",
+        StringKey.PREFERENCES_SUBTITLE to "Wähle deine Sprache und Währung. Du kannst sie jederzeit in den Einstellungen ändern.",
+        StringKey.PREFERENCES_LANGUAGE_LABEL to "Sprache",
+        StringKey.PREFERENCES_CURRENCY_LABEL to "Währung",
+        StringKey.PREFERENCES_CONTINUE to "Weiter",
+        StringKey.PREFERENCES_SKIP to "Jetzt überspringen",
+        StringKey.PREFERENCES_SAVE_FAILED to "Einstellungen lokal gespeichert, aber nicht synchronisiert. Du kannst sie in den Einstellungen aktualisieren.",
     )
 
     private val it = mapOf(
@@ -2138,6 +2173,13 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Impossibile caricare la cronologia di fatturazione.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Impossibile caricare le informazioni di fatturazione.",
         StringKey.CURRENCY_RATES_UNAVAILABLE to "Tassi di cambio non disponibili. Gli importi sono mostrati nella valuta originale.",
+        StringKey.PREFERENCES_TITLE to "Imposta le tue preferenze",
+        StringKey.PREFERENCES_SUBTITLE to "Scegli la tua lingua e valuta. Puoi cambiarle in qualsiasi momento nelle Impostazioni.",
+        StringKey.PREFERENCES_LANGUAGE_LABEL to "Lingua",
+        StringKey.PREFERENCES_CURRENCY_LABEL to "Valuta",
+        StringKey.PREFERENCES_CONTINUE to "Continua",
+        StringKey.PREFERENCES_SKIP to "Salta per ora",
+        StringKey.PREFERENCES_SAVE_FAILED to "Preferenze salvate localmente ma non sincronizzate. Puoi aggiornarle nelle Impostazioni.",
     )
 
     private val pl = mapOf(
@@ -2489,7 +2531,15 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "Nie udało się załadować historii rozliczeń.",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "Nie udało się załadować informacji rozliczeniowych.",
         StringKey.CURRENCY_RATES_UNAVAILABLE to "Kursy wymiany niedostępne. Kwoty wyświetlane w oryginalnej walucie.",
-    )
+        StringKey.PREFERENCES_TITLE to "Ustaw swoje preferencje",
+        StringKey.PREFERENCES_SUBTITLE to "Wybierz język i walutę. Możesz je zmienić w dowolnym momencie w Ustawieniach.",
+        StringKey.PREFERENCES_LANGUAGE_LABEL to "Język",
+        StringKey.PREFERENCES_CURRENCY_LABEL to "Waluta",
+        StringKey.PREFERENCES_CONTINUE to "Kontynuuj",
+        StringKey.PREFERENCES_SKIP to "Pomiń na razie",
+        StringKey.PREFERENCES_SAVE_FAILED to "Preferencje zapisane lokalnie, ale nie zsynchronizowane. Możesz je zaktualizować w Ustawieniach.",
+
+        )
 
     private val zhTW = mapOf(
         StringKey.SETTINGS_LANGUAGE_SAVE_FAILED to "無法儲存語言偏好設定，請再試一次。",
@@ -2840,5 +2890,12 @@ object AppStrings {
         StringKey.SUBSCRIPTION_ERROR_INVOICES_FAILED to "無法載入帳單記錄。",
         StringKey.SUBSCRIPTION_ERROR_BILLING_ADDRESS_FAILED to "無法載入帳單資料。",
         StringKey.CURRENCY_RATES_UNAVAILABLE to "匯率無法取得。金額以原始貨幣顯示。",
+        StringKey.PREFERENCES_TITLE to "設定您的偏好",
+        StringKey.PREFERENCES_SUBTITLE to "選擇您的語言和貨幣。您可以隨時在設定中更改。",
+        StringKey.PREFERENCES_LANGUAGE_LABEL to "語言",
+        StringKey.PREFERENCES_CURRENCY_LABEL to "貨幣",
+        StringKey.PREFERENCES_CONTINUE to "繼續",
+        StringKey.PREFERENCES_SKIP to "暫時跳過",
+        StringKey.PREFERENCES_SAVE_FAILED to "偏好設定已在本機儲存，但無法同步至伺服器。您可以在設定中更新。",
     )
 }

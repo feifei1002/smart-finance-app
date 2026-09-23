@@ -3,6 +3,7 @@ package com.smart_finance_app.dashboard
 import androidx.compose.ui.graphics.Color
 import com.smart_finance_app.currency.ConversionResult
 import com.smart_finance_app.currency.ExchangeRateService
+import com.smart_finance_app.currency.getCurrencySymbol
 import com.smart_finance_app.transactions.TransactionCategories
 import kotlin.time.Clock
 import kotlinx.datetime.DatePeriod
@@ -47,14 +48,6 @@ private val categoryColors = listOf(
 
 private val categoryNames = TransactionCategories.all
 
-fun getCurrencySymbol(currency: String) = when (currency.uppercase()) {
-    "GBP" -> "£"
-    "EUR" -> "€"
-    "USD" -> "$"
-    "PLN" -> "z\u0142"
-    "TWD" -> "NT$"
-    else  -> currency
-}
 
 fun formatCurrency(value: Double, symbol: String, currencyCode: String = ""): String {
     val absValue = kotlin.math.abs(value)

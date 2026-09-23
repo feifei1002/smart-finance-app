@@ -78,6 +78,7 @@ import com.smart_finance_app.currency.ConversionResult
 import com.smart_finance_app.localiseCategory
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
+import com.smart_finance_app.currency.getCurrencySymbol
 
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
