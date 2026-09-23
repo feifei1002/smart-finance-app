@@ -48,7 +48,7 @@ import com.smart_finance_app.settings.UserPreferencesApi
 import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import kotlinx.coroutines.delay
-import com.smart_finance_app.dashboard.getCurrencySymbol
+import com.smart_finance_app.currency.getCurrencySymbol
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -290,34 +290,36 @@ fun PreferencesScreen(
                                 isSaving     = true
                                 errorMessage = null
 
-                                // Apply locally first
-                                LocaleController.setLanguage(selectedLanguageCode)
-                                CurrencyController.setCurrency(selectedCurrency)
+                                try {
+                                    // Apply locally first
+                                    LocaleController.setLanguage(selectedLanguageCode)
+                                    CurrencyController.setCurrency(selectedCurrency)
 
-                                // Persist both to server
-                                val langResult = userPreferencesApi.updateLanguage(
-                                    authToken, selectedLanguageCode
-                                )
-                                val currResult = userPreferencesApi.updateCurrency(
-                                    authToken, selectedCurrency
-                                )
-
-                                isSaving = false
-
-                                val langFailed = langResult is UpdateLanguageResult.Failure
-                                val currFailed = currResult is UpdateCurrencyResult.Failure
-
-                                if (langFailed || currFailed) {
-                                    errorMessage = AppStrings.get(
-                                        selectedLanguageCode,
-                                        StringKey.PREFERENCES_SAVE_FAILED
+                                    // Persist both to server
+                                    val langResult = userPreferencesApi.updateLanguage(
+                                        authToken, selectedLanguageCode
                                     )
-                                    // Let user see the warning briefly before navigating
-                                    delay(2500)
-                                }
+                                    val currResult = userPreferencesApi.updateCurrency(
+                                        authToken, selectedCurrency
+                                    )
 
-                                // Navigate regardless — preferences already applied locally
-                                onContinue()
+                                    val langFailed = langResult is UpdateLanguageResult.Failure
+                                    val currFailed = currResult is UpdateCurrencyResult.Failure
+
+                                    if (langFailed || currFailed) {
+                                        errorMessage = AppStrings.get(
+                                            selectedLanguageCode,
+                                            StringKey.PREFERENCES_SAVE_FAILED
+                                        )
+                                        // Let user see the warning briefly before navigating
+                                        delay(2500)
+                                    }
+
+                                    // Navigate regardless — preferences already applied locally
+                                    onContinue()
+                                } finally {
+                                    isSaving = false
+                                }
                             }
                         },
                         modifier = Modifier
