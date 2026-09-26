@@ -283,33 +283,73 @@ private fun NavigationContent(
         }
     }
 
-    suspend fun loadDashboardTransactions() {
-        when (
-            val result = transactionsApi.getTransactions(
-                token = authToken,
-                page = 0,
-                pageSize = 500,
-                type = "All"
-            )
-        ) {
-            is TransactionsResult.Success -> {
-                dashboardRecentTransactions = result.page.transactions.map { transaction ->
-                    TransactionUI(
-                        id = transaction.id,
-                        dateLabel = transaction.date.take(10),
-                        merchantName = transaction.merchantName,
-                        category = transaction.category,
-                        accountName = transaction.accountName,
-                        amount = transaction.amount,
-                        currency = transaction.currency,
-                        merchantLogoUrl = transaction.merchantLogoUrl,
-                        accountId = transaction.accountId
-                    )
-                }
-            }
+//    suspend fun loadDashboardTransactions() {
+//        when (
+//            val result = transactionsApi.getTransactions(
+//                token = authToken,
+//                page = 0,
+//                pageSize = 500,
+//                type = "All"
+//            )
+//        ) {
+//            is TransactionsResult.Success -> {
+//                dashboardRecentTransactions = result.page.transactions.map { transaction ->
+//                    TransactionUI(
+//                        id = transaction.id,
+//                        dateLabel = transaction.date.take(10),
+//                        merchantName = transaction.merchantName,
+//                        category = transaction.category,
+//                        accountName = transaction.accountName,
+//                        amount = transaction.amount,
+//                        currency = transaction.currency,
+//                        merchantLogoUrl = transaction.merchantLogoUrl,
+//                        accountId = transaction.accountId
+//                    )
+//                }
+//            }
+//
+//            is TransactionsResult.Failure -> Unit
+//        }
+//    }
 
-            is TransactionsResult.Failure -> Unit
+    suspend fun loadDashboardTransactions() {
+        val pageSize = 500
+        val allTransactions = mutableListOf<TransactionUI>()
+        var page = 0
+
+        while (true) {
+            when (
+                val result = transactionsApi.getTransactions(
+                    token = authToken,
+                    page = page,
+                    pageSize = pageSize,
+                    type = "All"
+                )
+            ) {
+                is TransactionsResult.Success -> {
+                    allTransactions += result.page.transactions.map { transaction ->
+                        TransactionUI(
+                            id = transaction.id,
+                            dateLabel = transaction.date,
+                            merchantName = transaction.merchantName,
+                            category = transaction.category,
+                            accountName = transaction.accountName,
+                            amount = transaction.amount,
+                            currency = transaction.currency,
+                            merchantLogoUrl = transaction.merchantLogoUrl,
+                            accountId = transaction.accountId
+                        )
+                    }
+
+                    if (!result.page.hasMore) break
+                    page++
+                }
+
+                is TransactionsResult.Failure -> break
+            }
         }
+
+        dashboardRecentTransactions = allTransactions
     }
 
     LaunchedEffect(authToken) {

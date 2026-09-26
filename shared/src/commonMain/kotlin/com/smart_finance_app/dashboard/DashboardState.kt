@@ -346,12 +346,13 @@ fun computeDashboardState(
             bankName     = account.bankName,
             maskedNumber = account.maskedNumber,
             balance      = if (convertedBalance != null)
-                formatCurrency(convertedBalance, symbol, displayCurrency) else "--"
+                formatCurrency(convertedBalance, symbol, displayCurrency) else "--",
+            balanceValue = convertedBalance
         )
     }
 
     // ── Monthly top spending category (last 6 months, converted) ─────────────
-    val monthlyTopCategories = (5 downTo 0).mapNotNull { monthsAgo ->
+    val monthlyTopCategories = (5 downTo 0).map { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
         val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year
@@ -364,7 +365,6 @@ fun computeDashboardState(
                     parts[1].toIntOrNull() == targetMonth &&
                     tx.amount < 0
         }
-        if (monthDebits.isEmpty()) return@mapNotNull null
 
         val topCategory = monthDebits
             .groupBy { TransactionCategories.normalize(it.category) }
@@ -373,17 +373,26 @@ fun computeDashboardState(
                     val converted = tx.convertedAmount(displayCurrency, rates)
                     if (converted != null) kotlin.math.abs(converted) else 0.0
                 }
-            } ?: return@mapNotNull null
+            }
 
-        MonthlyTopCategory(
-            month    = monthName,
-            category = topCategory.key,
-            amount   = topCategory.value.sumOf { tx ->
-                val converted = tx.convertedAmount(displayCurrency, rates)
-                if (converted != null) kotlin.math.abs(converted) else 0.0
-            }.toFloat(),
-            color    = colorMap[topCategory.key] ?: categoryColors[0]
-        )
+        if (topCategory == null) {
+            MonthlyTopCategory(
+                month = monthName,
+                category = "",
+                amount = 0f,
+                color = Color(0xFFCBD5E1)
+            )
+        } else {
+            MonthlyTopCategory(
+                month    = monthName,
+                category = topCategory.key,
+                amount   = topCategory.value.sumOf { tx ->
+                    val converted = tx.convertedAmount(displayCurrency, rates)
+                    if (converted != null) kotlin.math.abs(converted) else 0.0
+                }.toFloat(),
+                color    = colorMap[topCategory.key] ?: categoryColors[0]
+            )
+        }
     }
 
     return DashboardState(
