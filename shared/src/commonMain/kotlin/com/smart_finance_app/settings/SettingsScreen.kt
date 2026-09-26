@@ -455,14 +455,14 @@ private fun SettingsMainContent(
                 Spacer(Modifier.height(20.dp))
 
                 SettingsGroup {
-                    SettingsActionRow(
-                        icon = Res.drawable.credit_card,
-                        title = appStringResource(StringKey.PAYMENT_TITLE),
-                        value = null,
-                        onClick = onSubscriptionPaymentsClick
-                    )
+                    //SettingsActionRow(
+                      //  icon = Res.drawable.credit_card,
+                       // title = appStringResource(StringKey.PAYMENT_TITLE),
+                       // value = null,
+                        //onClick = onSubscriptionPaymentsClick
+                    //)
 
-                    SettingsDivider()
+                    //SettingsDivider()
 
                     SettingsActionRow(
                         icon = Res.drawable.language,

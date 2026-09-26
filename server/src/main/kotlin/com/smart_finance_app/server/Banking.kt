@@ -234,8 +234,17 @@ fun Route.bankingRoutes() {
          */
         post("/api/banking/connect") {
             val principal = call.principal<JWTPrincipal>()
-            val userId = principal?.userIdOrNull()?:
+            val userId = principal?.userIdOrNull() ?:
             return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            // Enforce free-plan account limit
+            val existingAccounts = getConnectedAccountsForUser(userId)
+            if (existingAccounts.size >= 2) {
+                return@post call.respond(
+                    HttpStatusCode.Forbidden,
+                    ErrorResponse("Account limit reached. Free plan allows up to 2 connected accounts.")
+                )
+            }
 
 
             val request = call.receive<CreateBankConnectionRequest>()

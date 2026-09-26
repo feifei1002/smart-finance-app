@@ -38,7 +38,8 @@ data class ConnectedAccount(
 @Composable
 fun AccountsScreen(
     accounts: List<ConnectedAccount> = emptyList(),
-    onConnectBank: () -> Unit = {}
+    onConnectBank: () -> Unit = {},
+    onAccountLimitReached: () -> Unit = {}
 ) {
     var showConsentDialog by remember { mutableStateOf(false) }
 
@@ -73,7 +74,13 @@ fun AccountsScreen(
                 compact = compact
             )
 
-            ConnectBankCard(onConnectBank = { showConsentDialog = true })
+            ConnectBankCard(onConnectBank = {
+                if (accounts.size >= 2) {
+                    onAccountLimitReached()
+                } else {
+                    showConsentDialog = true
+                }
+            })
 
             Text(
                 text = appStringResource(StringKey.ACCOUNTS_YOUR_ACCOUNTS),

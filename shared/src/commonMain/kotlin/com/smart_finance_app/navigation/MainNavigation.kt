@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,7 @@ import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
+import com.smart_finance_app.appStringResource
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
 
@@ -121,7 +123,8 @@ fun MainNavigation(
                 compact                  = compact,
                 onSignOut                = onSignOut,
                 onNavigateToAccounts     = { selected = AppNavigation.Accounts },
-                onNavigateToTransactions = { selected = AppNavigation.Transactions }
+                onNavigateToTransactions = { selected = AppNavigation.Transactions },
+                onNavigateToSettings     = { selected = AppNavigation.Settings },
             )
         }
     }}
@@ -141,7 +144,8 @@ private fun NavigationContent(
     compact: Boolean,
     onSignOut: () -> Unit,
     onNavigateToAccounts: () -> Unit,
-    onNavigateToTransactions: () -> Unit
+    onNavigateToTransactions: () -> Unit,
+    onNavigateToSettings: () -> Unit,
 ) {
     val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
     val subscriptionApi = remember(apiBaseUrl, httpClient) { SubscriptionApi(apiBaseUrl, httpClient) }
@@ -456,12 +460,14 @@ private fun NavigationContent(
             var accountsLoading by remember { mutableStateOf(false) }
             var banks by remember { mutableStateOf<List<BankOption>>(emptyList()) }
             var banksError by remember { mutableStateOf<String?>(null) }
+            var showAccountLimitDialog by remember { mutableStateOf(false) }
             var banksLoading by remember { mutableStateOf(false) }
             var pendingConnectionState by remember { mutableStateOf<String?>(null) }
 
             val scope = rememberCoroutineScope()
             val uriHandler = LocalUriHandler.current
             val bankingApi = remember(apiBaseUrl, httpClient) { BankingApi(apiBaseUrl, httpClient) }
+
 
             LaunchedEffect(pendingConnectionState, authToken) {
                 val state = pendingConnectionState ?: return@LaunchedEffect
@@ -549,7 +555,15 @@ private fun NavigationContent(
                     accountsLoading = false
                 }
             }
-
+            if (showAccountLimitDialog) {
+                AccountLimitDialog(
+                    onDismiss = { showAccountLimitDialog = false },
+                    onLearnMore = {
+                        showAccountLimitDialog = false
+                        onNavigateToSettings()  // ← navigate to Settings
+                    }
+                )
+            }
             if (showConnectBank) {
                 ConnectBankAccountScreen(
                     banks         = banks,
@@ -579,7 +593,8 @@ private fun NavigationContent(
             } else {
                 AccountsScreen(
                     accounts     = accounts,
-                    onConnectBank = { showConnectBank = true }
+                    onConnectBank = { showConnectBank = true },
+                    onAccountLimitReached = { showAccountLimitDialog = true }
                 )
             }
         }
@@ -614,4 +629,41 @@ private fun NavigationContent(
             Text(navigation.label)
         }
     }
+}
+
+@Composable
+private fun AccountLimitDialog(
+    onDismiss: () -> Unit,
+    onLearnMore: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = appStringResource(StringKey.ACCOUNT_LIMIT_TITLE),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                text = appStringResource(StringKey.ACCOUNT_LIMIT_BODY),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        confirmButton = {
+            Button(onClick = {
+                onDismiss()
+                onLearnMore()
+            }) {
+                Text(appStringResource(StringKey.ACCOUNT_LIMIT_LEARN_MORE))
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) {
+                Text(appStringResource(StringKey.ACCOUNT_LIMIT_DISMISS))
+            }
+        }
+    )
 }
