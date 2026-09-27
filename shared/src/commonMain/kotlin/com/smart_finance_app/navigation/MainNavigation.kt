@@ -46,6 +46,7 @@ import com.smart_finance_app.LocaleController
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
+import com.smart_finance_app.settings.SettingsPanel
 
 @Composable
 fun MainNavigation(
@@ -61,6 +62,7 @@ fun MainNavigation(
     onSignOut: () -> Unit
 ) {
     var selected by remember { mutableStateOf(AppNavigation.Dashboard) }
+    var navigateToPlan by remember { mutableStateOf(false) }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -125,9 +127,12 @@ fun MainNavigation(
                 onNavigateToAccounts     = { selected = AppNavigation.Accounts },
                 onNavigateToTransactions = { selected = AppNavigation.Transactions },
                 onNavigateToSettings     = { selected = AppNavigation.Settings },
+                navigateToPlan           = navigateToPlan,
+                onSetNavigateToPlan      = { navigateToPlan = it }
             )
         }
-    }}
+    }
+}
 
 @Composable
 private fun NavigationContent(
@@ -146,6 +151,8 @@ private fun NavigationContent(
     onNavigateToAccounts: () -> Unit,
     onNavigateToTransactions: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    navigateToPlan: Boolean,
+    onSetNavigateToPlan: (Boolean) -> Unit,
 ) {
     val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
     val subscriptionApi = remember(apiBaseUrl, httpClient) { SubscriptionApi(apiBaseUrl, httpClient) }
@@ -338,7 +345,6 @@ private fun NavigationContent(
         }
     }
 
-
     suspend fun syncAndReloadTransactions() {
         transactionsSyncing = true
         transactionsError = null
@@ -373,27 +379,27 @@ private fun NavigationContent(
 
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
-            authToken                   = authToken,
-            userName                    = userName,
+            authToken                    = authToken,
+            userName                     = userName,
             userId                       = userEmail,
             apiBaseUrl                   = apiBaseUrl,
-            transactions                = mappedTransactions,
-            onConnectAccountClicked     = onNavigateToAccounts,
+            transactions                 = mappedTransactions,
+            onConnectAccountClicked      = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,
-            api = dashboardApi,
-            budgetApi = budgetApi
+            api                          = dashboardApi,
+            budgetApi                    = budgetApi
         )
 
         AppNavigation.Transactions -> {
             TransactionsScreen(
                 transactions  = transactions,
                 isLoading     = transactionsLoading,
-                isSyncing = transactionsSyncing,
+                isSyncing     = transactionsSyncing,
                 errorMessage  = transactionsError,
-                currentPage = transactionsPage,
-                totalCount = transactionsTotalCount,
-                pageSize = transactionsPageSize,
-                hasMore = transactionsHasMore,
+                currentPage   = transactionsPage,
+                totalCount    = transactionsTotalCount,
+                pageSize      = transactionsPageSize,
+                hasMore       = transactionsHasMore,
                 selectedFilter = transactionsFilter,
                 onFilterSelected = { filter ->
                     transactionsFilter = filter
@@ -415,7 +421,7 @@ private fun NavigationContent(
                         }
                     }
                 },
-                onPageSelected = {page ->
+                onPageSelected = { page ->
                     scope.launch {
                         loadTransactionsPage(
                             page = page,
@@ -423,7 +429,6 @@ private fun NavigationContent(
                         )
                     }
                 },
-
                 isUpdatingCategory = updatingCategoryTransactionId != null,
                 categoryUpdateError = categoryUpdateError,
                 onDismissCategoryUpdateError = {
@@ -438,7 +443,6 @@ private fun NavigationContent(
                             updateTransactionCategoryLocally(transactionId, category)
                             true
                         }
-
                         is UpdateTransactionCategoryResult.Failure -> {
                             categoryUpdateError = result.message
                             false
@@ -468,7 +472,6 @@ private fun NavigationContent(
             val uriHandler = LocalUriHandler.current
             val bankingApi = remember(apiBaseUrl, httpClient) { BankingApi(apiBaseUrl, httpClient) }
 
-
             LaunchedEffect(pendingConnectionState, authToken) {
                 val state = pendingConnectionState ?: return@LaunchedEffect
 
@@ -484,7 +487,6 @@ private fun NavigationContent(
                                     onNavigateToTransactions()
                                     break
                                 }
-
                                 "failed" -> {
                                     pendingConnectionState = null
                                     error = "Bank connection failed. Please try again."
@@ -492,7 +494,6 @@ private fun NavigationContent(
                                 }
                             }
                         }
-
                         is BankConnectionStatusResult.Failure -> {
                             error = AppStrings.get(
                                 LocaleController.currentLanguageCode,
@@ -524,10 +525,12 @@ private fun NavigationContent(
                                 )
                             }
                         }
-                        is BankProviderResult.Failure -> { banksError = AppStrings.get(
-                            LocaleController.currentLanguageCode,
-                            result.message
-                        ) }
+                        is BankProviderResult.Failure -> {
+                            banksError = AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                result.message
+                            )
+                        }
                     }
                     banksLoading = false
                 }
@@ -547,30 +550,35 @@ private fun NavigationContent(
                                 )
                             }
                         }
-                        is ConnectedAccountResult.Failure -> { accountsError = AppStrings.get(
-                            LocaleController.currentLanguageCode,
-                            result.message
-                        ) }
+                        is ConnectedAccountResult.Failure -> {
+                            accountsError = AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                result.message
+                            )
+                        }
                     }
                     accountsLoading = false
                 }
             }
+
             if (showAccountLimitDialog) {
                 AccountLimitDialog(
                     onDismiss = { showAccountLimitDialog = false },
                     onLearnMore = {
                         showAccountLimitDialog = false
-                        onNavigateToSettings()  // ← navigate to Settings
+                        onSetNavigateToPlan(true)   // hoist flag up to MainNavigation
+                        onNavigateToSettings()       // hoist navigation up to MainNavigation
                     }
                 )
             }
+
             if (showConnectBank) {
                 ConnectBankAccountScreen(
-                    banks         = banks,
-                    errorMessage  = error ?: banksError,
-                    isLoading     = loading || banksLoading,
-                    onCancel      = { showConnectBank = false },
-                    onContinue    = { selectedBank ->
+                    banks        = banks,
+                    errorMessage = error ?: banksError,
+                    isLoading    = loading || banksLoading,
+                    onCancel     = { showConnectBank = false },
+                    onContinue   = { selectedBank ->
                         scope.launch {
                             loading = true
                             error = null
@@ -581,10 +589,12 @@ private fun NavigationContent(
                                     pendingConnectionState = result.state
                                     uriHandler.openUri(result.authUrl)
                                 }
-                                is BankConnectionResult.Failure -> { error = AppStrings.get(
-                                    LocaleController.currentLanguageCode,
-                                    result.message
-                                ) }
+                                is BankConnectionResult.Failure -> {
+                                    error = AppStrings.get(
+                                        LocaleController.currentLanguageCode,
+                                        result.message
+                                    )
+                                }
                             }
                             loading = false
                         }
@@ -592,8 +602,8 @@ private fun NavigationContent(
                 )
             } else {
                 AccountsScreen(
-                    accounts     = accounts,
-                    onConnectBank = { showConnectBank = true },
+                    accounts              = accounts,
+                    onConnectBank         = { showConnectBank = true },
                     onAccountLimitReached = { showAccountLimitDialog = true }
                 )
             }
@@ -601,24 +611,29 @@ private fun NavigationContent(
 
         AppNavigation.Budgets -> {
             BudgetScreen(
-                authToken    = authToken,
-                transactions = mappedTransactions,
-                currency     = CurrencyController.currentCurrency,
+                authToken     = authToken,
+                transactions  = mappedTransactions,
+                currency      = CurrencyController.currentCurrency,
                 exchangeRates = exchangeRates,
-                api = budgetApi
+                api           = budgetApi
             )
         }
 
         AppNavigation.Settings -> {
+            LaunchedEffect(Unit) {
+                onSetNavigateToPlan(false)  // reset so normal Settings visits open Main
+            }
             SettingsScreen(
-                userName = userName,
-                userEmail = userEmail,
-                authToken = authToken,
-                subscriptionApi = subscriptionApi,
+                userName           = userName,
+                userEmail          = userEmail,
+                authToken          = authToken,
+                subscriptionApi    = subscriptionApi,
                 userPreferencesApi = userPreferencesApi,
-                profileApi = profileApi,
-                onProfileUpdated = onProfileUpdated,
-                onSignOut = onSignOut
+                profileApi         = profileApi,
+                onProfileUpdated   = onProfileUpdated,
+                onSignOut          = onSignOut,
+                initialPanel       = if (navigateToPlan) SettingsPanel.SubscriptionPlan
+                else SettingsPanel.Main
             )
         }
 
