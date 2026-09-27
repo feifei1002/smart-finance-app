@@ -85,96 +85,74 @@ data class SpendingCategory(val name: String, val percent: Float, val amount: St
 data class MonthlyPoint(val month: String, val income: Float, val expenses: Float)
 data class Transaction(val name: String, val date: String, val amount: String, val isIncome: Boolean)
 data class AccountOverview(val accountId: String, val bankName: String, val maskedNumber: String, val balance: String, val balanceValue: Double?)
-data class InferredBill(val merchant: String, val amount: Double, val expectedDate: LocalDate, val cadence: String)
 
-/**
- * Finds outgoing merchant payments that recur at a similar cadence and amount.
- * This deliberately uses only the transaction list already on-device.
- */
-
-private fun inferUpcomingBills(transactions: List<TransactionData>): List<InferredBill> {
-    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-    return transactions
-        .asSequence()
-        .filter { it.amount < 0 }
-        .groupBy { it.merchantName?.takeIf(String::isNotBlank) ?: it.description }
-        .mapNotNull { (merchant, entries) ->
-            val dated = entries.mapNotNull { tx ->
-                runCatching { LocalDate.parse(tx.timestamp.take(10)) }.getOrNull()?.let { it to abs(tx.amount) }
-            }.sortedBy { it.first }
-            if (dated.size < 2) return@mapNotNull null
-
-            val gaps = dated.zipWithNext { first, second -> first.first.daysUntil(second.first) }
-            val averageGap = gaps.average()
-            val cadence = when (averageGap) {
-                in 6.0..9.0 -> "Weekly"
-                in 25.0..35.0 -> "Monthly"
-                else -> return@mapNotNull null
-            }
-            if (gaps.any { abs(it - averageGap) > if (cadence == "Weekly") 2 else 6 }) return@mapNotNull null
-
-            val averageAmount = dated.map { it.second }.average()
-            if (averageAmount <= 0.0 || dated.any { abs(it.second - averageAmount) > averageAmount * 0.15 }) return@mapNotNull null
-
-            val nextDate = dated.last().first.plus(DatePeriod(days = averageGap.roundToInt()))
-            InferredBill(merchant, averageAmount, nextDate, cadence)
-        }
-        .filter { it.expectedDate >= today }
-        .sortedBy { it.expectedDate }
-        .take(6)
-        .toList()
-}
 
 // ── Chart card catalogue ──────────────────────────────────────────────────────
 
 enum class CardSize { FULL, HALF }
-
-private fun isHalfCardKey(key: String): Boolean =
-    ALL_CHART_CARDS.find { it.key == key }?.size == CardSize.HALF ||
-            key == "trend" || key == "top_categories"
 
 data class ChartCardDef(
     val key: String,
     val title: StringKey,
     val description: StringKey,
     val size: CardSize,
-    val titleOverride: String? = null,
-    val descriptionOverride: String? = null
+    val builtIn: Boolean = false,
+    val restorable: Boolean = false
 )
 
-/** All chart cards available to add via the + Charts sheet. */
-val ALL_CHART_CARDS = listOf(
-    ChartCardDef("weekly_spending", StringKey.CHART_WEEKLY_SPENDING_TITLE, StringKey.CHART_WEEKLY_SPENDING_DESC, CardSize.FULL),
-    ChartCardDef("bank_comparison", StringKey.CHART_BANK_COMPARISON_TITLE, StringKey.CHART_BANK_COMPARISON_DESC, CardSize.HALF),
-    ChartCardDef("time_of_day", StringKey.CHART_TIME_OF_DAY_TITLE, StringKey.CHART_TIME_OF_DAY_DESC, CardSize.HALF),
-    ChartCardDef("largest_tx", StringKey.CHART_LARGEST_TX_TITLE, StringKey.CHART_LARGEST_TX_DESC, CardSize.HALF),
-    ChartCardDef("smallest_tx", StringKey.CHART_SMALLEST_TX_TITLE, StringKey.CHART_SMALLEST_TX_DESC, CardSize.HALF),
-    ChartCardDef("merchant_frequency", StringKey.CHART_MERCHANT_FREQUENCY_TITLE, StringKey.CHART_MERCHANT_FREQUENCY_DESC, CardSize.FULL)
-)
-
-val RESTORABLE_BUILT_IN_CARDS = listOf(
+private val DASHBOARD_CARD_DEFINITIONS = listOf(
     ChartCardDef(
         key = "spending",
         title = StringKey.DASHBOARD_SPENDING_PERIOD,
         description = StringKey.CHART_TIME_OF_DAY_DESC,
         size = CardSize.FULL,
-        titleOverride = "Spending Donut Chart",
-        descriptionOverride = "Category breakdown for the selected period."
+        builtIn = true,
+        restorable = true
+    ),
+    ChartCardDef(
+        key = "trend",
+        title = StringKey.DASHBOARD_MONTHLY_TREND,
+        description = StringKey.CHART_WEEKLY_SPENDING_DESC,
+        size = CardSize.HALF,
+        builtIn = true,
+        restorable = false
     ),
     ChartCardDef(
         key = "top_categories",
         title = StringKey.DASHBOARD_HIGHEST_SPENDING,
         description = StringKey.CHART_MERCHANT_FREQUENCY_DESC,
         size = CardSize.HALF,
-        titleOverride = "Highest Spending",
-        descriptionOverride = "Highest spending category for each of the latest 6 months."
-    )
-)
+        builtIn = true,
+        restorable = true
+    ),
 
-private val BUILT_IN_DASHBOARD_CARD_KEYS = setOf("spending", "trend", "top_categories")
-private fun isActiveChartCardKey(key: String): Boolean = ALL_CHART_CARDS.any { it.key == key }
+    /** All chart cards available to add via the + Charts sheet. */
+    ChartCardDef("weekly_spending", StringKey.CHART_WEEKLY_SPENDING_TITLE, StringKey.CHART_WEEKLY_SPENDING_DESC, CardSize.FULL),
+    ChartCardDef("bank_comparison", StringKey.CHART_BANK_COMPARISON_TITLE, StringKey.CHART_BANK_COMPARISON_DESC, CardSize.HALF),
+    ChartCardDef("time_of_day", StringKey.CHART_TIME_OF_DAY_TITLE, StringKey.CHART_TIME_OF_DAY_DESC, CardSize.HALF),
+    ChartCardDef("largest_tx", StringKey.CHART_LARGEST_TX_TITLE, StringKey.CHART_LARGEST_TX_DESC, CardSize.HALF),
+    ChartCardDef("smallest_tx", StringKey.CHART_SMALLEST_TX_TITLE, StringKey.CHART_SMALLEST_TX_DESC, CardSize.HALF),
+    ChartCardDef("merchant_frequency", StringKey.CHART_MERCHANT_FREQUENCY_TITLE, StringKey.CHART_MERCHANT_FREQUENCY_DESC, CardSize.FULL)
+    )
+val ALL_CHART_CARDS = DASHBOARD_CARD_DEFINITIONS.filter { !it.builtIn }
+
+val RESTORABLE_BUILT_IN_CARDS =
+    DASHBOARD_CARD_DEFINITIONS.filter { it.builtIn && it.restorable }
+
+private val BUILT_IN_DASHBOARD_CARD_KEYS =
+    DASHBOARD_CARD_DEFINITIONS.filter { it.builtIn }.map { it.key }.toSet()
+
+private fun dashboardCardDef(key: String): ChartCardDef? =
+    DASHBOARD_CARD_DEFINITIONS.firstOrNull { it.key == key }
+
+private fun isHalfCardKey(key: String): Boolean =
+    dashboardCardDef(key)?.size == CardSize.HALF
+
+private fun isActiveChartCardKey(key: String): Boolean =
+    dashboardCardDef(key)?.builtIn == false
+
 private fun isKnownDashboardCardKey(key: String): Boolean =
-    key in BUILT_IN_DASHBOARD_CARD_KEYS || isActiveChartCardKey(key)
+    dashboardCardDef(key) != null
 
 /** Fixed height for every half-size card (side-by-side pair). */
 private val HALF_CARD_HEIGHT = 200.dp
@@ -528,7 +506,7 @@ private fun MobileDashboard(
     var chartCardsOnDashboard by remember(userId) {
         val raw = settings.getStringOrNull(keyChartCards)?.decodeSet() ?: emptySet()
         // Only keep keys that are real chart card keys — discard any pipe-merged garbage
-        val valid = raw.filter { k -> ALL_CHART_CARDS.any { it.key == k } }.toSet()
+        val valid = raw.filter { k -> isActiveChartCardKey(k) }.toSet()
         mutableStateOf(valid)
     }
 
@@ -546,7 +524,10 @@ private fun MobileDashboard(
 
     val cardOrder = remember(userId) {
         mutableStateListOf<String>().also { list ->
-            val defaults = DEFAULT_CARD_ORDER.decodeOrder()
+            val defaults = DEFAULT_CARD_ORDER
+                .decodeOrder()
+                .filter { key -> isKnownDashboardCardKey(key) && key != "budget" }
+                .distinct()
             val savedCharts = settings.getStringOrNull(keyChartCards)
                 ?.decodeSet()
                 ?.filter(::isActiveChartCardKey)
@@ -605,7 +586,10 @@ private fun MobileDashboard(
                 val remoteDeleted = remote.deletedCards.decodeSet() - "budget"
                 val remotePos     = remote.halfPositions.decodeHalfPositions()
 
-                val defaults = DEFAULT_CARD_ORDER.decodeOrder()
+                val defaults = DEFAULT_CARD_ORDER
+                    .decodeOrder()
+                    .filter { key -> isKnownDashboardCardKey(key) && key != "budget" }
+                    .distinct()
                 val savedRemoteOrder = remote.cardOrder.decodeOrder()
                     .filter { k -> !k.contains('|') && isKnownDashboardCardKey(k) }
 
@@ -640,27 +624,25 @@ private fun MobileDashboard(
             if (key !in cardOrder) {
                 cardOrder.add(key)
             }
+        } else {
+            if (!isActiveChartCardKey(key)) return
+            if (key in chartCardsOnDashboard) return
 
-            while (cardOrder.count { it == key } > 1) {
-                cardOrder.removeAt(cardOrder.lastIndexOf(key))
-            }
-
-            persistLayout()
-            return
+            chartCardsOnDashboard = chartCardsOnDashboard + key
+            cardOrder.add(key)
+            halfPositions.remove(key)
         }
 
-        if (!isActiveChartCardKey(key)) return
-        if (key in chartCardsOnDashboard) return
+        while (cardOrder.count { it == key } > 1) {
+            cardOrder.removeAt(cardOrder.lastIndexOf(key))
+        }
 
-        chartCardsOnDashboard = chartCardsOnDashboard + key
-        halfPositions.remove(key)
-        cardOrder.add(key)
         persistLayout()
     }
 
     // Delete a card — persists immediately for the same reason.
     fun deleteCard(key: String) {
-        val isChart = ALL_CHART_CARDS.any { it.key == key }
+        val isChart = isActiveChartCardKey(key)
         if (isChart) {
             val index = cardOrder.indexOf(key)
             val leftNeighbour = cardOrder.getOrNull(index - 1)
@@ -1022,7 +1004,7 @@ private fun MobileDashboard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     row.forEach { key ->
-                        val isChart = ALL_CHART_CARDS.any { it.key == key }
+                        val isChart = isActiveChartCardKey(key)
                         CustomizableCard(
                             cardKey       = key,
                             isCustomizing = isCustomizing,
@@ -1059,8 +1041,7 @@ private fun MobileDashboard(
                 }
             } else {
                 val key = row[0]
-                val def = ALL_CHART_CARDS.find { it.key == key }
-                val isChart = def != null
+                val isChart = isActiveChartCardKey(key)
 
                 if (isHalfKey(key)) {
                     // Lone half-size card — occupies left half, spacer on right
@@ -1252,14 +1233,14 @@ private fun DesktopDashboard(
     }
     var chartCardsOnDashboard by remember(userId) {
         val raw = settings.getStringOrNull(keyChartCards)?.decodeSet() ?: emptySet()
-        val valid = raw.filter { k -> ALL_CHART_CARDS.any { it.key == k } }.toSet()
+        val valid = raw.filter { k -> isActiveChartCardKey(k) }.toSet()
         mutableStateOf(valid)
     }
 
     // Desktop chart order — initialised from persisted chart set, saved on Done
     val desktopChartOrder = remember(userId) {
         val saved = settings.getStringOrNull(keyChartCards)?.decodeSet()
-            ?.filter { k -> ALL_CHART_CARDS.any { it.key == k } } ?: emptyList()
+            ?.filter { k -> isActiveChartCardKey(k) } ?: emptyList()
         mutableStateListOf<String>().also { it.addAll(saved) }
     }
 
@@ -1681,7 +1662,7 @@ private fun DesktopDashboard(
                 }
             } else {
                 val key = row[0]
-                val def = ALL_CHART_CARDS.find { it.key == key }
+                val def = dashboardCardDef(key)
                 if (def?.size == CardSize.HALF) {
                     Row(
                         modifier = Modifier.fillMaxWidth().height(HALF_CARD_HEIGHT),
@@ -2896,19 +2877,19 @@ private fun LegendDot(color: Color, label: String) {
     }
 }
 
-@Composable
-private fun UpcomingBillRow(name: String, date: String, amount: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically) {
-        Column {
-            Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-            Text(date, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text(amount, style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
-    }
-}
+//@Composable
+//private fun UpcomingBillRow(name: String, date: String, amount: String) {
+//    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+//        verticalAlignment = Alignment.CenterVertically) {
+//        Column {
+//            Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+//            Text(date, style = MaterialTheme.typography.labelSmall,
+//                color = MaterialTheme.colorScheme.onSurfaceVariant)
+//        }
+//        Text(amount, style = MaterialTheme.typography.bodySmall,
+//            color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
+//    }
+//}
 
 @Composable
 private fun DashboardChartsButton(
@@ -3046,20 +3027,6 @@ private fun ChartCardContent(
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
 
     when (key) {
-        // ── Highest Spending (full) ──
-        "top_categories" -> {
-            Column(
-                modifier = Modifier.fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SectionTitle(appStringResource(StringKey.DASHBOARD_HIGHEST_SPENDING))
-                BarChart(
-                    data = state.monthlyTopCategories,
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                )
-            }
-        }
-
         // ── Weekly Spending (full) ──
         "weekly_spending" -> {
             val days = listOf("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
@@ -3097,74 +3064,6 @@ private fun ChartCardContent(
                         overflow = TextOverflow.Ellipsis
                     )
                     BarChart(data = weeklyData, modifier = Modifier.fillMaxWidth().height(160.dp))
-                }
-            }
-        }
-
-        // ── Spending per Day of Week (half) ──
-        "spending_per_day" -> {
-            val days = listOf("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
-            val dayColors = listOf(
-                Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B),
-                Color(0xFFEC4899), Color(0xFF3B82F6), Color(0xFFF97316), Color(0xFF8B5CF6)
-            )
-            val totals = days.mapIndexed { idx, label ->
-                val total = rawTransactions.filter { tx ->
-                    val p = tx.timestamp.take(10).split("-")
-                    if (p.size != 3) return@filter false
-                    val date = try {
-                        LocalDate(p[0].toInt(), p[1].toInt(), p[2].toInt())
-                    } catch (_: Exception) { return@filter false }
-                    // DayOfWeek: MONDAY=1..SUNDAY=7, ordinal 0-based = 0..6
-                    date.dayOfWeek.ordinal == idx && tx.amount < 0
-                }.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.toFloat()
-                SpendingCategory(
-                    name   = label,
-                    amount = formatCurrency(total.toDouble(), sym, displayCurrency),
-                    percent = total,   // raw total; DonutChart normalises internally
-                    color  = dayColors[idx]
-                )
-            }.filter { it.percent > 0f }
-
-            Column(
-                modifier = Modifier.fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (totals.isEmpty()) {
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    DonutChart(
-                        categories = totals,
-                        modifier   = Modifier.size(120.dp)
-                    )
-                    // Compact legend — wraps into two columns for the half-card width
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        totals.forEach { cat ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(Modifier.size(8.dp).background(cat.color, CircleShape))
-                                Text(
-                                    "${localiseCategory(cat.name)}  ${cat.amount}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -3447,48 +3346,6 @@ private fun ChartCardContent(
             }
         }
 
-        "upcoming_bills" -> {
-            val bills = remember(rawTransactions) { inferUpcomingBills(rawTransactions) }
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(
-                        appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(appStringResource(StringKey.UPCOMING_BILLS_PREDICTED), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (bills.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(appStringResource(StringKey.CHART_NO_RECURRING), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    bills.forEach { bill ->
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(bill.merchant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                val cadenceLabel = when (bill.cadence) {
-                                    "Weekly"  -> appStringResource(StringKey.UPCOMING_BILLS_CADENCE_WEEKLY)
-                                    "Monthly" -> appStringResource(StringKey.UPCOMING_BILLS_CADENCE_MONTHLY)
-                                    else      -> bill.cadence
-                                }
-                                val expectedLabel = appStringResource(StringKey.UPCOMING_BILLS_EXPECTED)
-                                Text("$cadenceLabel · $expectedLabel ${bill.expectedDate}", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(formatCurrency(bill.amount, sym, displayCurrency), style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-        }
-
         // ── Merchant Spending Treemap (full) ──
         "merchant_frequency" -> {
             data class MerchantBubble(
@@ -3691,10 +3548,8 @@ private fun ChartOptionRow(
     def: ChartCardDef,
     onAdd: () -> Unit
 ) {
-//    val title = appStringResource(def.title)
-//    val description = appStringResource(def.description)
-    val title = def.titleOverride ?: appStringResource(def.title)
-    val description = def.descriptionOverride ?: appStringResource(def.description)
+    val title = appStringResource(def.title)
+    val description = appStringResource(def.description)
     val sizeLabel = if (def.size == CardSize.FULL) {
         appStringResource(StringKey.DASHBOARD_CHART_SIZE_FULL)
     } else {
