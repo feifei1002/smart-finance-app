@@ -42,6 +42,7 @@ data class BankProviderResponse(
 )
 sealed interface BankConnectionResult {
     data class Success(val authUrl: String, val state: String): BankConnectionResult
+    data object AccountLimitReached : BankConnectionResult
     data class Failure(val message: StringKey): BankConnectionResult
 }
 
@@ -96,6 +97,7 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
                     BankConnectionResult.Success(body.authUrl, body.state)
                 }
 
+                HttpStatusCode.Forbidden -> BankConnectionResult.AccountLimitReached
                 HttpStatusCode.Unauthorized -> {
                     BankConnectionResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 }
