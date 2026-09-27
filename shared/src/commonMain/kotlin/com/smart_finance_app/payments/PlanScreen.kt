@@ -48,10 +48,11 @@ fun PlanScreen(
     val comingSoonBadge    = appStringResource(StringKey.PLAN_COMING_SOON_BADGE)
 
     val freeFeatures = listOf(
-        appStringResource(StringKey.PLAN_FREE_FEATURE_1),
-        appStringResource(StringKey.PLAN_FREE_FEATURE_2),
-        appStringResource(StringKey.PLAN_FREE_FEATURE_3),
-        appStringResource(StringKey.PLAN_FREE_FEATURE_4),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_1)),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_2)),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_3)),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_4)),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_5), comingSoon = true),
     )
 
     // Features 9 and 10 carry a "coming soon" badge; the rest are straightforward
@@ -95,7 +96,8 @@ fun PlanScreen(
                 enabled           = false,
                 isCurrentPlan     = true,
                 starCount         = 1,
-                features          = freeFeatures.map { PlanFeature(it) }
+                features          = freeFeatures,
+                comingSoonBadge   = comingSoonBadge
             )
 
             PlanCard(
