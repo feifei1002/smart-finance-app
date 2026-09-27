@@ -428,7 +428,9 @@ fun Route.bankingRoutes() {
                 ?: return@put call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
             val body = call.receive<DashboardLayoutRequest>()
-            saveDashboardLayout(userId, body)
+            val cleaned = cleanDashboardLayout(body)
+
+            saveDashboardLayout(userId, cleaned)
             call.respond(HttpStatusCode.OK, mapOf("status" to "saved"))
         }
 
@@ -621,6 +623,28 @@ fun Route.bankingRoutes() {
             return@get
         }
 
+        val subscriptionStatus = getSubscriptionStatus(session.userId)
+        val maxAccounts = when (subscriptionStatus) {
+            "basic" -> 6
+            else -> 2
+        }
+
+        val existingAccounts = getConnectedAccountsForUser(session.userId)
+        val existingAccountIds = existingAccounts.map { it.accountId }.toSet()
+
+        val newAccountCount = accounts.count { account ->
+            account.accountId !in existingAccountIds
+        }
+
+        if (existingAccounts.size + newAccountCount > maxAccounts) {
+            markBankConnectionSession(state, "failed")
+            call.respondText(
+                "Account limit reached. Your plan allows up to $maxAccounts connected accounts.",
+                status = HttpStatusCode.Forbidden
+            )
+            return@get
+        }
+
         // ── Step 3: Save each account to the database ─────────────────────
         runCatching {
             saveConnectedAccounts(
@@ -635,8 +659,10 @@ fun Route.bankingRoutes() {
         }.getOrElse {
             markBankConnectionSession(state, "failed")
 
+            call.application.environment.log.error("Failed to save connected accounts", it)
+
             call.respondText(
-                "Failed to save connected accounts: ${it.message}",
+                "Bank connection failed. Please try again.",
                 status = HttpStatusCode.InternalServerError
             )
             return@get
@@ -1662,6 +1688,34 @@ data class DashboardLayoutRequest(
     val chartCards: String   = "",   // pipe-separated chart card keys on dashboard
     val halfPositions: String = ""   // "key:float|…" encoded half-card positions
 )
+
+private val allowedDashboardKeys = setOf(
+    "spending",
+    "trend",
+    "top_categories",
+    "weekly_spending",
+    "bank_comparison",
+    "time_of_day",
+    "largest_tx",
+    "smallest_tx",
+    "merchant_frequency"
+)
+
+private fun cleanKeyList(raw: String, separator: String): String =
+    raw.split(separator)
+        .map { it.trim() }
+        .filter { it in allowedDashboardKeys }
+        .distinct()
+        .take(20)
+        .joinToString(separator)
+
+private fun cleanDashboardLayout(layout: DashboardLayoutRequest): DashboardLayoutRequest =
+    DashboardLayoutRequest(
+        cardOrder = cleanKeyList(layout.cardOrder.take(500), ","),
+        deletedCards = cleanKeyList(layout.deletedCards.take(500), "|"),
+        chartCards = cleanKeyList(layout.chartCards.take(500), "|"),
+        halfPositions = layout.halfPositions.take(500)
+    )
 
 /**
  * Returns the saved layout for [userId], or null if none exists yet.

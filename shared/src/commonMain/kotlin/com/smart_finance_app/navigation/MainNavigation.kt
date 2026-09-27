@@ -563,7 +563,7 @@ private fun NavigationContent(
                 }
             }
 
-            LaunchedEffect(authToken, showConnectBank) {
+            LaunchedEffect(authToken, showConnectBank, CurrencyController.currentCurrency, exchangeRates) {
                 if (!showConnectBank && authToken.isNotBlank()) {
                     accountsLoading = true
                     accountsError = null
@@ -578,21 +578,28 @@ private fun NavigationContent(
                                 val balance = balancesByAccountId[account.accountId]
 
                                 val balanceText = balance?.let {
-                                    val converted = when (val conversion = ExchangeRateService.convert(
+                                    when (val conversion = ExchangeRateService.convert(
                                         amount = it.current,
                                         fromCurrency = it.currency,
                                         toCurrency = CurrencyController.currentCurrency,
                                         rates = exchangeRates
                                     )) {
-                                        is ConversionResult.Success -> conversion.amount
-                                        else -> it.current
-                                    }
+                                        is ConversionResult.Success -> {
+                                            formatCurrency(
+                                                conversion.amount,
+                                                getCurrencySymbol(CurrencyController.currentCurrency),
+                                                CurrencyController.currentCurrency
+                                            )
+                                        }
 
-                                    formatCurrency(
-                                        converted,
-                                        getCurrencySymbol(CurrencyController.currentCurrency),
-                                        CurrencyController.currentCurrency
-                                    )
+                                        else -> {
+                                            formatCurrency(
+                                                it.current,
+                                                getCurrencySymbol(it.currency),
+                                                it.currency
+                                            )
+                                        }
+                                    }
                                 }
 
                                 ConnectedAccount(
