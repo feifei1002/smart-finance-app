@@ -259,21 +259,30 @@ internal fun ChartCardContent(
                             p[1].toIntOrNull() == now.month.number &&
                             tx.amount < 0
                 }
-                .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } }
+                .map { tx ->
+                    val name = tx.merchantName?.ifBlank { null } ?: tx.description
+                    val amount = convertedAbsAmount(tx.amount, tx.currency, displayCurrency, rates)
+                    name to amount
+                }
                 .sortedByDescending { it.second }
                 .take(5)
                 .toList()
+
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    appStringResource(StringKey.CHART_LARGEST_TX_TITLE), style = MaterialTheme.typography.labelMedium,
+                    appStringResource(StringKey.CHART_LARGEST_TX_TITLE),
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 if (top5.isEmpty()) {
-                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        appStringResource(StringKey.CHART_NO_DATA),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 } else {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
                         top5.forEachIndexed { i, (name, amount) ->
@@ -297,9 +306,11 @@ internal fun ChartCardContent(
                                     Text(
                                         text = name,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
+
                                 Text(
                                     text = formatCurrency(amount, getCurrencySymbol(displayCurrency), displayCurrency),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
@@ -326,11 +337,15 @@ internal fun ChartCardContent(
                             p[1].toIntOrNull() == now.month.number &&
                             tx.amount < 0
                 }
-                .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } }
+                .map { tx ->
+                    val name = tx.merchantName?.ifBlank { null } ?: tx.description
+                    val amount = convertedAbsAmount(tx.amount, tx.currency, displayCurrency, rates)
+                    name to amount
+                }
                 .sortedBy { it.second }
                 .take(5)
                 .toList()
+
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     appStringResource(StringKey.CHART_SMALLEST_TX_TITLE),
@@ -339,9 +354,13 @@ internal fun ChartCardContent(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 if (bottom5.isEmpty()) {
-                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        appStringResource(StringKey.CHART_NO_DATA),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 } else {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
                         bottom5.forEachIndexed { i, (name, amount) ->
@@ -365,9 +384,11 @@ internal fun ChartCardContent(
                                     Text(
                                         text = name,
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
+
                                 Text(
                                     text = formatCurrency(amount, getCurrencySymbol(displayCurrency), displayCurrency),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),

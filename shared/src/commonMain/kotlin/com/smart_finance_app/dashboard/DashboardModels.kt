@@ -25,7 +25,7 @@ data class ChartCardDef(
 private val DASHBOARD_CARD_DEFINITIONS = listOf(
     ChartCardDef(
         key = "spending",
-        title = StringKey.DASHBOARD_SPENDING_PERIOD,
+        title = StringKey.DASHBOARD_SPENDING_OVERVIEW,
         description = StringKey.DASHBOARD_SPENDING_PERIOD_DESC,
         size = CardSize.FULL,
         builtIn = true,

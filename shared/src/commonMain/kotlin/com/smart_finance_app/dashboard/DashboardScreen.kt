@@ -1398,10 +1398,7 @@ private fun DesktopDashboard(
                             onMoveDown = { builtinMoveDown() },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_COMPARISON))
-                                BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
-                            }
+                            HalfCardContent("top_categories", state)
                         }
                     }
                 }
@@ -1650,46 +1647,3 @@ private fun DesktopDashboard(
         }
     }
 }
-
-//@Composable
-//private fun StatCard(
-//    label: String,
-//    value: String,
-//    trendPercentage: Float, // Changed from raw strings to match backend pipeline
-//    modifier: Modifier = Modifier
-//) {
-//    DashboardCard(modifier = modifier) {
-//        Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-//            Text(
-//                text = label,
-//                style = MaterialTheme.typography.labelSmall,
-//                color = MaterialTheme.colorScheme.onSurfaceVariant
-//            )
-//            Text(
-//                text = value,
-//                style = MaterialTheme.typography.titleLarge,
-//                fontWeight = FontWeight.Bold
-//            )
-//
-//            // Render the brand new trend row beautifully right under the amount
-//            TrendIndicator(percentageChange = trendPercentage)
-//        }
-//    }
-//}
-//
-//@Composable
-//private fun ArrowChange(change: String, positive: Boolean) {
-//    Row(
-//        verticalAlignment = Alignment.CenterVertically,
-//        horizontalArrangement = Arrangement.spacedBy(2.dp)
-//    ) {
-//        Icon(
-//            painter = painterResource(if (positive) Res.drawable.arrow_upward else Res.drawable.arrow_downward),
-//            contentDescription = null,
-//            tint = if (positive) Color(0xFF16A34A) else Color(0xFFEF4444),
-//            modifier = Modifier.size(14.dp)
-//        )
-//        Text(change, style = MaterialTheme.typography.bodySmall,
-//            color = if (positive) Color(0xFF16A34A) else Color(0xFFEF4444))
-//    }
-//}

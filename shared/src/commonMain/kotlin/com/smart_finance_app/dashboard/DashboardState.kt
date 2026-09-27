@@ -51,15 +51,18 @@ private val categoryNames = TransactionCategories.all
 
 fun formatCurrency(value: Double, symbol: String, currencyCode: String = ""): String {
     val absValue = kotlin.math.abs(value)
-    val prefix   = if (value < 0) "-" else ""
+    val prefix = if (value < 0) "-" else ""
     val zeroDecimalCurrencies = setOf("TWD", "JPY", "KRW")
+
     return if (currencyCode.uppercase() in zeroDecimalCurrencies) {
         val rounded = kotlin.math.round(absValue).toLong()
         "$prefix$symbol$rounded"
     } else {
-        val intPart = absValue.toLong()
-        val decPart = kotlin.math.round((absValue - intPart) * 100).toLong()
-        "$prefix$symbol$intPart.${decPart.toString().padStart(2, '0')}"
+        val totalCents = kotlin.math.round(absValue * 100).toLong()
+        val whole = totalCents / 100
+        val cents = kotlin.math.abs(totalCents % 100)
+
+        "$prefix$symbol$whole.${cents.toString().padStart(2, '0')}"
     }
 }
 
