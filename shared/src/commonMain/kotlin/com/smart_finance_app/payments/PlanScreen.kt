@@ -29,38 +29,44 @@ fun PlanScreen(
     onSubscribeToBasic: () -> Unit,
     onBack: () -> Unit
 ) {
-    val isPaidPlan = subscriptionStatus.equals("pro", ignoreCase = true) ||
-            subscriptionStatus.equals("basic", ignoreCase = true)
-    val isFreePlan = !isPaidPlan
+    //val isPaidPlan = subscriptionStatus.equals("pro", ignoreCase = true) ||
+            //subscriptionStatus.equals("basic", ignoreCase = true)
+    //val isFreePlan = !isPaidPlan
 
-    // Resolve all strings at the top so they're ready for PlanCard params
     val freeTitleStr       = appStringResource(StringKey.PLAN_FREE_TITLE)
     val freePriceStr       = appStringResource(StringKey.PLAN_FREE_PRICE)
     val freeDetailTopStr   = appStringResource(StringKey.PLAN_FREE_PRICE_DETAIL_TOP)
     val freeDetailBotStr   = appStringResource(StringKey.PLAN_FREE_PRICE_DETAIL_BOTTOM)
-    val freeButtonStr      = if (isFreePlan) appStringResource(StringKey.PLAN_FREE_BUTTON_CURRENT)
-    else appStringResource(StringKey.PLAN_FREE_BUTTON)
+    val freeButtonStr      = appStringResource(StringKey.PLAN_FREE_BUTTON_CURRENT)
     val basicTitleStr      = appStringResource(StringKey.PLAN_BASIC_TITLE)
     val basicSubtitleStr   = appStringResource(StringKey.PLAN_BASIC_SUBTITLE)
     val basicPriceStr      = appStringResource(StringKey.PLAN_BASIC_PRICE)
     val basicDetailTopStr  = appStringResource(StringKey.PLAN_BASIC_PRICE_DETAIL_TOP)
     val basicDetailBotStr  = appStringResource(StringKey.PLAN_BASIC_PRICE_DETAIL_BOTTOM)
-    val basicButtonStr     = if (isPaidPlan) appStringResource(StringKey.PLAN_BASIC_BUTTON_CURRENT)
-    else appStringResource(StringKey.PLAN_BASIC_BUTTON)
+    // Basic is always disabled for MVP — show "Coming Soon"
+    val basicButtonStr     = appStringResource(StringKey.PLAN_BASIC_BUTTON_COMING_SOON)
+    val comingSoonBadge    = appStringResource(StringKey.PLAN_COMING_SOON_BADGE)
 
-    // Feature lists — these are marketing copy specific to the Free/Basic plans.
-    // They are intentionally kept as plain strings here since they describe fixed
-    // product tiers and are not user-interface navigation labels.
-    // You can move them to strings.xml in a future iteration if needed.
     val freeFeatures = listOf(
-        "Up to two linked accounts",
-        "Access to full visualisation charts in the Home Page",
-        "Access to most of the UK and EU banks"
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_1)),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_2)),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_3)),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_4)),
+        PlanFeature(appStringResource(StringKey.PLAN_FREE_FEATURE_5), comingSoon = true),
     )
+
+    // Features 9 and 10 carry a "coming soon" badge; the rest are straightforward
     val basicFeatures = listOf(
-        "Unlimited linked accounts",
-        "Access to full visualisation charts in the Home Page",
-        "Access to most of the UK and EU banks"
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_1)),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_2)),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_3)),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_4)),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_5)),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_6)),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_7)),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_8)),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_9),  comingSoon = true),
+        PlanFeature(appStringResource(StringKey.PLAN_BASIC_FEATURE_10), comingSoon = true),
     )
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -81,34 +87,39 @@ fun PlanScreen(
             }
 
             PlanCard(
-                title          = freeTitleStr,
-                subtitle       = "",
-                price          = freePriceStr,
-                priceDetailTop = freeDetailTopStr,
+                title             = freeTitleStr,
+                subtitle          = "",
+                price             = freePriceStr,
+                priceDetailTop    = freeDetailTopStr,
                 priceDetailBottom = freeDetailBotStr,
-                buttonText     = freeButtonStr,
-                enabled        = false,
-                starCount      = 1,
-                features       = freeFeatures
+                buttonText        = freeButtonStr,
+                enabled           = false,
+                isCurrentPlan     = true,
+                starCount         = 1,
+                features          = freeFeatures,
+                comingSoonBadge   = comingSoonBadge
             )
 
             PlanCard(
-                title          = basicTitleStr,
-                subtitle       = basicSubtitleStr,
-                price          = basicPriceStr,
-                priceDetailTop = basicDetailTopStr,
+                title             = basicTitleStr,
+                subtitle          = basicSubtitleStr,
+                price             = basicPriceStr,
+                priceDetailTop    = basicDetailTopStr,
                 priceDetailBottom = basicDetailBotStr,
-                buttonText     = basicButtonStr,
-                enabled        = !isPaidPlan && !isLoading,
-                onClick        = onSubscribeToBasic,
-                starCount      = 2,
-                features       = basicFeatures
+                buttonText        = basicButtonStr,
+                enabled           = false,           // Always disabled for MVP
+                starCount         = 2,
+                features          = basicFeatures,
+                comingSoonBadge   = comingSoonBadge
             )
 
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
+
+/** Holds a plan feature string plus whether it should show a "coming soon" badge. */
+data class PlanFeature(val text: String, val comingSoon: Boolean = false)
 
 @Composable
 fun PlanCard(
@@ -121,7 +132,9 @@ fun PlanCard(
     enabled: Boolean = true,
     onClick: () -> Unit = {},
     starCount: Int = 1,
-    features: List<String>
+    features: List<PlanFeature>,
+    comingSoonBadge: String = "",
+    isCurrentPlan: Boolean = false,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -198,22 +211,34 @@ fun PlanCard(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                OutlinedButton(
-                    enabled = enabled,
-                    onClick = onClick,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    )
-                ) {
-                    Text(
-                        text = buttonText,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                if (isCurrentPlan) {
+                    Button(
+                        onClick  = {},
+                        enabled  = false,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        shape    = RoundedCornerShape(8.dp),
+                        colors   = ButtonDefaults.buttonColors(
+                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            disabledContentColor   = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(text = buttonText, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                } else {
+                    OutlinedButton(
+                        enabled  = enabled,
+                        onClick  = onClick,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        shape    = RoundedCornerShape(8.dp),
+                        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        colors   = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Text(text = buttonText, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
 
@@ -226,14 +251,24 @@ fun PlanCard(
                 modifier = Modifier.fillMaxWidth().padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                features.forEach { feature -> FeatureRow(text = feature) }
+                features.forEach { feature ->
+                    FeatureRow(
+                        text = feature.text,
+                        comingSoon = feature.comingSoon,
+                        comingSoonBadge = comingSoonBadge
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun FeatureRow(text: String) {
+fun FeatureRow(
+    text: String,
+    comingSoon: Boolean = false,
+    comingSoonBadge: String = ""
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -245,11 +280,29 @@ fun FeatureRow(text: String) {
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.size(20.dp).padding(top = 2.dp)
         )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            lineHeight = 22.sp
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (comingSoon)
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 22.sp
+            )
+            if (comingSoon && comingSoonBadge.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                ) {
+                    Text(
+                        text = comingSoonBadge,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
     }
 }

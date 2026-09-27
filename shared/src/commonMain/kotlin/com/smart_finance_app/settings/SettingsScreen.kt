@@ -85,16 +85,16 @@ import com.smart_finance_app.AppStrings
 import com.smart_finance_app.currency.CurrencyController
 
 // ── Fix 1: removed duplicate enum entries from the merge conflict ─────────────
-private enum class SettingsPanel {
+internal enum class SettingsPanel {
     Main,
     EditProfile,
     UpdatePassword,
     Payments,
     SubscriptionPlan
 }
-
+private const val SHOW_BILLING_UI = false
 @Composable
-fun SettingsScreen(
+internal fun SettingsScreen(
     userName: String,
     userEmail: String,
     authToken: String,
@@ -102,7 +102,8 @@ fun SettingsScreen(
     userPreferencesApi: UserPreferencesApi,
     profileApi: ProfileApi,
     onProfileUpdated: (String, String) -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    initialPanel: SettingsPanel = SettingsPanel.Main
 ) {
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
@@ -124,7 +125,7 @@ fun SettingsScreen(
     var billingAddressError by remember { mutableStateOf<String?>(null) }
 
     var openingPaymentPortal by remember { mutableStateOf(false) }
-    var panel by remember { mutableStateOf(SettingsPanel.Main) }
+    var panel by remember { mutableStateOf(initialPanel) }
     val selectedCurrency = CurrencyController.currentCurrency
     var selectedAppearance by remember { mutableStateOf("Light") }
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -455,14 +456,16 @@ private fun SettingsMainContent(
                 Spacer(Modifier.height(20.dp))
 
                 SettingsGroup {
-                    SettingsActionRow(
-                        icon = Res.drawable.credit_card,
-                        title = appStringResource(StringKey.PAYMENT_TITLE),
-                        value = null,
-                        onClick = onSubscriptionPaymentsClick
-                    )
+                    if (SHOW_BILLING_UI) {
+                        SettingsActionRow(
+                            icon = Res.drawable.credit_card,
+                            title = appStringResource(StringKey.PAYMENT_TITLE),
+                            value = null,
+                            onClick = onSubscriptionPaymentsClick
+                        )
 
-                    SettingsDivider()
+                        SettingsDivider()
+                    }
 
                     SettingsActionRow(
                         icon = Res.drawable.language,

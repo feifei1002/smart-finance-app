@@ -234,8 +234,23 @@ fun Route.bankingRoutes() {
          */
         post("/api/banking/connect") {
             val principal = call.principal<JWTPrincipal>()
-            val userId = principal?.userIdOrNull()?:
+            val userId = principal?.userIdOrNull() ?:
             return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            // Derive limit from subscription plan
+            val subscriptionStatus = getSubscriptionStatus(userId)
+            val maxAccounts = when (subscriptionStatus) {
+                "basic" -> 6
+                else -> 2 // free
+            }
+
+            val existingAccounts = getConnectedAccountsForUser(userId)
+            if (existingAccounts.size >= maxAccounts) {
+                return@post call.respond(
+                    HttpStatusCode.Forbidden,
+                    ErrorResponse("Account limit reached. Your plan allows up to $maxAccounts connected accounts.")
+                )
+            }
 
 
             val request = call.receive<CreateBankConnectionRequest>()
