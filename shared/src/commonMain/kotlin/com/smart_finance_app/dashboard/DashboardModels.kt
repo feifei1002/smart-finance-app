@@ -34,7 +34,7 @@ private val DASHBOARD_CARD_DEFINITIONS = listOf(
     ChartCardDef(
         key = "trend",
         title = StringKey.DASHBOARD_MONTHLY_TREND,
-        description = StringKey.CHART_WEEKLY_SPENDING_DESC,
+        description = StringKey.DASHBOARD_HIGHEST_SPENDING_DESC,
         size = CardSize.HALF,
         builtIn = true,
         restorable = false

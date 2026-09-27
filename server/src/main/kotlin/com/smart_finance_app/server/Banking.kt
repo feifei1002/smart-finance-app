@@ -593,22 +593,23 @@ fun Route.bankingRoutes() {
             exchangeCodeForTokens(code)
         }.getOrElse {
             markBankConnectionSession(state, "failed")
+            call.application.environment.log.error("Failed to exchange code for tokens", it)
             call.respondText(
-                "Failed to exchange code for tokens: ${it.message}",
+                "Bank connection failed. Please try again.",
                 status = HttpStatusCode.InternalServerError
             )
             return@get
         }
 
         val tokenExpiry = Instant.now().plusSeconds(tokenResponse.expiresIn.toLong())
-
-        // ── Step 2: Fetch accounts from TrueLayer using access token ──────
+        
         val accounts = runCatching {
             fetchAccounts(tokenResponse.accessToken)
         }.getOrElse {
             markBankConnectionSession(state, "failed")
+            call.application.environment.log.error("Failed to fetch accounts from TrueLayer", it)
             call.respondText(
-                "Failed to fetch accounts: ${it.message}",
+                "Bank connection failed. Please try again.",
                 status = HttpStatusCode.InternalServerError
             )
             return@get
@@ -1701,6 +1702,35 @@ private val allowedDashboardKeys = setOf(
     "merchant_frequency"
 )
 
+private val allowedHalfPositionKeys = setOf(
+    "trend",
+    "top_categories",
+    "bank_comparison",
+    "time_of_day",
+    "largest_tx",
+    "smallest_tx"
+)
+
+private fun cleanHalfPositions(raw: String): String =
+    raw.take(500)
+        .split("|")
+        .mapNotNull { entry ->
+            val split = entry.lastIndexOf(':')
+            if (split <= 0) return@mapNotNull null
+
+            val key = entry.substring(0, split).trim()
+            val position = entry.substring(split + 1)
+                .toFloatOrNull()
+                ?.coerceIn(0f, 1f)
+                ?: return@mapNotNull null
+
+            if (key !in allowedHalfPositionKeys) return@mapNotNull null
+            key to position
+        }
+        .distinctBy { it.first }
+        .take(20)
+        .joinToString("|") { (key, position) -> "$key:$position" }
+
 private fun cleanKeyList(raw: String, separator: String): String =
     raw.split(separator)
         .map { it.trim() }
@@ -1714,7 +1744,7 @@ private fun cleanDashboardLayout(layout: DashboardLayoutRequest): DashboardLayou
         cardOrder = cleanKeyList(layout.cardOrder.take(500), ","),
         deletedCards = cleanKeyList(layout.deletedCards.take(500), "|"),
         chartCards = cleanKeyList(layout.chartCards.take(500), "|"),
-        halfPositions = layout.halfPositions.take(500)
+        halfPositions = cleanHalfPositions(layout.halfPositions)
     )
 
 /**
