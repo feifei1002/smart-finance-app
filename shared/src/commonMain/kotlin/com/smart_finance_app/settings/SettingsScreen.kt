@@ -92,7 +92,7 @@ internal enum class SettingsPanel {
     Payments,
     SubscriptionPlan
 }
-
+private const val SHOW_BILLING_UI = false
 @Composable
 internal fun SettingsScreen(
     userName: String,
@@ -456,14 +456,16 @@ private fun SettingsMainContent(
                 Spacer(Modifier.height(20.dp))
 
                 SettingsGroup {
-                    //SettingsActionRow(
-                      //  icon = Res.drawable.credit_card,
-                       // title = appStringResource(StringKey.PAYMENT_TITLE),
-                       // value = null,
-                        //onClick = onSubscriptionPaymentsClick
-                    //)
+                    if (SHOW_BILLING_UI) {
+                        SettingsActionRow(
+                            icon = Res.drawable.credit_card,
+                            title = appStringResource(StringKey.PAYMENT_TITLE),
+                            value = null,
+                            onClick = onSubscriptionPaymentsClick
+                        )
 
-                    //SettingsDivider()
+                        SettingsDivider()
+                    }
 
                     SettingsActionRow(
                         icon = Res.drawable.language,

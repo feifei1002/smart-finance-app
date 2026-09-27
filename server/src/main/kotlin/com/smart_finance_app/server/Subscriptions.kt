@@ -363,7 +363,7 @@ private fun getSubscriptionUser(userId: UUID): SubscriptionUser? =
         }
     }
 
-private fun getSubscriptionStatus(userId: UUID): String =
+internal fun getSubscriptionStatus(userId: UUID): String =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
         "SELECT subscription_status FROM users WHERE id = ?"

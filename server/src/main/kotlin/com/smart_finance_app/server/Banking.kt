@@ -237,12 +237,18 @@ fun Route.bankingRoutes() {
             val userId = principal?.userIdOrNull() ?:
             return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-            // Enforce free-plan account limit
+            // Derive limit from subscription plan
+            val subscriptionStatus = getSubscriptionStatus(userId)
+            val maxAccounts = when (subscriptionStatus) {
+                "basic" -> 6
+                else -> 2 // free
+            }
+
             val existingAccounts = getConnectedAccountsForUser(userId)
-            if (existingAccounts.size >= 2) {
+            if (existingAccounts.size >= maxAccounts) {
                 return@post call.respond(
                     HttpStatusCode.Forbidden,
-                    ErrorResponse("Account limit reached. Free plan allows up to 2 connected accounts.")
+                    ErrorResponse("Account limit reached. Your plan allows up to $maxAccounts connected accounts.")
                 )
             }
 

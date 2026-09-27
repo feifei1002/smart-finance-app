@@ -29,9 +29,9 @@ fun PlanScreen(
     onSubscribeToBasic: () -> Unit,
     onBack: () -> Unit
 ) {
-    val isPaidPlan = subscriptionStatus.equals("pro", ignoreCase = true) ||
-            subscriptionStatus.equals("basic", ignoreCase = true)
-    val isFreePlan = !isPaidPlan
+    //val isPaidPlan = subscriptionStatus.equals("pro", ignoreCase = true) ||
+            //subscriptionStatus.equals("basic", ignoreCase = true)
+    //val isFreePlan = !isPaidPlan
 
     val freeTitleStr       = appStringResource(StringKey.PLAN_FREE_TITLE)
     val freePriceStr       = appStringResource(StringKey.PLAN_FREE_PRICE)

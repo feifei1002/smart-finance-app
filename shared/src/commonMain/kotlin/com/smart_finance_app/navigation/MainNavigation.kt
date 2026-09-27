@@ -31,6 +31,7 @@ import com.smart_finance_app.transactions.TransactionsScreen
 import com.smart_finance_app.budget.BudgetScreen
 import com.smart_finance_app.dashboard.DashboardApi
 import com.smart_finance_app.payments.SubscriptionApi
+import com.smart_finance_app.payments.SubscriptionStatusResult
 import com.smart_finance_app.profile.ProfileApi
 import com.smart_finance_app.settings.SettingsScreen
 import com.smart_finance_app.transactions.TransactionSyncResult
@@ -467,10 +468,21 @@ private fun NavigationContent(
             var showAccountLimitDialog by remember { mutableStateOf(false) }
             var banksLoading by remember { mutableStateOf(false) }
             var pendingConnectionState by remember { mutableStateOf<String?>(null) }
+            var subscriptionStatus by remember { mutableStateOf("free") }
+            val maxAccounts = if (subscriptionStatus == "basic") 6 else 2
 
             val scope = rememberCoroutineScope()
             val uriHandler = LocalUriHandler.current
             val bankingApi = remember(apiBaseUrl, httpClient) { BankingApi(apiBaseUrl, httpClient) }
+
+            LaunchedEffect(authToken) {
+                if (authToken.isNotBlank()) {
+                    when (val result = subscriptionApi.getStatus(authToken)) {
+                        is SubscriptionStatusResult.Success -> subscriptionStatus = result.status
+                        is SubscriptionStatusResult.Failure -> Unit // default "free" is safe
+                    }
+                }
+            }
 
             LaunchedEffect(pendingConnectionState, authToken) {
                 val state = pendingConnectionState ?: return@LaunchedEffect
@@ -589,6 +601,10 @@ private fun NavigationContent(
                                     pendingConnectionState = result.state
                                     uriHandler.openUri(result.authUrl)
                                 }
+                                is BankConnectionResult.AccountLimitReached -> {
+                                    loading = false
+                                    showAccountLimitDialog = true
+                                }
                                 is BankConnectionResult.Failure -> {
                                     error = AppStrings.get(
                                         LocaleController.currentLanguageCode,
@@ -603,6 +619,7 @@ private fun NavigationContent(
             } else {
                 AccountsScreen(
                     accounts              = accounts,
+                    maxAccounts           = maxAccounts,
                     onConnectBank         = { showConnectBank = true },
                     onAccountLimitReached = { showAccountLimitDialog = true }
                 )
