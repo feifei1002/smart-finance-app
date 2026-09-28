@@ -373,10 +373,12 @@ fun Route.bankingRoutes() {
                 syncTransactionsForUser(userId)
             }.getOrElse { exception ->
                 val lastSync = getLastSuccessfulTransactionSync(userId)
+                call.application.environment.log.error("Transaction sync failed", exception)
+
                 call.respond(
                     HttpStatusCode.BadGateway,
                     ErrorResponse(
-                        "Transaction sync failed: ${exception.message ?: "Unknown error"}. Last successful sync: ${lastSync ?: "Never"}"
+                        "Transaction sync failed. Last successful sync: ${lastSync ?: "Never"}"
                     )
                 )
                 return@post
@@ -389,9 +391,11 @@ fun Route.bankingRoutes() {
             val providers = runCatching {
                 fetchTrueLayerProvidersFromDB()
             }.getOrElse { exception ->
+                call.application.environment.log.error("Could not load TrueLayer providers", exception)
+
                 call.respond(
                     HttpStatusCode.BadGateway,
-                    ErrorResponse("Could not load TrueLayer providers: ${exception.message}")
+                    ErrorResponse("Could not load bank providers. Please try again.")
                 )
                 return@get
             }
@@ -1266,21 +1270,31 @@ private data class BankConnectionSession(val userId: UUID, val providerId: Strin
  */
 private fun getPendingBankConnectionSession(state: String): BankConnectionSession? =
     Database.dataSource.connection.use { connection ->
-        connection.prepareStatement(
-            """
-                SELECT user_id, provider_id, provider_name
-                FROM bank_connection_sessions
-                WHERE state = ? AND status = 'pending'
-            """.trimIndent()
-        ).use { statement ->
-            statement.setString(1, state)
-            statement.executeQuery().use { result ->
-                if(!result.next()) null else BankConnectionSession(
-                    userId = result.getObject("user_id", UUID::class.java),
-                    providerId = result.getString("provider_id"),
-                    providerName = result.getString("provider_name")
-                )
+        try {
+            connection.prepareStatement(
+                """
+                UPDATE bank_connection_sessions
+                SET status = 'processing'
+                WHERE state = ?
+                  AND status = 'pending'
+                  AND created_at >= now() - interval '15 minutes'
+                RETURNING user_id, provider_id, provider_name
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, state)
+                statement.executeQuery().use { result ->
+                    val session = if (!result.next()) null else BankConnectionSession(
+                        userId = result.getObject("user_id", UUID::class.java),
+                        providerId = result.getString("provider_id"),
+                        providerName = result.getString("provider_name")
+                    )
+                    connection.commit()
+                    session
+                }
             }
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
         }
     }
 
@@ -1298,6 +1312,7 @@ private fun markBankConnectionSession(state: String, status: String) {
                 UPDATE bank_connection_sessions
                 SET status = ?, completed_at = now()
                 WHERE state = ?
+                  AND status = 'processing'
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, status)

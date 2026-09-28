@@ -37,7 +37,7 @@ private val DASHBOARD_CARD_DEFINITIONS = listOf(
         description = StringKey.DASHBOARD_MONTHLY_TREND_DESC,
         size = CardSize.HALF,
         builtIn = true,
-        restorable = false
+        restorable = true
     ),
     ChartCardDef(
         key = "top_categories",

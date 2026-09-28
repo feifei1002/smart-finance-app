@@ -427,7 +427,9 @@ private fun MobileDashboard(
             cardOrder.removeAt(cardOrder.lastIndexOf(key))
         }
 
-        persistLayout()
+        if (!isCustomizing) {
+            persistLayout()
+        }
     }
 
     // Delete a card — persists immediately for the same reason.
@@ -448,7 +450,9 @@ private fun MobileDashboard(
         } else {
             deletedCards = deletedCards + key
         }
-        persistLayout()   // save locally + push to backend immediately
+        if (!isCustomizing) {
+            persistLayout()
+        }
     }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
@@ -1015,6 +1019,7 @@ private fun DesktopDashboard(
     val keyDeletedCards  = remember(userId) { "${userId}_${KEY_DELETED_CARDS}" }
     val keyChartCards    = remember(userId) { "${userId}_${KEY_CHART_CARDS}" }
     val keyMigrated      = remember(userId) { "${userId}_${KEY_MIGRATED}" }
+    val keyHalfPositions = remember(userId) { "${userId}_${KEY_HALF_POSITIONS}" }
 
     var deletedCards by remember(userId) {
         mutableStateOf(
@@ -1035,17 +1040,27 @@ private fun DesktopDashboard(
     }
 
     fun persistDesktopLayout() {
+        val fullOrder = (
+                DEFAULT_CARD_ORDER.decodeOrder() + desktopChartOrder.filter { it in chartCardsOnDashboard }
+                )
+            .filter { key -> isKnownDashboardCardKey(key) }
+            .distinct()
+
+        settings[keyCardOrder] = fullOrder.encodeOrder()
         settings[keyDeletedCards] = deletedCards.encodeSet()
-        settings[keyChartCards]   = chartCardsOnDashboard.encodeSet()
-        // Push to backend — mobile and other desktop sessions pick this up on next load
+        settings[keyChartCards] = chartCardsOnDashboard.encodeSet()
+
+        val existingHalfPositions = settings.getStringOrNull(keyHalfPositions) ?: ""
+
         scope.launch {
             runCatching {
                 api.saveLayout(
                     authToken,
                     DashboardLayoutDto(
-                        cardOrder    = DEFAULT_CARD_ORDER,
+                        cardOrder = fullOrder.encodeOrder(),
                         deletedCards = deletedCards.encodeSet(),
-                        chartCards   = chartCardsOnDashboard.encodeSet()
+                        chartCards = chartCardsOnDashboard.encodeSet(),
+                        halfPositions = existingHalfPositions
                     )
                 )
             }
@@ -1067,8 +1082,11 @@ private fun DesktopDashboard(
                 chartCardsOnDashboard = chartsInOrder
                 desktopChartOrder.clear()
                 desktopChartOrder.addAll(remoteOrder)
+
+                settings[keyCardOrder] = remote.cardOrder
                 settings[keyDeletedCards] = remoteDeleted.encodeSet()
-                settings[keyChartCards]   = chartsInOrder.encodeSet()
+                settings[keyChartCards] = chartsInOrder.encodeSet()
+                settings[keyHalfPositions] = remote.halfPositions
             }
         }
     }
