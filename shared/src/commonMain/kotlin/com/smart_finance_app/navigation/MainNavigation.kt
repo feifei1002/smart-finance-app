@@ -45,8 +45,12 @@ import com.smart_finance_app.StringKey
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
 import com.smart_finance_app.appStringResource
+import com.smart_finance_app.currency.ConversionResult
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
+import com.smart_finance_app.currency.getCurrencySymbol
+import com.smart_finance_app.dashboard.DashboardResult
+import com.smart_finance_app.dashboard.formatCurrency
 import com.smart_finance_app.settings.SettingsPanel
 
 @Composable
@@ -296,32 +300,43 @@ private fun NavigationContent(
     }
 
     suspend fun loadDashboardTransactions() {
-        when (
-            val result = transactionsApi.getTransactions(
-                token = authToken,
-                page = 0,
-                pageSize = 500,
-                type = "All"
-            )
-        ) {
-            is TransactionsResult.Success -> {
-                dashboardRecentTransactions = result.page.transactions.map { transaction ->
-                    TransactionUI(
-                        id = transaction.id,
-                        dateLabel = transaction.date.take(10),
-                        merchantName = transaction.merchantName,
-                        category = transaction.category,
-                        accountName = transaction.accountName,
-                        amount = transaction.amount,
-                        currency = transaction.currency,
-                        merchantLogoUrl = transaction.merchantLogoUrl,
-                        accountId = transaction.accountId
-                    )
-                }
-            }
+        val pageSize = 500
+        val allTransactions = mutableListOf<TransactionUI>()
+        var page = 0
 
-            is TransactionsResult.Failure -> Unit
+        while (true) {
+            when (
+                val result = transactionsApi.getTransactions(
+                    token = authToken,
+                    page = page,
+                    pageSize = pageSize,
+                    type = "All"
+                )
+            ) {
+                is TransactionsResult.Success -> {
+                    allTransactions += result.page.transactions.map { transaction ->
+                        TransactionUI(
+                            id = transaction.id,
+                            dateLabel = transaction.date,
+                            merchantName = transaction.merchantName,
+                            category = transaction.category,
+                            accountName = transaction.accountName,
+                            amount = transaction.amount,
+                            currency = transaction.currency,
+                            merchantLogoUrl = transaction.merchantLogoUrl,
+                            accountId = transaction.accountId
+                        )
+                    }
+
+                    if (!result.page.hasMore) break
+                    page++
+                }
+
+                is TransactionsResult.Failure -> break
+            }
         }
+
+        dashboardRecentTransactions = allTransactions
     }
 
     LaunchedEffect(authToken) {
@@ -548,17 +563,51 @@ private fun NavigationContent(
                 }
             }
 
-            LaunchedEffect(authToken, showConnectBank) {
+            LaunchedEffect(authToken, showConnectBank, CurrencyController.currentCurrency, exchangeRates) {
                 if (!showConnectBank && authToken.isNotBlank()) {
                     accountsLoading = true
                     accountsError = null
                     when (val result = bankingApi.getConnectedAccounts(authToken)) {
                         is ConnectedAccountResult.Success -> {
-                            accounts = result.accounts.map {
+                            val balancesByAccountId = when (val balancesResult = dashboardApi.getBalances(authToken)) {
+                                is DashboardResult.Success -> balancesResult.data.associateBy { it.accountId }
+                                is DashboardResult.Failure -> emptyMap()
+                            }
+
+                            accounts = result.accounts.map { account ->
+                                val balance = balancesByAccountId[account.accountId]
+
+                                val balanceText = balance?.let {
+                                    when (val conversion = ExchangeRateService.convert(
+                                        amount = it.current,
+                                        fromCurrency = it.currency,
+                                        toCurrency = CurrencyController.currentCurrency,
+                                        rates = exchangeRates
+                                    )) {
+                                        is ConversionResult.Success -> {
+                                            formatCurrency(
+                                                conversion.amount,
+                                                getCurrencySymbol(CurrencyController.currentCurrency),
+                                                CurrencyController.currentCurrency
+                                            )
+                                        }
+
+                                        else -> {
+                                            formatCurrency(
+                                                it.current,
+                                                getCurrencySymbol(it.currency),
+                                                it.currency
+                                            )
+                                        }
+                                    }
+                                }
+
                                 ConnectedAccount(
-                                    bankName     = it.bankName,
-                                    maskedNumber = it.maskedNumber,
-                                    isConnected  = true
+                                    accountId = account.accountId,
+                                    bankName = account.bankName,
+                                    maskedNumber = account.maskedNumber,
+                                    balance = balanceText,
+                                    isConnected = true
                                 )
                             }
                         }

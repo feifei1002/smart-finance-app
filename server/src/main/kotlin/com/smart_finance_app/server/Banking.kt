@@ -373,10 +373,12 @@ fun Route.bankingRoutes() {
                 syncTransactionsForUser(userId)
             }.getOrElse { exception ->
                 val lastSync = getLastSuccessfulTransactionSync(userId)
+                call.application.environment.log.error("Transaction sync failed", exception)
+
                 call.respond(
                     HttpStatusCode.BadGateway,
                     ErrorResponse(
-                        "Transaction sync failed: ${exception.message ?: "Unknown error"}. Last successful sync: ${lastSync ?: "Never"}"
+                        "Transaction sync failed. Last successful sync: ${lastSync ?: "Never"}"
                     )
                 )
                 return@post
@@ -389,9 +391,11 @@ fun Route.bankingRoutes() {
             val providers = runCatching {
                 fetchTrueLayerProvidersFromDB()
             }.getOrElse { exception ->
+                call.application.environment.log.error("Could not load TrueLayer providers", exception)
+
                 call.respond(
                     HttpStatusCode.BadGateway,
-                    ErrorResponse("Could not load TrueLayer providers: ${exception.message}")
+                    ErrorResponse("Could not load bank providers. Please try again.")
                 )
                 return@get
             }
@@ -428,7 +432,9 @@ fun Route.bankingRoutes() {
                 ?: return@put call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
             val body = call.receive<DashboardLayoutRequest>()
-            saveDashboardLayout(userId, body)
+            val cleaned = cleanDashboardLayout(body)
+
+            saveDashboardLayout(userId, cleaned)
             call.respond(HttpStatusCode.OK, mapOf("status" to "saved"))
         }
 
@@ -591,22 +597,23 @@ fun Route.bankingRoutes() {
             exchangeCodeForTokens(code)
         }.getOrElse {
             markBankConnectionSession(state, "failed")
+            call.application.environment.log.error("Failed to exchange code for tokens", it)
             call.respondText(
-                "Failed to exchange code for tokens: ${it.message}",
+                "Bank connection failed. Please try again.",
                 status = HttpStatusCode.InternalServerError
             )
             return@get
         }
 
         val tokenExpiry = Instant.now().plusSeconds(tokenResponse.expiresIn.toLong())
-
-        // ── Step 2: Fetch accounts from TrueLayer using access token ──────
+        
         val accounts = runCatching {
             fetchAccounts(tokenResponse.accessToken)
         }.getOrElse {
             markBankConnectionSession(state, "failed")
+            call.application.environment.log.error("Failed to fetch accounts from TrueLayer", it)
             call.respondText(
-                "Failed to fetch accounts: ${it.message}",
+                "Bank connection failed. Please try again.",
                 status = HttpStatusCode.InternalServerError
             )
             return@get
@@ -617,6 +624,28 @@ fun Route.bankingRoutes() {
             call.respondText(
                 "No accounts found for this bank connection",
                 status = HttpStatusCode.OK
+            )
+            return@get
+        }
+
+        val subscriptionStatus = getSubscriptionStatus(session.userId)
+        val maxAccounts = when (subscriptionStatus) {
+            "basic" -> 6
+            else -> 2
+        }
+
+        val existingAccounts = getConnectedAccountsForUser(session.userId)
+        val existingAccountIds = existingAccounts.map { it.accountId }.toSet()
+
+        val newAccountCount = accounts.count { account ->
+            account.accountId !in existingAccountIds
+        }
+
+        if (existingAccounts.size + newAccountCount > maxAccounts) {
+            markBankConnectionSession(state, "failed")
+            call.respondText(
+                "Account limit reached. Your plan allows up to $maxAccounts connected accounts.",
+                status = HttpStatusCode.Forbidden
             )
             return@get
         }
@@ -635,8 +664,10 @@ fun Route.bankingRoutes() {
         }.getOrElse {
             markBankConnectionSession(state, "failed")
 
+            call.application.environment.log.error("Failed to save connected accounts", it)
+
             call.respondText(
-                "Failed to save connected accounts: ${it.message}",
+                "Bank connection failed. Please try again.",
                 status = HttpStatusCode.InternalServerError
             )
             return@get
@@ -741,8 +772,8 @@ private fun fetchBalances(accessToken: String, accountId: String): List<BalanceR
 }
 
 private fun fetchTransactions(accessToken: String, accountId: String): List<TransactionResponse> {
-    // Fetch last 3 months of transactions
-    val from = java.time.LocalDate.now().minusMonths(3).toString()
+    // Fetch last 6 months of transactions
+    val from = java.time.LocalDate.now().minusMonths(6).toString()
     val to   = java.time.LocalDate.now().toString()
 
     val request = Request.Builder()
@@ -1239,21 +1270,31 @@ private data class BankConnectionSession(val userId: UUID, val providerId: Strin
  */
 private fun getPendingBankConnectionSession(state: String): BankConnectionSession? =
     Database.dataSource.connection.use { connection ->
-        connection.prepareStatement(
-            """
-                SELECT user_id, provider_id, provider_name
-                FROM bank_connection_sessions
-                WHERE state = ? AND status = 'pending'
-            """.trimIndent()
-        ).use { statement ->
-            statement.setString(1, state)
-            statement.executeQuery().use { result ->
-                if(!result.next()) null else BankConnectionSession(
-                    userId = result.getObject("user_id", UUID::class.java),
-                    providerId = result.getString("provider_id"),
-                    providerName = result.getString("provider_name")
-                )
+        try {
+            connection.prepareStatement(
+                """
+                UPDATE bank_connection_sessions
+                SET status = 'processing'
+                WHERE state = ?
+                  AND status = 'pending'
+                  AND created_at >= now() - interval '15 minutes'
+                RETURNING user_id, provider_id, provider_name
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, state)
+                statement.executeQuery().use { result ->
+                    val session = if (!result.next()) null else BankConnectionSession(
+                        userId = result.getObject("user_id", UUID::class.java),
+                        providerId = result.getString("provider_id"),
+                        providerName = result.getString("provider_name")
+                    )
+                    connection.commit()
+                    session
+                }
             }
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
         }
     }
 
@@ -1271,6 +1312,7 @@ private fun markBankConnectionSession(state: String, status: String) {
                 UPDATE bank_connection_sessions
                 SET status = ?, completed_at = now()
                 WHERE state = ?
+                  AND status = 'processing'
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, status)
@@ -1662,6 +1704,63 @@ data class DashboardLayoutRequest(
     val chartCards: String   = "",   // pipe-separated chart card keys on dashboard
     val halfPositions: String = ""   // "key:float|…" encoded half-card positions
 )
+
+private val allowedDashboardKeys = setOf(
+    "spending",
+    "trend",
+    "top_categories",
+    "weekly_spending",
+    "bank_comparison",
+    "time_of_day",
+    "largest_tx",
+    "smallest_tx",
+    "merchant_frequency"
+)
+
+private val allowedHalfPositionKeys = setOf(
+    "trend",
+    "top_categories",
+    "bank_comparison",
+    "time_of_day",
+    "largest_tx",
+    "smallest_tx"
+)
+
+private fun cleanHalfPositions(raw: String): String =
+    raw.take(500)
+        .split("|")
+        .mapNotNull { entry ->
+            val split = entry.lastIndexOf(':')
+            if (split <= 0) return@mapNotNull null
+
+            val key = entry.substring(0, split).trim()
+            val position = entry.substring(split + 1)
+                .toFloatOrNull()
+                ?.coerceIn(0f, 1f)
+                ?: return@mapNotNull null
+
+            if (key !in allowedHalfPositionKeys) return@mapNotNull null
+            key to position
+        }
+        .distinctBy { it.first }
+        .take(20)
+        .joinToString("|") { (key, position) -> "$key:$position" }
+
+private fun cleanKeyList(raw: String, separator: String): String =
+    raw.split(separator)
+        .map { it.trim() }
+        .filter { it in allowedDashboardKeys }
+        .distinct()
+        .take(20)
+        .joinToString(separator)
+
+private fun cleanDashboardLayout(layout: DashboardLayoutRequest): DashboardLayoutRequest =
+    DashboardLayoutRequest(
+        cardOrder = cleanKeyList(layout.cardOrder.take(500), ","),
+        deletedCards = cleanKeyList(layout.deletedCards.take(500), "|"),
+        chartCards = cleanKeyList(layout.chartCards.take(500), "|"),
+        halfPositions = cleanHalfPositions(layout.halfPositions)
+    )
 
 /**
  * Returns the saved layout for [userId], or null if none exists yet.

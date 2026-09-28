@@ -1,15 +1,11 @@
 package com.smart_finance_app.dashboard
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -17,27 +13,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.foundation.gestures.forEachGesture
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import com.smart_finance_app.AppErrorMessage
@@ -45,152 +25,16 @@ import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
 import kotlinx.coroutines.launch
 import com.smart_finance_app.budget.BudgetApi
-import com.smart_finance_app.budget.BudgetData
-import com.smart_finance_app.budget.BudgetRequest
-import com.smart_finance_app.budget.BudgetResult
-import com.smart_finance_app.budget.AddBudgetDialog
-import com.smart_finance_app.budget.CompactBudgetProgressRow
-import com.smart_finance_app.budget.computeBudgetsWithSpending
-import kotlinx.datetime.DatePeriod
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.daysUntil
-import kotlinx.datetime.minus
-import kotlinx.datetime.plus
-import kotlinx.datetime.number
-import kotlinx.datetime.toLocalDateTime
-import kotlin.time.Clock
-import kotlin.math.abs
-import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
-import smart_finance_app.shared.generated.resources.arrow_upward
-import smart_finance_app.shared.generated.resources.arrow_downward
-import smart_finance_app.shared.generated.resources.calendar_month
 import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
-import smart_finance_app.shared.generated.resources.check
-import smart_finance_app.shared.generated.resources.add
-import smart_finance_app.shared.generated.resources.moving
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
-import com.smart_finance_app.currency.ConversionResult
-import com.smart_finance_app.localiseCategory
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
 import com.smart_finance_app.currency.getCurrencySymbol
 
-
-data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
-data class MonthlyPoint(val month: String, val income: Float, val expenses: Float)
-data class Transaction(val name: String, val date: String, val amount: String, val isIncome: Boolean)
-data class AccountOverview(val accountId: String, val bankName: String, val maskedNumber: String, val balance: String)
-data class InferredBill(val merchant: String, val amount: Double, val expectedDate: LocalDate, val cadence: String)
-
-/**
- * Finds outgoing merchant payments that recur at a similar cadence and amount.
- * This deliberately uses only the transaction list already on-device.
- */
-
-private fun inferUpcomingBills(transactions: List<TransactionData>): List<InferredBill> {
-    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-    return transactions
-        .asSequence()
-        .filter { it.amount < 0 }
-        .groupBy { it.merchantName?.takeIf(String::isNotBlank) ?: it.description }
-        .mapNotNull { (merchant, entries) ->
-            val dated = entries.mapNotNull { tx ->
-                runCatching { LocalDate.parse(tx.timestamp.take(10)) }.getOrNull()?.let { it to abs(tx.amount) }
-            }.sortedBy { it.first }
-            if (dated.size < 2) return@mapNotNull null
-
-            val gaps = dated.zipWithNext { first, second -> first.first.daysUntil(second.first) }
-            val averageGap = gaps.average()
-            val cadence = when (averageGap) {
-                in 6.0..9.0 -> "Weekly"
-                in 25.0..35.0 -> "Monthly"
-                else -> return@mapNotNull null
-            }
-            if (gaps.any { abs(it - averageGap) > if (cadence == "Weekly") 2 else 6 }) return@mapNotNull null
-
-            val averageAmount = dated.map { it.second }.average()
-            if (averageAmount <= 0.0 || dated.any { abs(it.second - averageAmount) > averageAmount * 0.15 }) return@mapNotNull null
-
-            val nextDate = dated.last().first.plus(DatePeriod(days = averageGap.roundToInt()))
-            InferredBill(merchant, averageAmount, nextDate, cadence)
-        }
-        .filter { it.expectedDate >= today }
-        .sortedBy { it.expectedDate }
-        .take(6)
-        .toList()
-}
-
-// ── Chart card catalogue ──────────────────────────────────────────────────────
-
-enum class CardSize { FULL, HALF }
-
-private fun isHalfCardKey(key: String): Boolean =
-    ALL_CHART_CARDS.find { it.key == key }?.size == CardSize.HALF ||
-            key == "trend" || key == "top_categories"
-
-data class ChartCardDef(
-    val key: String,
-    val title: StringKey,
-    val description: StringKey,
-    val size: CardSize
-)
-
-/** All chart cards available to add via the + Charts sheet. */
-val ALL_CHART_CARDS = listOf(
-    ChartCardDef(
-        "weekly_spending",
-        StringKey.CHART_WEEKLY_SPENDING_TITLE,
-        StringKey.CHART_WEEKLY_SPENDING_DESC,
-        CardSize.FULL
-    ),
-    ChartCardDef(
-        "spending_per_day",
-        StringKey.CHART_SPENDING_PER_DAY_TITLE,
-        StringKey.CHART_SPENDING_PER_DAY_DESC,
-        CardSize.HALF
-    ),
-    ChartCardDef(
-        "bank_comparison",
-        StringKey.CHART_BANK_COMPARISON_TITLE,
-        StringKey.CHART_BANK_COMPARISON_DESC,
-        CardSize.HALF
-    ),
-    ChartCardDef(
-        "time_of_day",
-        StringKey.CHART_TIME_OF_DAY_TITLE,
-        StringKey.CHART_TIME_OF_DAY_DESC,
-        CardSize.HALF
-    ),
-    ChartCardDef(
-        "largest_tx",
-        StringKey.CHART_LARGEST_TX_TITLE,
-        StringKey.CHART_LARGEST_TX_DESC,
-        CardSize.HALF
-    ),
-    ChartCardDef(
-        "smallest_tx",
-        StringKey.CHART_SMALLEST_TX_TITLE,
-        StringKey.CHART_SMALLEST_TX_DESC,
-        CardSize.HALF
-    ),
-    ChartCardDef(
-        "merchant_frequency",
-        StringKey.CHART_MERCHANT_FREQUENCY_TITLE,
-        StringKey.CHART_MERCHANT_FREQUENCY_DESC,
-        CardSize.FULL
-    ),
-    ChartCardDef(
-        "upcoming_bills",
-        StringKey.CHART_UPCOMING_BILLS_TITLE,
-        StringKey.CHART_UPCOMING_BILLS_DESC,
-        CardSize.FULL
-    )
-)
 
 /** Fixed height for every half-size card (side-by-side pair). */
 private val HALF_CARD_HEIGHT = 200.dp
@@ -206,76 +50,6 @@ private fun <T> MutableList<T>.move(from: Int, to: Int) {
     if (from == to) return
     val item = removeAt(from)
     add(to, item)
-}
-
-// ── Dashboard layout persistence (multiplatform-settings) ────────────────────
-
-private val KEY_CARD_ORDER    = "card_order_v2"
-private val KEY_DELETED_CARDS = "deleted_cards_v2"
-private val KEY_CHART_CARDS   = "chart_cards_v2"
-private val KEY_HALF_POSITIONS = "half_card_positions_v1"
-private val KEY_MIGRATED      = "migrated_v2"          // set once after v1 cleanup
-private val DEFAULT_CARD_ORDER = "spending,trend,top_categories,budget"
-
-/**
- * Portable snapshot of a user's dashboard layout, sent to / received from the backend.
- * Matches [DashboardLayoutDto] in DashboardApi.kt — keep fields in sync.
- * The backend stores this keyed by userId so every platform reads the same layout.
- *
- * Backend endpoints (implemented in Banking.kt):
- *   GET  /api/dashboard/layout  → DashboardLayoutDto (or 404 if never saved)
- *   PUT  /api/dashboard/layout  → body: DashboardLayoutDto
- */
-
-/** Encodes the card order list to a comma-separated string for storage. */
-private fun List<String>.encodeOrder(): String = joinToString(",")
-
-/** Decodes the card order string back to a list. */
-private fun String.decodeOrder(): List<String> =
-    split(",").map { it.trim() }.filter { it.isNotEmpty() }
-
-/** Encodes a Set<String> to a pipe-separated string. */
-private fun Set<String>.encodeSet(): String = joinToString("|")
-
-/** Decodes a pipe-separated string to a Set<String>. */
-private fun String.decodeSet(): Set<String> =
-    split("|").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-
-private fun Map<String, Float>.encodeHalfPositions(): String =
-    entries.joinToString("|") { (key, position) -> "$key:${position.coerceIn(0f, 1f)}" }
-
-private fun String.decodeHalfPositions(): Map<String, Float> = split("|").mapNotNull { entry ->
-    val split = entry.lastIndexOf(':')
-    if (split <= 0) null else entry.substring(0, split) to
-            (entry.substring(split + 1).toFloatOrNull()?.coerceIn(0f, 1f) ?: return@mapNotNull null)
-}.toMap()
-
-@Composable
-private fun rememberGreeting(): String {
-    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-    val hour = now.hour
-    return when {
-        hour < 12 -> appStringResource(StringKey.DASHBOARD_GREETING_MORNING)
-        hour < 18 -> appStringResource(StringKey.DASHBOARD_GREETING_AFTERNOON)
-        else      -> appStringResource(StringKey.DASHBOARD_GREETING_NIGHT)
-    }
-}
-
-private fun convertedAbsAmount(
-    amount: Double,
-    fromCurrency: String,
-    displayCurrency: String,
-    rates: Map<String, Double>
-): Double {
-    return when (val result = ExchangeRateService.convert(
-        amount = amount,
-        fromCurrency = fromCurrency,
-        toCurrency = displayCurrency,
-        rates = rates
-    )) {
-        is ConversionResult.Success -> abs(result.amount)
-        else -> 0.0
-    }
 }
 
 @Composable
@@ -522,13 +296,13 @@ private fun MobileDashboard(
     var chartCardsOnDashboard by remember(userId) {
         val raw = settings.getStringOrNull(keyChartCards)?.decodeSet() ?: emptySet()
         // Only keep keys that are real chart card keys — discard any pipe-merged garbage
-        val valid = raw.filter { k -> ALL_CHART_CARDS.any { it.key == k } }.toSet()
+        val valid = raw.filter { k -> isActiveChartCardKey(k) }.toSet()
         mutableStateOf(valid)
     }
 
     var deletedCards by remember(userId) {
         mutableStateOf(
-            settings.getStringOrNull(keyDeletedCards)?.decodeSet() ?: emptySet()
+            (settings.getStringOrNull(keyDeletedCards)?.decodeSet() ?: emptySet()) - "budget"
         )
     }
 
@@ -540,24 +314,34 @@ private fun MobileDashboard(
 
     val cardOrder = remember(userId) {
         mutableStateListOf<String>().also { list ->
-            val saved = settings.getStringOrNull(keyCardOrder)?.decodeOrder()
+            val defaults = DEFAULT_CARD_ORDER
+                .decodeOrder()
+                .filter { key -> isKnownDashboardCardKey(key) && key != "budget" }
+                .distinct()
+            val savedCharts = settings.getStringOrNull(keyChartCards)
+                ?.decodeSet()
+                ?.filter(::isActiveChartCardKey)
+                ?.toSet()
+                ?: emptySet()
+
+            val saved = settings.getStringOrNull(keyCardOrder)
+                ?.decodeOrder()
                 ?.filter { k ->
-                    // Only keep clean single-key slots (no pipe), and only chart keys
-                    // that are actually on the dashboard
                     !k.contains('|') &&
-                            (ALL_CHART_CARDS.none { it.key == k } || k in
-                                    (settings.getStringOrNull(keyChartCards)?.decodeSet()
-                                        ?.filter { ck -> ALL_CHART_CARDS.any { it.key == ck } }?.toSet()
-                                        ?: emptySet<String>()))
+                            isKnownDashboardCardKey(k) &&
+                            (!isActiveChartCardKey(k) || k in savedCharts)
                 }
-            list.addAll(saved ?: DEFAULT_CARD_ORDER.decodeOrder())
+
+            val base = saved?.ifEmpty { defaults } ?: defaults
+            list.addAll(base + defaults.filter { it !in base })
         }
     }
 
     fun halfCardsShareRow(left: String?, right: String?): Boolean =
-        left != null && right != null && isHalfCardKey(left) && isHalfCardKey(right) &&
-                ((halfPositions[left] == null && halfPositions[right] == null) ||
-                        (halfPositions[left] == 0f && halfPositions[right] == 1f))
+        left != null &&
+                right != null &&
+                isHalfCardKey(left) &&
+                isHalfCardKey(right)
 
     // Write current layout to local settings AND push to the backend so other
     // platforms pick it up. The API call is fire-and-forget with local as fallback.
@@ -589,15 +373,21 @@ private fun MobileDashboard(
         runCatching { api.loadLayout(authToken) }.getOrNull()?.let { remote ->
             if (remote.chartCards.isNotBlank() || remote.deletedCards.isNotBlank()
                 || remote.cardOrder.isNotBlank() && remote.cardOrder != DEFAULT_CARD_ORDER) {
-                val remoteDeleted = remote.deletedCards.decodeSet()
+                val remoteDeleted = remote.deletedCards.decodeSet() - "budget"
                 val remotePos     = remote.halfPositions.decodeHalfPositions()
 
-                // cardOrder is source of truth — only keep chart keys that appear in it
-                val remoteOrder = remote.cardOrder.decodeOrder()
-                    .filter { k -> !k.contains('|') }
-                    .ifEmpty { DEFAULT_CARD_ORDER.decodeOrder() }
+                val defaults = DEFAULT_CARD_ORDER
+                    .decodeOrder()
+                    .filter { key -> isKnownDashboardCardKey(key) && key != "budget" }
+                    .distinct()
+                val savedRemoteOrder = remote.cardOrder.decodeOrder()
+                    .filter { k -> !k.contains('|') && isKnownDashboardCardKey(k) }
+
+                val baseRemoteOrder = savedRemoteOrder.ifEmpty { defaults }
+                val remoteOrder = baseRemoteOrder + defaults.filter { it !in baseRemoteOrder }
+
                 val chartsInOrder = remote.chartCards.decodeSet()
-                    .filter { k -> ALL_CHART_CARDS.any { it.key == k } && k in remoteOrder }
+                    .filter { k -> isActiveChartCardKey(k) && k in remoteOrder }
                     .toSet()
 
                 cardOrder.clear(); cardOrder.addAll(remoteOrder)
@@ -616,17 +406,35 @@ private fun MobileDashboard(
     // Add a chart card — persists immediately so re-login doesn't lose the change,
     // and pushes to backend so other platforms sync right away.
     fun addChartCard(key: String) {
-        if (ALL_CHART_CARDS.none { it.key == key }) return
-        if (key in chartCardsOnDashboard) return
-        chartCardsOnDashboard = chartCardsOnDashboard + key
-        cardOrder.add(key)
-        halfPositions.remove(key)
-        persistLayout()   // save locally + push to backend immediately
+        if (key in BUILT_IN_DASHBOARD_CARD_KEYS) {
+            deletedCards = deletedCards - key
+            chartCardsOnDashboard = chartCardsOnDashboard - key
+            halfPositions.remove(key)
+
+            if (key !in cardOrder) {
+                cardOrder.add(key)
+            }
+        } else {
+            if (!isActiveChartCardKey(key)) return
+            if (key in chartCardsOnDashboard) return
+
+            chartCardsOnDashboard = chartCardsOnDashboard + key
+            cardOrder.add(key)
+            halfPositions.remove(key)
+        }
+
+        while (cardOrder.count { it == key } > 1) {
+            cardOrder.removeAt(cardOrder.lastIndexOf(key))
+        }
+
+        if (!isCustomizing) {
+            persistLayout()
+        }
     }
 
     // Delete a card — persists immediately for the same reason.
     fun deleteCard(key: String) {
-        val isChart = ALL_CHART_CARDS.any { it.key == key }
+        val isChart = isActiveChartCardKey(key)
         if (isChart) {
             val index = cardOrder.indexOf(key)
             val leftNeighbour = cardOrder.getOrNull(index - 1)
@@ -642,7 +450,9 @@ private fun MobileDashboard(
         } else {
             deletedCards = deletedCards + key
         }
-        persistLayout()   // save locally + push to backend immediately
+        if (!isCustomizing) {
+            persistLayout()
+        }
     }
 
     // ── 1. FILTERED BALANCES & ACCOUNTS ──
@@ -654,11 +464,9 @@ private fun MobileDashboard(
     // Calculates display balance based on selected account(s)
     val displayBalance = remember(activeAccounts, state.accounts) {
         if (selectedAccounts.isEmpty()) state.currentBalance
-        else {
-            state.accounts
-                .filter { it.bankName in selectedAccounts }
-                .sumOf { it.balance.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0 }
-        }
+        else state.accounts
+            .filter { it.bankName in selectedAccounts }
+            .sumOf { it.balanceValue ?: 0.0 }
     }
 
     // ── 2. FILTERED RAW TRANSACTIONS ──
@@ -677,6 +485,18 @@ private fun MobileDashboard(
         }
     }
 
+    val (displayMonthlyIncome, displayMonthlyExpenses) = remember(
+        filteredRawTransactions,
+        exchangeRates,
+        CurrencyController.currentCurrency
+    ) {
+        currentMonthIncomeAndExpenses(
+            transactions = filteredRawTransactions,
+            displayCurrency = CurrencyController.currentCurrency,
+            rates = exchangeRates
+        )
+    }
+
     // Label on the top-right button
     val allAccountsLabel = appStringResource(StringKey.DASHBOARD_ALL_ACCOUNTS)
     val accountsCountLabel = appStringResource(StringKey.DASHBOARD_ACCOUNTS_COUNT)
@@ -688,6 +508,7 @@ private fun MobileDashboard(
     if (showChartsSheet) {
         ChartsBottomSheet(
             chartCardsOnDashboard = chartCardsOnDashboard,
+            deletedCards = deletedCards,
             onAddChart = { key ->
                 addChartCard(key)
                 showChartsSheet = false
@@ -837,9 +658,9 @@ private fun MobileDashboard(
             FinancialOverviewCard(
                 balance  = formatCurrency(displayBalance,        getCurrencySymbol(state.currency), state.currency),
                 balanceTrend = state.balanceChangePercent,
-                income   = formatCurrency(state.monthlyIncome,   getCurrencySymbol(state.currency), state.currency),
+                income   = formatCurrency(displayMonthlyIncome, getCurrencySymbol(state.currency), state.currency),
                 incomeTrend = state.incomeChangePercent,
-                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency), state.currency),
+                expenses = formatCurrency(displayMonthlyExpenses, getCurrencySymbol(state.currency), state.currency),
                 expensesTrend = state.expenseChangePercent
             )
         }
@@ -850,11 +671,11 @@ private fun MobileDashboard(
         // Deletion always uses cardOrder.remove(key) — no index capture.
 
         // Compute which keys are currently visible
-        val visibleKeys = cardOrder.filter { key ->
-            val isChart = ALL_CHART_CARDS.any { it.key == key }
+        val visibleKeys = cardOrder.distinct().filter { key ->
             when {
+                !isKnownDashboardCardKey(key) -> false
                 key in deletedCards -> false
-                isChart -> key in chartCardsOnDashboard
+                isActiveChartCardKey(key) -> key in chartCardsOnDashboard
                 else -> true
             }
         }
@@ -977,7 +798,7 @@ private fun MobileDashboard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     row.forEach { key ->
-                        val isChart = ALL_CHART_CARDS.any { it.key == key }
+                        val isChart = isActiveChartCardKey(key)
                         CustomizableCard(
                             cardKey       = key,
                             isCustomizing = isCustomizing,
@@ -1014,8 +835,7 @@ private fun MobileDashboard(
                 }
             } else {
                 val key = row[0]
-                val def = ALL_CHART_CARDS.find { it.key == key }
-                val isChart = def != null
+                val isChart = isActiveChartCardKey(key)
 
                 if (isHalfKey(key)) {
                     // Lone half-size card — occupies left half, spacer on right
@@ -1094,10 +914,6 @@ private fun MobileDashboard(
                                     }
                                 }
                             }
-                            "budget" -> BudgetProgressCardContent(
-                                api = budgetApi, authToken = authToken,
-                                transactions = state.rawTransactions, currency = state.currency,exchangeRates = exchangeRates
-                            )
                             else -> ChartCardContent(
                                 key             = key,
                                 state           = state,
@@ -1115,6 +931,19 @@ private fun MobileDashboard(
         item {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 DashboardChartsButton(onClick = { showChartsSheet = true })
+            }
+        }
+
+        // Budget Progress — fixed, not deletable
+        item {
+            DashboardCard(modifier = Modifier.height(FULL_CARD_HEIGHT)) {
+                BudgetProgressCardContent(
+                    api = budgetApi,
+                    authToken = authToken,
+                    transactions = state.rawTransactions,
+                    currency = state.currency,
+                    exchangeRates = exchangeRates
+                )
             }
         }
 
@@ -1190,37 +1019,48 @@ private fun DesktopDashboard(
     val keyDeletedCards  = remember(userId) { "${userId}_${KEY_DELETED_CARDS}" }
     val keyChartCards    = remember(userId) { "${userId}_${KEY_CHART_CARDS}" }
     val keyMigrated      = remember(userId) { "${userId}_${KEY_MIGRATED}" }
+    val keyHalfPositions = remember(userId) { "${userId}_${KEY_HALF_POSITIONS}" }
 
     var deletedCards by remember(userId) {
         mutableStateOf(
-            settings.getStringOrNull(keyDeletedCards)?.decodeSet() ?: emptySet()
+            (settings.getStringOrNull(keyDeletedCards)?.decodeSet() ?: emptySet()) - "budget"
         )
     }
     var chartCardsOnDashboard by remember(userId) {
         val raw = settings.getStringOrNull(keyChartCards)?.decodeSet() ?: emptySet()
-        val valid = raw.filter { k -> ALL_CHART_CARDS.any { it.key == k } }.toSet()
+        val valid = raw.filter { k -> isActiveChartCardKey(k) }.toSet()
         mutableStateOf(valid)
     }
 
     // Desktop chart order — initialised from persisted chart set, saved on Done
     val desktopChartOrder = remember(userId) {
         val saved = settings.getStringOrNull(keyChartCards)?.decodeSet()
-            ?.filter { k -> ALL_CHART_CARDS.any { it.key == k } } ?: emptyList()
+            ?.filter { k -> isActiveChartCardKey(k) } ?: emptyList()
         mutableStateListOf<String>().also { it.addAll(saved) }
     }
 
     fun persistDesktopLayout() {
+        val fullOrder = (
+                DEFAULT_CARD_ORDER.decodeOrder() + desktopChartOrder.filter { it in chartCardsOnDashboard }
+                )
+            .filter { key -> isKnownDashboardCardKey(key) }
+            .distinct()
+
+        settings[keyCardOrder] = fullOrder.encodeOrder()
         settings[keyDeletedCards] = deletedCards.encodeSet()
-        settings[keyChartCards]   = chartCardsOnDashboard.encodeSet()
-        // Push to backend — mobile and other desktop sessions pick this up on next load
+        settings[keyChartCards] = chartCardsOnDashboard.encodeSet()
+
+        val existingHalfPositions = settings.getStringOrNull(keyHalfPositions) ?: ""
+
         scope.launch {
             runCatching {
                 api.saveLayout(
                     authToken,
                     DashboardLayoutDto(
-                        cardOrder    = DEFAULT_CARD_ORDER,
+                        cardOrder = fullOrder.encodeOrder(),
                         deletedCards = deletedCards.encodeSet(),
-                        chartCards   = chartCardsOnDashboard.encodeSet()
+                        chartCards = chartCardsOnDashboard.encodeSet(),
+                        halfPositions = existingHalfPositions
                     )
                 )
             }
@@ -1233,7 +1073,7 @@ private fun DesktopDashboard(
         if (authToken.isBlank()) return@LaunchedEffect
         runCatching { api.loadLayout(authToken) }.getOrNull()?.let { remote ->
             if (remote.chartCards.isNotBlank() || remote.deletedCards.isNotBlank()) {
-                val remoteDeleted = remote.deletedCards.decodeSet()
+                val remoteDeleted = remote.deletedCards.decodeSet() - "budget"
                 val remoteOrder   = remote.cardOrder.decodeOrder()
                     .filter { k -> k in remote.chartCards.decodeSet() && ALL_CHART_CARDS.any { it.key == k } }
                 // Only keep charts that are actually in the saved order
@@ -1242,8 +1082,11 @@ private fun DesktopDashboard(
                 chartCardsOnDashboard = chartsInOrder
                 desktopChartOrder.clear()
                 desktopChartOrder.addAll(remoteOrder)
+
+                settings[keyCardOrder] = remote.cardOrder
                 settings[keyDeletedCards] = remoteDeleted.encodeSet()
-                settings[keyChartCards]   = chartsInOrder.encodeSet()
+                settings[keyChartCards] = chartsInOrder.encodeSet()
+                settings[keyHalfPositions] = remote.halfPositions
             }
         }
     }
@@ -1257,11 +1100,9 @@ private fun DesktopDashboard(
     // Calculates display balance based on selected account(s)
     val displayBalance = remember(activeAccounts, state.accounts) {
         if (selectedAccounts.isEmpty()) state.currentBalance
-        else {
-            state.accounts
-                .filter { it.bankName in selectedAccounts }
-                .sumOf { it.balance.replace(Regex("[^0-9.]"), "").toDoubleOrNull() ?: 0.0 }
-        }
+        else state.accounts
+            .filter { it.bankName in selectedAccounts }
+            .sumOf { it.balanceValue ?: 0.0 }
     }
 
     // ── 2. FILTERED RAW TRANSACTIONS ──
@@ -1278,6 +1119,18 @@ private fun DesktopDashboard(
 //            state.accounts.find { it.bankName in selectedAccounts } != null
             tx.accountId in selectedAccountIds
         }
+    }
+
+    val (displayMonthlyIncome, displayMonthlyExpenses) = remember(
+        filteredRawTransactions,
+        exchangeRates,
+        CurrencyController.currentCurrency
+    ) {
+        currentMonthIncomeAndExpenses(
+            transactions = filteredRawTransactions,
+            displayCurrency = CurrencyController.currentCurrency,
+            rates = exchangeRates
+        )
     }
 
     val allAccountsLabel = appStringResource(StringKey.DASHBOARD_ALL_ACCOUNTS)
@@ -1313,9 +1166,14 @@ private fun DesktopDashboard(
     if (showChartsSheet) {
         ChartsBottomSheet(
             chartCardsOnDashboard = chartCardsOnDashboard,
+            deletedCards = deletedCards,
             onAddChart = { key ->
-                if (key !in chartCardsOnDashboard) desktopChartOrder.add(key)
-                chartCardsOnDashboard = chartCardsOnDashboard + key
+                if (key in BUILT_IN_DASHBOARD_CARD_KEYS) {
+                    deletedCards = deletedCards - key
+                } else {
+                    if (key !in chartCardsOnDashboard) desktopChartOrder.add(key)
+                    chartCardsOnDashboard = chartCardsOnDashboard + key
+                }
                 showChartsSheet = false
             },
             onDismiss = { showChartsSheet = false }
@@ -1455,9 +1313,9 @@ private fun DesktopDashboard(
             FinancialOverviewCard(
                 balance  = formatCurrency(displayBalance,        getCurrencySymbol(state.currency), state.currency),
                 balanceTrend = state.balanceChangePercent,
-                income   = formatCurrency(state.monthlyIncome,   getCurrencySymbol(state.currency), state.currency),
+                income   = formatCurrency(displayMonthlyIncome, getCurrencySymbol(state.currency), state.currency),
                 incomeTrend = state.incomeChangePercent,
-                expenses = formatCurrency(state.monthlyExpenses, getCurrencySymbol(state.currency), state.currency),
+                expenses = formatCurrency(displayMonthlyExpenses, getCurrencySymbol(state.currency), state.currency),
                 expensesTrend = state.expenseChangePercent
             )
         }
@@ -1558,28 +1416,7 @@ private fun DesktopDashboard(
                             onMoveDown = { builtinMoveDown() },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_COMPARISON))
-                                BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().height(160.dp))
-                            }
-                        }
-                    }
-                    if ("budget" !in deletedCards) {
-                        CustomizableCard(
-                            cardKey = "budget",
-                            isCustomizing = isCustomizing,
-                            onDelete = { deletedCards = deletedCards + it },
-                            onMoveUp   = { builtinMoveUp() },
-                            onMoveDown = { builtinMoveDown() },
-                            modifier = Modifier.weight(1f).fillMaxHeight()
-                        ) {
-                            BudgetProgressCardContent(
-                                api = budgetApi,
-                                authToken = authToken,
-                                transactions = state.rawTransactions,
-                                currency = state.currency,
-                                exchangeRates = exchangeRates
-                            )
+                            HalfCardContent("top_categories", state)
                         }
                     }
                 }
@@ -1630,7 +1467,7 @@ private fun DesktopDashboard(
                 }
             } else {
                 val key = row[0]
-                val def = ALL_CHART_CARDS.find { it.key == key }
+                val def = dashboardCardDef(key)
                 if (def?.size == CardSize.HALF) {
                     Row(
                         modifier = Modifier.fillMaxWidth().height(HALF_CARD_HEIGHT),
@@ -1686,6 +1523,19 @@ private fun DesktopDashboard(
         item {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 DashboardChartsButton(onClick = { showChartsSheet = true })
+            }
+        }
+
+        // Budget Progress — fixed, not deletable
+        item {
+            DashboardCard(modifier = Modifier.fillMaxWidth().height(FULL_CARD_HEIGHT)) {
+                BudgetProgressCardContent(
+                    api = budgetApi,
+                    authToken = authToken,
+                    transactions = state.rawTransactions,
+                    currency = state.currency,
+                    exchangeRates = exchangeRates
+                )
             }
         }
 
@@ -1804,1830 +1654,14 @@ private fun DesktopDashboard(
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            Spacer(Modifier.height(8.dp))
-                            SectionTitle(appStringResource(StringKey.DASHBOARD_UPCOMING_BILLS))
-                            Text(appStringResource(StringKey.COMMON_COMING_SOON), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+//                            Spacer(Modifier.height(8.dp))
+//                            SectionTitle(appStringResource(StringKey.DASHBOARD_UPCOMING_BILLS))
+//                            Text(appStringResource(StringKey.COMMON_COMING_SOON), style = MaterialTheme.typography.bodySmall,
+//                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
         }
-    }
-}
-
-
-@Composable
-private fun DonutChart(categories: List<SpendingCategory>, modifier: Modifier = Modifier) {
-
-    if (categories.isEmpty()) return
-
-    Canvas(modifier = modifier) {
-        val strokeWidth = size.minDimension * 0.18f
-        val radius = (size.minDimension - strokeWidth) / 2f
-        val center = Offset(size.width / 2f, size.height / 2f)
-
-        val total = categories
-            .sumOf { it.percent.toDouble() }
-            .toFloat()
-            .takeIf { it > 0f }
-            ?: return@Canvas
-
-        var startAngle = -90f
-
-        categories.forEach { cat ->
-            val sweep = (cat.percent / total) * 360f
-
-            drawArc(
-                color = cat.color,
-                startAngle = startAngle,
-                sweepAngle = sweep - 0.8f,
-                useCenter = false,
-                topLeft = Offset(center.x - radius, center.y - radius),
-                size = Size(radius * 2f, radius * 2f),
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
-            )
-
-            startAngle += sweep
-        }
-    }
-}
-
-@Composable
-private fun LineChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) {
-    if (data.isEmpty()) return
-    val incomeColor   = Color(0xFF16A34A)
-    val expensesColor = Color(0xFFEF4444)
-    val maxVal = data.maxOf { maxOf(it.income, it.expenses) } * 1.2f
-    val yLabels = (3 downTo 0).map { i -> (maxVal * i / 3).toInt() }
-
-    // CRITICAL CHANGES: Tightened down the left column layout footprints
-    // to physically draw the gridlines and trend lines closer to the left wall.
-    val labelWidth = 16.dp // Drastically reduced from 32.dp to eliminate dead workspace
-    val spacingGutter = 4.dp // Halved from 8.dp to snap the chart lines leftwards
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            // Y-axis labels column - tightly fits numbers, hugging the far left
-            Column(
-                modifier = Modifier
-                    .width(labelWidth)
-                    .fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.Start
-            ) {
-                yLabels.forEach { v ->
-                    Text(
-                        text = if (v >= 1000) "${v / 1000}k" else "$v",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Start,
-                        maxLines = 1,
-                        overflow = TextOverflow.Visible,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(spacingGutter))
-
-            // The main graphic canvas - now pulled way over to the left!
-            Canvas(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            ) {
-                val chartWidth = size.width
-                val chartHeight = size.height
-
-                val stepX = chartWidth / (data.size - 1).toFloat()
-                fun xFor(i: Int) = i * stepX
-                fun yFor(v: Float) = chartHeight * (1f - v.coerceIn(0f, maxVal) / maxVal)
-
-                // Render matching grid lines
-                repeat(4) { i ->
-                    val y = chartHeight * (i / 3f)
-                    drawLine(
-                        color = Color(0x1F888888),
-                        start = Offset(0f, y),
-                        end = Offset(chartWidth, y),
-                        strokeWidth = 1.dp.toPx()
-                    )
-                }
-
-                // Income trend line
-                val incomePath = Path()
-                data.forEachIndexed { i, p ->
-                    if (i == 0) incomePath.moveTo(xFor(i), yFor(p.income))
-                    else incomePath.lineTo(xFor(i), yFor(p.income))
-                }
-                drawPath(incomePath, incomeColor, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round))
-
-                // Expenses trend line
-                val expPath = Path()
-                data.forEachIndexed { i, p ->
-                    if (i == 0) expPath.moveTo(xFor(i), yFor(p.expenses))
-                    else expPath.lineTo(xFor(i), yFor(p.expenses))
-                }
-                drawPath(expPath, expensesColor, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round))
-
-                // Vector point circles matching line vertices
-                data.forEachIndexed { i, p ->
-                    drawCircle(incomeColor, 3.5.dp.toPx(), Offset(xFor(i), yFor(p.income)))
-                    drawCircle(expensesColor, 3.5.dp.toPx(), Offset(xFor(i), yFor(p.expenses)))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Month items automatically tracking the new left-shifted line anchor bounds
-        val monthNumberMap = mapOf(
-            "Jan" to 1, "Feb" to 2, "Mar" to 3, "Apr" to 4,
-            "May" to 5, "Jun" to 6, "Jul" to 7, "Aug" to 8,
-            "Sep" to 9, "Oct" to 10, "Nov" to 11, "Dec" to 12
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = labelWidth + spacingGutter), // Dynamically stays aligned with the canvas start point
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            data.forEach {
-                Text(
-                    text = "${monthNumberMap[it.month] ?: it.month}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(IntrinsicSize.Min),
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BarChart(data: List<MonthlyTopCategory>, modifier: Modifier = Modifier) {
-    if (data.isEmpty()) {
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        return
-    }
-
-    val barWidthDp = 32.dp
-    val gapDp      = 12.dp
-    val totalWidth = (barWidthDp + gapDp) * data.size
-    val maxVal     = data.maxOf { it.amount } * 1.2f
-    val scrollState = rememberScrollState()
-
-    Column {
-        Row(modifier = Modifier.horizontalScroll(scrollState)) {
-            Canvas(modifier = Modifier.width(totalWidth).height(120.dp)) {
-                val paddingTop    = 20.dp.toPx()  // space so tallest bar doesn't touch title
-                val paddingBottom = 8.dp.toPx()
-                val chartHeight   = size.height - paddingTop - paddingBottom
-                val bw  = barWidthDp.toPx()
-                val gap = gapDp.toPx()
-                data.forEachIndexed { i, point ->
-                    val barHeight = (point.amount / maxVal) * chartHeight
-                    val x = i * (bw + gap) + gap / 2f
-                    val y = paddingTop + chartHeight - barHeight
-                    drawRoundRect(
-                        color      = point.color.copy(alpha = 0.85f),
-                        topLeft    = Offset(x, y),
-                        size       = Size(bw, barHeight),
-                        cornerRadius = CornerRadius(4.dp.toPx())
-                    )
-                }
-            }
-        }
-        // Month + category labels
-        Row(
-            modifier = Modifier.horizontalScroll(scrollState).width(totalWidth),
-            horizontalArrangement = Arrangement.SpaceAround
-        ) {
-            data.forEach { point ->
-                Column(
-                    modifier = Modifier.width(barWidthDp + gapDp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(point.month, style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center)
-                    Text(localiseCategory(point.category), style = MaterialTheme.typography.labelSmall,
-                        fontSize = 8.sp,
-                        color = point.color,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1)
-                }
-            }
-        }
-    }
-}
-
-
-@Composable
-private fun BudgetProgressCardContent(
-    authToken: String,
-    transactions: List<TransactionData>,
-    currency: String,
-    exchangeRates: Map<String, Double>,
-    api: BudgetApi
-) {
-    val scope  = rememberCoroutineScope()
-    val symbol = getCurrencySymbol(currency)
-
-    var budgets    by remember { mutableStateOf<List<BudgetData>>(emptyList()) }
-    var showDialog by remember { mutableStateOf(false) }
-    var editBudget by remember { mutableStateOf<BudgetData?>(null) }
-    var errorMsg   by remember { mutableStateOf<String?>(null) }
-
-    val budgetsWithSpending by derivedStateOf {
-        computeBudgetsWithSpending(
-            budgets         = budgets,
-            transactions    = transactions,
-            displayCurrency = CurrencyController.currentCurrency,
-            rates           = exchangeRates
-        )
-    }
-
-    suspend fun loadBudgets() {
-        when (val r = api.getBudgets(authToken)) {
-            is BudgetResult.Success -> budgets = r.data
-            is BudgetResult.Failure -> {errorMsg = AppStrings.get(
-                LocaleController.currentLanguageCode,
-                r.message
-            )}
-        }
-    }
-
-    LaunchedEffect(authToken, transactions) {
-        loadBudgets()
-    }
-
-    Column(
-        modifier = Modifier.fillMaxHeight(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        SectionTitle(appStringResource(StringKey.DASHBOARD_BUDGET_PROGRESS))
-        if (errorMsg != null) {
-            Text(
-                text = errorMsg ?: "",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFDC2626)
-            )
-        }
-        if (budgets.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxWidth().height(120.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    IconButton(
-                        onClick = {
-                            editBudget = null
-                            errorMsg = null
-                            showDialog = true
-                        },
-                        modifier = Modifier.size(48.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
-                    ) {
-                        Text(
-                            "+", fontSize = 24.sp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Light
-                        )
-                    }
-                    Text(appStringResource(StringKey.BUDGETS_EMPTY_TITLE),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                budgetsWithSpending.forEach { item ->
-                    CompactBudgetProgressRow(
-                        item = item,
-                        symbol = symbol,
-                        onEdit = {
-                            editBudget = item.budget
-                            errorMsg = null
-                            showDialog = true
-                        },
-                        onDelete = {
-                            scope.launch {
-                                when (val res = api.deleteBudget(authToken, item.budget.id)) {
-                                    is BudgetResult.Success -> {
-                                        errorMsg = null
-                                        loadBudgets()
-                                    }
-
-                                    is BudgetResult.Failure -> {
-                                        errorMsg = AppStrings.get(
-                                            LocaleController.currentLanguageCode,
-                                            res.message
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-            OutlinedButton(
-                onClick = {
-                    editBudget = null
-                    errorMsg = null
-                    showDialog = true
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = appStringResource(StringKey.BUDGETS_ADD),
-                    style = MaterialTheme.typography.labelMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-
-    if (showDialog) {
-        val currentEdit = editBudget
-        AddBudgetDialog(
-            existing       = currentEdit,
-            symbol         = symbol,
-            usedCategories = budgets.filter { currentEdit == null || it.id != currentEdit.id }
-                .map { it.category },
-            serverError    = errorMsg,
-            onDismiss      = {
-                showDialog = false
-                editBudget = null
-                errorMsg = null
-            },
-            onConfirm      = { category, amount, period, currency ->
-                scope.launch {
-                    val result = if (currentEdit != null) {
-                        api.updateBudget(authToken, currentEdit.id, amount, category, period, currency)
-                    } else {
-                        api.createBudget(authToken, BudgetRequest(category, amount, period, currency))
-                    }
-                    when (result) {
-                        is BudgetResult.Success -> {
-                            showDialog = false
-                            editBudget = null
-                            errorMsg = null
-                            loadBudgets()
-                        }
-                        is BudgetResult.Failure -> {
-                            errorMsg = AppStrings.get(
-                                LocaleController.currentLanguageCode,
-                                result.message
-                            )
-                        }
-                    }
-                }
-            }
-        )
-    }
-}
-
-// KMP-compatible 2dp formatter
-private fun formatDp(value: Double): String {
-    val abs  = abs(value)
-    val int  = abs.toLong()
-    val dec  = kotlin.math.round((abs - int) * 100).toLong()
-    return "$int.${dec.toString().padStart(2, '0')}"
-}
-
-@Composable
-private fun SpendingOverviewHeader(
-    selectedPeriod: SpendingPeriod,
-    onPeriodSelected: (SpendingPeriod) -> Unit
-) {
-    var periodDropdownExpanded by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val periodLabel = when (selectedPeriod) {
-            SpendingPeriod.THIS_MONTH    -> appStringResource(StringKey.PERIOD_THIS_MONTH)
-            SpendingPeriod.LAST_MONTH    -> appStringResource(StringKey.PERIOD_LAST_MONTH)
-            SpendingPeriod.LAST_3_MONTHS -> appStringResource(StringKey.PERIOD_LAST_3_MONTHS)
-            SpendingPeriod.THIS_YEAR     -> appStringResource(StringKey.PERIOD_THIS_YEAR)
-        }
-
-        val spendingLabel = appStringResource(StringKey.DASHBOARD_SPENDING_PERIOD)
-            .replace("%1\$s", periodLabel)
-        SectionTitle(spendingLabel)
-        Box {
-            IconButton(
-                onClick = { periodDropdownExpanded = true },
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(
-                    painter = painterResource(Res.drawable.calendar_month),
-                    contentDescription = "Select period",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-            DropdownMenu(
-                expanded = periodDropdownExpanded,
-                onDismissRequest = { periodDropdownExpanded = false }
-            ) {
-                SpendingPeriod.entries.forEach { period ->
-                    DropdownMenuItem(
-                        text = {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                if (period == selectedPeriod) {
-                                    Icon(
-                                        painter = painterResource(Res.drawable.check),
-                                        contentDescription = "Selected",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                } else {
-                                    Spacer(Modifier.width(14.dp))
-                                }
-                                val periodLabels = mapOf(
-                                    SpendingPeriod.THIS_MONTH    to appStringResource(StringKey.PERIOD_THIS_MONTH),
-                                    SpendingPeriod.LAST_MONTH    to appStringResource(StringKey.PERIOD_LAST_MONTH),
-                                    SpendingPeriod.LAST_3_MONTHS to appStringResource(StringKey.PERIOD_LAST_3_MONTHS),
-                                    SpendingPeriod.THIS_YEAR     to appStringResource(StringKey.PERIOD_THIS_YEAR)
-                                )
-                            }
-                        },
-                        onClick = {
-                            onPeriodSelected(period)
-                            periodDropdownExpanded = false
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ── Futuristic merged balance/income/expense card ─────────────────────────────
-
-@Composable
-private fun FinancialOverviewCard(
-    balance: String,
-    balanceTrend: Float,
-    income: String,
-    incomeTrend: Float,
-    expenses: String,
-    expensesTrend: Float
-) {
-    val accentColor = MaterialTheme.colorScheme.primary
-    val glowColor   = accentColor.copy(alpha = 0.18f)
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-    ) {
-        // Outer glow border using Canvas
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val cornerR = 16.dp.toPx()
-            val strokeW = 2.5.dp.toPx()
-            // Outer glow layer
-            drawRoundRect(
-                color        = glowColor,
-                size         = size,
-                cornerRadius = CornerRadius(cornerR + 4.dp.toPx()),
-                style        = Stroke(width = 8.dp.toPx())
-            )
-            // Crisp accent border
-            drawRoundRect(
-                color        = accentColor.copy(alpha = 0.7f),
-                size         = size,
-                cornerRadius = CornerRadius(cornerR),
-                style        = Stroke(width = strokeW)
-            )
-        }
-
-        Card(
-            modifier  = Modifier.fillMaxWidth(),
-            shape     = RoundedCornerShape(16.dp),
-            colors    = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Left: Current Balance (larger)
-                Column(
-                    modifier = Modifier.weight(1.5f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(text = appStringResource(StringKey.DASHBOARD_CURRENT_BALANCE),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = accentColor.copy(alpha = 0.8f),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text  = balance,
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    TrendIndicator(percentageChange = balanceTrend)
-                }
-
-                // Vertical divider
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .height(72.dp)
-                        .background(accentColor.copy(alpha = 0.25f))
-                )
-
-                // Right: Income + Expenses stacked
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Income
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .background(Color(0xFF16A34A), CircleShape)
-                            )
-                            Text(text = appStringResource(StringKey.DASHBOARD_INCOME),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            text  = income,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        TrendIndicator(percentageChange = incomeTrend)
-                    }
-
-                    HorizontalDivider(color = accentColor.copy(alpha = 0.12f))
-
-                    // Expenses
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .background(Color(0xFFEF4444), CircleShape)
-                            )
-                            Text(text = appStringResource(StringKey.DASHBOARD_EXPENSES),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            text  = expenses,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        TrendIndicator(percentageChange = expensesTrend)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ── Customizable card wrapper (delete + move overlays) ────────────────────────
-
-@Composable
-private fun CustomizableCard(
-    cardKey: String,
-    isCustomizing: Boolean,
-    onDelete: (String) -> Unit,
-    onMoveUp: () -> Unit = {},
-    onMoveDown: () -> Unit = {},
-    onDragStarted: () -> Unit = {},
-    onDragEnded: () -> Unit = {},
-    onMoveHorizontally: (Float) -> Unit = {},
-    horizontalPosition: Float? = null,
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    var dragAccumY by remember { mutableFloatStateOf(0f) }
-    var dragAccumX by remember { mutableFloatStateOf(0f) }
-    // A smaller threshold makes a complete, full-width card practical to move
-    // within a single long-press drag.
-    val swapThresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
-
-    BoxWithConstraints(modifier = modifier.fillMaxHeight()) {
-        val trackOffset = if (horizontalPosition == null) 0.dp
-        else (maxWidth + 12.dp) * horizontalPosition.coerceIn(0f, 1f)
-        Box(modifier = Modifier.fillMaxSize().offset(x = trackOffset)) {
-            DashboardCard(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight()
-                    .then(if (isCustomizing) Modifier.blur(3.dp) else Modifier),
-                content = content
-            )
-
-            if (isCustomizing) {
-                // ── Delete button: top-right red minus-in-circle ──
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 10.dp, y = (-10).dp)
-                        .size(24.dp)
-                        .background(Color(0xFFEF4444), CircleShape)
-                        .clickable { onDelete(cardKey) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    MinusIcon(modifier = Modifier.size(12.dp), color = Color.White)
-                }
-
-                // ── Move handle: centred icon, drag to reorder ──
-                // Uses raw awaitPointerEventScope so the LazyColumn's nested-scroll
-                // handler never intercepts the drag — works for both mouse and touch.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(72.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f), CircleShape)
-                        .pointerInput("move_handle_$isCustomizing") {
-                            if (!isCustomizing) return@pointerInput
-                            forEachGesture {
-                                awaitPointerEventScope {
-                                    var pressed = false
-                                    while (!pressed) {
-                                        val event = awaitPointerEvent(PointerEventPass.Final)
-                                        val change = event.changes.firstOrNull() ?: continue
-                                        if (change.pressed) {
-                                            change.consume()
-                                            pressed = true
-                                            dragAccumY = 0f
-                                            dragAccumX = 0f
-                                            onDragStarted()   // lock LazyColumn scroll
-                                        }
-                                    }
-                                    var dragging = true
-                                    while (dragging) {
-                                        val event = awaitPointerEvent(PointerEventPass.Final)
-                                        val change = event.changes.firstOrNull() ?: break
-                                        if (change.pressed) {
-                                            val delta = change.position - change.previousPosition
-                                            change.consume()
-                                            dragAccumX += delta.x
-                                            dragAccumY += delta.y
-                                            when {
-                                                dragAccumY > swapThresholdPx -> {
-                                                    onMoveDown()
-                                                    dragAccumY = 0f; dragAccumX = 0f
-                                                }
-                                                dragAccumY < -swapThresholdPx -> {
-                                                    onMoveUp()
-                                                    dragAccumY = 0f; dragAccumX = 0f
-                                                }
-                                                abs(dragAccumX) > abs(dragAccumY) ->
-                                                    onMoveHorizontally(delta.x / 300f)
-                                            }
-                                        } else {
-                                            change.consume()
-                                            dragAccumY = 0f; dragAccumX = 0f
-                                            dragging = false
-                                            onDragEnded()   // unlock LazyColumn scroll
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    MoveIcon(modifier = Modifier.size(50.dp), color = MaterialTheme.colorScheme.onSurface)
-                }
-            }
-        }
-    }
-}
-
-// ── Four-arrow move icon drawn with Canvas ────────────────────────────────────
-@Composable
-private fun MoveIcon(
-    modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.onSurface
-) {
-    Icon(
-        painter = painterResource(Res.drawable.moving),
-        contentDescription = "Move",
-        tint = Color.Unspecified,
-        modifier = modifier
-    )
-}
-
-@Composable
-private fun DashboardCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = modifier.fillMaxWidth().fillMaxHeight(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp), content = content)
-    }
-}
-
-@Composable
-private fun StatCard(
-    label: String,
-    value: String,
-    trendPercentage: Float, // Changed from raw strings to match backend pipeline
-    modifier: Modifier = Modifier
-) {
-    DashboardCard(modifier = modifier) {
-        Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            // Render the brand new trend row beautifully right under the amount
-            TrendIndicator(percentageChange = trendPercentage)
-        }
-    }
-}
-
-@Composable
-private fun ArrowChange(change: String, positive: Boolean) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Icon(
-            painter = painterResource(if (positive) Res.drawable.arrow_upward else Res.drawable.arrow_downward),
-            contentDescription = null,
-            tint = if (positive) Color(0xFF16A34A) else Color(0xFFEF4444),
-            modifier = Modifier.size(14.dp)
-        )
-        Text(change, style = MaterialTheme.typography.bodySmall,
-            color = if (positive) Color(0xFF16A34A) else Color(0xFFEF4444))
-    }
-}
-
-@Composable
-private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-}
-
-@Composable
-private fun CategoryLegendRow(cat: SpendingCategory) {
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .background(cat.color, CircleShape)
-        )
-
-        Text(
-            text = localiseCategory(cat.name),
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Text(
-            text = cat.amount,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1
-        )
-
-        Text(
-            text = formatPercentLabel(cat.percent),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1
-        )
-    }
-}
-
-private fun formatPercentLabel(percent: Float): String {
-    return when {
-        percent <= 0f -> "0%"
-        percent < 0.01f -> "< 1%"
-        else -> "${(percent * 100).toInt()}%"
-    }
-}
-
-@Composable
-private fun TransactionRow(tx: Transaction) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(tx.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(tx.date, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text(tx.amount, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
-            color = if (tx.isIncome) Color(0xFF16A34A) else MaterialTheme.colorScheme.onSurface)
-    }
-}
-
-@Composable
-private fun TrendIndicator(percentageChange: Float) {
-    val isPositive = percentageChange >= 0f
-    val absValue = abs(percentageChange)
-    val color = if (isPositive) Color(0xFF16A34A) else Color(0xFFEF4444)
-    val icon = if (isPositive) Res.drawable.arrow_upward else Res.drawable.arrow_downward
-
-    // KMP-safe rounding to 1 decimal place without JVM String.format()
-    val formattedPercentage = remember(absValue) {
-        val intPart = absValue.toLong()
-        val decPart = kotlin.math.round((absValue - intPart) * 10).toLong()
-        "$intPart.$decPart"
-    }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.padding(top = 4.dp)
-    ) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            tint = color,
-            modifier = Modifier.size(12.dp)
-        )
-        Text(
-            text = "$formattedPercentage%",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Text(text = appStringResource(StringKey.DASHBOARD_VS_LAST_MONTH),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun LegendDot(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Box(Modifier.size(10.dp).background(color, CircleShape))
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Composable
-private fun UpcomingBillRow(name: String, date: String, amount: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically) {
-        Column {
-            Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-            Text(date, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text(amount, style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun DashboardChartsButton(
-    onClick: () -> Unit
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier.height(36.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        Icon(
-            painter = painterResource(Res.drawable.add),
-            contentDescription = null,
-            modifier = Modifier.size(16.dp)
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = appStringResource(StringKey.DASHBOARD_CHARTS_BUTTON),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun DashboardCustomizeButton(
-    isCustomizing: Boolean,
-    onClick: () -> Unit,
-    onCancel: (() -> Unit)? = null
-) {
-    if (isCustomizing) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Done button — sits where Customise was
-            Button(
-                onClick = onClick,
-                modifier = Modifier.height(36.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Icon(
-                    painter = painterResource(Res.drawable.check),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(text = appStringResource(StringKey.DASHBOARD_DONE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            // Cancel button — appears to the right of Done, red background
-            if (onCancel != null) {
-                Button(
-                    onClick = onCancel,
-                    modifier = Modifier.height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFEF4444),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(text = appStringResource(StringKey.SETTINGS_CANCEL),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-    } else {
-        OutlinedButton(
-            onClick = onClick,
-            modifier = Modifier.height(36.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(18.dp)
-        ) {
-            Text(text = appStringResource(StringKey.DASHBOARD_CUSTOMISE),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-// ── Half-size built-in card content ──────────────────────────────────────────
-
-@Composable
-private fun HalfCardContent(
-    cardKey: String,
-    state: DashboardState
-) {
-    when (cardKey) {
-        "trend" -> {
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_TREND))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LegendDot(color = Color(0xFF16A34A), label = "In")
-                    LegendDot(color = Color(0xFFEF4444), label = "Out")
-                }
-                LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().weight(1f))
-            }
-        }
-        "top_categories" -> {
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(appStringResource(StringKey.DASHBOARD_HIGHEST_SPENDING))
-                BarChart(data = state.monthlyTopCategories, modifier = Modifier.fillMaxWidth().weight(1f))
-            }
-        }
-    }
-}
-
-// ── + Charts card content dispatcher ─────────────────────────────────────────
-
-@Composable
-private fun ChartCardContent(
-    key: String,
-    state: DashboardState,
-    rawTransactions: List<TransactionData>,
-    displayCurrency: String,
-    rates: Map<String, Double>
-) {
-    val sym = getCurrencySymbol(displayCurrency)
-    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-
-    when (key) {
-
-        // ── Weekly Spending (full) ──
-        "weekly_spending" -> {
-            val days = listOf("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
-            val dayOfWeek = now.dayOfWeek.ordinal
-            val weeklyData = (6 downTo 0).map { daysAgo ->
-                val dayIdx = ((dayOfWeek - daysAgo + 70) % 7)
-                val dayLabel = days[dayIdx]
-                val targetDate = now.date.minus(DatePeriod(days = daysAgo))
-                val total = rawTransactions
-                    .filter { tx ->
-                        val p = tx.timestamp.take(10).split("-")
-                        p.size == 3 &&
-                                p[0].toIntOrNull() == targetDate.year &&
-                                p[1].toIntOrNull() == targetDate.month.number &&
-                                p[2].toIntOrNull() == targetDate.dayOfMonth &&
-                                tx.amount < 0
-                    }
-                    .sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.toFloat()
-                MonthlyTopCategory(month = dayLabel, category = "", amount = total, color = Color(0xFF6366F1))
-            }
-            // 1. Center the chart content vertically and horizontally inside the card
-            Box(
-                modifier = Modifier.fillMaxHeight().fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    BarChart(data = weeklyData, modifier = Modifier.fillMaxWidth().height(160.dp))
-                }
-            }
-        }
-
-        // ── Spending per Day of Week (half) ──
-        "spending_per_day" -> {
-            val days = listOf("Mon","Tue","Wed","Thu","Fri","Sat","Sun")
-            val dayColors = listOf(
-                Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B),
-                Color(0xFFEC4899), Color(0xFF3B82F6), Color(0xFFF97316), Color(0xFF8B5CF6)
-            )
-            val totals = days.mapIndexed { idx, label ->
-                val total = rawTransactions.filter { tx ->
-                    val p = tx.timestamp.take(10).split("-")
-                    if (p.size != 3) return@filter false
-                    val date = try {
-                        LocalDate(p[0].toInt(), p[1].toInt(), p[2].toInt())
-                    } catch (_: Exception) { return@filter false }
-                    // DayOfWeek: MONDAY=1..SUNDAY=7, ordinal 0-based = 0..6
-                    date.dayOfWeek.ordinal == idx && tx.amount < 0
-                }.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.toFloat()
-                SpendingCategory(
-                    name   = label,
-                    amount = formatCurrency(total.toDouble(), sym, displayCurrency),
-                    percent = total,   // raw total; DonutChart normalises internally
-                    color  = dayColors[idx]
-                )
-            }.filter { it.percent > 0f }
-
-            Column(
-                modifier = Modifier.fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (totals.isEmpty()) {
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    DonutChart(
-                        categories = totals,
-                        modifier   = Modifier.size(120.dp)
-                    )
-                    // Compact legend — wraps into two columns for the half-card width
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        totals.forEach { cat ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(Modifier.size(8.dp).background(cat.color, CircleShape))
-                                Text(
-                                    "${localiseCategory(cat.name)}  ${cat.amount}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── Bank Account Comparison (half) ──
-        // 2. Scrollable inside the card so no info is cut
-        "bank_comparison" -> {
-            val accountSpend = state.accounts.map { acc ->
-                val total = rawTransactions
-                    .filter { tx: TransactionData ->
-                        val p = tx.timestamp.take(10).split("-")
-                        p.size == 3 &&
-                                p[0].toIntOrNull() == now.year &&
-                                p[1].toIntOrNull() == now.month.number &&
-                                tx.amount < 0 &&
-//                                (tx.accountId == null || tx.accountId == acc.accountId)
-                                tx.accountId == acc.accountId
-                    }
-                    .sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }
-                    .toFloat()
-
-                acc.bankName to total
-            }
-            val maxAmt = accountSpend.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1f
-            val barColors = listOf(Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B), Color(0xFFEC4899))
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    accountSpend.forEachIndexed { i, (name, amount) ->
-                        val fraction = (amount / maxAmt).coerceIn(0f, 1f)
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = name,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(
-                                    modifier = Modifier.weight(1f).height(8.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
-                                ) {
-                                    Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(fraction)
-                                        .background(barColors[i % barColors.size], RoundedCornerShape(4.dp)))
-                                }
-                                Text(
-                                    text = formatCurrency(amount.toDouble(), sym, displayCurrency),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── Spending by Time of Day (half) ──
-        // 3. Everything centered inside the card
-        "time_of_day" -> {
-            // Keep English keys for grouping logic — they match the timestamp groupBy below
-            val morningLabel   = appStringResource(StringKey.TIME_OF_DAY_MORNING)
-            val afternoonLabel = appStringResource(StringKey.TIME_OF_DAY_AFTERNOON)
-            val nightLabel     = appStringResource(StringKey.TIME_OF_DAY_NIGHT)
-
-            val buckets = mapOf(
-                "Morning"   to Pair(morningLabel,   Color(0xFFF59E0B)),
-                "Afternoon" to Pair(afternoonLabel, Color(0xFF6366F1)),
-                "Night"     to Pair(nightLabel,     Color(0xFF1E40AF))
-            )
-            val grouped = rawTransactions
-                .filter { tx ->
-                    val p = tx.timestamp.take(10).split("-")
-                    p.size == 3 &&
-                            p[0].toIntOrNull() == now.year &&
-                            p[1].toIntOrNull() == now.month.number &&
-                            tx.amount < 0
-                }
-                .groupBy { tx ->
-                    val hour = tx.timestamp.drop(11).take(2).toIntOrNull() ?: 12
-                    when { hour < 12 -> "Morning"; hour < 18 -> "Afternoon"; else -> "Night" }
-                }
-            val total = grouped.values.flatten().sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.takeIf { it > 0 } ?: 1.0
-            val cats = buckets.map { (key, pair) ->
-                val (label, color) = pair
-                val amt = grouped[key]?.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } ?: 0.0
-                SpendingCategory(name = label, percent = (amt / total).toFloat(), amount = formatCurrency(amt, sym, displayCurrency), color = color)
-
-            }
-            Box(
-                modifier = Modifier.fillMaxHeight().fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    DonutChart(categories = cats, modifier = Modifier.size(80.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        cats.forEach { cat ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(Modifier.size(7.dp).background(cat.color, CircleShape))
-                                Text(
-                                    text = "${cat.name} ${(cat.percent * 100).toInt()}%",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── Largest Transactions (half) ──
-        // 4. Group by description, sum duplicates, then rank top 5
-        "largest_tx" -> {
-            val top5 = rawTransactions
-                .asSequence()
-                .filter { tx ->
-                    val p = tx.timestamp.take(10).split("-")
-                    p.size == 3 &&
-                            p[0].toIntOrNull() == now.year &&
-                            p[1].toIntOrNull() == now.month.number &&
-                            tx.amount < 0
-                }
-                .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } }
-                .sortedByDescending { it.second }
-                .take(5)
-                .toList()
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    appStringResource(StringKey.CHART_LARGEST_TX_TITLE), style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (top5.isEmpty()) {
-                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
-                        top5.forEachIndexed { i, (name, amount) ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        "${i + 1}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.width(14.dp)
-                                    )
-                                    Text(
-                                        text = name,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Text(
-                                    text = formatCurrency(amount, getCurrencySymbol(displayCurrency), displayCurrency),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFFEF4444),
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── Smallest Transactions (half) ──
-        // 4. Same grouping logic — sum duplicates, then rank bottom 5
-        "smallest_tx" -> {
-            val bottom5 = rawTransactions
-                .asSequence()
-                .filter { tx ->
-                    val p = tx.timestamp.take(10).split("-")
-                    p.size == 3 &&
-                            p[0].toIntOrNull() == now.year &&
-                            p[1].toIntOrNull() == now.month.number &&
-                            tx.amount < 0
-                }
-                .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) -> name to txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) } }
-                .sortedBy { it.second }
-                .take(5)
-                .toList()
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    appStringResource(StringKey.CHART_SMALLEST_TX_TITLE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (bottom5.isEmpty()) {
-                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
-                        bottom5.forEachIndexed { i, (name, amount) ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        "${i + 1}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.width(14.dp)
-                                    )
-                                    Text(
-                                        text = name,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Text(
-                                    text = formatCurrency(amount, getCurrencySymbol(displayCurrency), displayCurrency),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        "upcoming_bills" -> {
-            val bills = remember(rawTransactions) { inferUpcomingBills(rawTransactions) }
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(
-                        appStringResource(StringKey.CHART_UPCOMING_BILLS_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(appStringResource(StringKey.UPCOMING_BILLS_PREDICTED), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (bills.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(appStringResource(StringKey.CHART_NO_RECURRING), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    bills.forEach { bill ->
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(bill.merchant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                val cadenceLabel = when (bill.cadence) {
-                                    "Weekly"  -> appStringResource(StringKey.UPCOMING_BILLS_CADENCE_WEEKLY)
-                                    "Monthly" -> appStringResource(StringKey.UPCOMING_BILLS_CADENCE_MONTHLY)
-                                    else      -> bill.cadence
-                                }
-                                val expectedLabel = appStringResource(StringKey.UPCOMING_BILLS_EXPECTED)
-                                Text("$cadenceLabel · $expectedLabel ${bill.expectedDate}", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(formatCurrency(bill.amount, sym, displayCurrency), style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── Merchant Spending Treemap (full) ──
-        "merchant_frequency" -> {
-            data class MerchantBubble(
-                val name: String,
-                val visitCount: Int,
-                val avgAmount: Double,
-                val totalSpend: Double,
-                val color: Color
-            )
-            val bubbleColors = listOf(
-                Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B),
-                Color(0xFFEC4899), Color(0xFF3B82F6)
-            )
-            val thisMonthTx = rawTransactions.filter { tx ->
-                val p = tx.timestamp.take(10).split("-")
-                p.size == 3 &&
-                        p[0].toIntOrNull() == now.year &&
-                        p[1].toIntOrNull() == now.month.number &&
-                        tx.amount < 0
-            }
-            val bubbles = thisMonthTx
-                .groupBy { tx -> tx.merchantName?.ifBlank { null } ?: tx.description }
-                .map { (name, txList) ->
-                    val count = txList.size
-                    val total = txList.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }
-                    name to Triple(count, total / count, total)
-                }
-                .sortedByDescending { it.second.third }
-                .mapIndexed { i, (name, triple) ->
-                    MerchantBubble(name, triple.first, triple.second, triple.third, bubbleColors[i % bubbleColors.size])
-                }
-
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    Text(
-                        appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(appStringResource(StringKey.CHART_AREA_TOTAL_SPEND),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-
-                if (bubbles.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(appStringResource(StringKey.CHART_NO_DATA_THIS_MONTH), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else {
-                    // Horizontally scrollable treemap — each merchant gets a tile
-                    // whose width is proportional to total spend.  The user can
-                    // swipe/scroll to see smaller merchants on the right.
-                    val totalTreemapSpend = bubbles.sumOf { it.totalSpend }.toFloat().coerceAtLeast(1f)
-                    val textMeasurer = rememberTextMeasurer()
-                    val tilePadding  = 2.dp
-                    // Minimum tile width so text is always legible
-                    val minTileWidthDp = 64.dp
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(0.dp)
-                    ) {
-                        bubbles.forEach { b ->
-                            // Natural proportional width — floor at minTileWidthDp
-                            val fraction  = (b.totalSpend.toFloat() / totalTreemapSpend)
-                            val naturalDp = (fraction * 320).dp   // 320dp ref — fits ~2 tiles before scroll
-                            val tileDp    = maxOf(naturalDp, minTileWidthDp)
-
-                            Canvas(
-                                modifier = Modifier
-                                    .width(tileDp)
-                                    .fillMaxHeight()
-                                    .padding(tilePadding)
-                            ) {
-                                val w = size.width
-                                val h = size.height
-                                drawRoundRect(
-                                    color = b.color.copy(alpha = 0.84f),
-                                    topLeft = Offset(0f, 0f),
-                                    size = Size(w, h),
-                                    cornerRadius = CornerRadius(8.dp.toPx())
-                                )
-                                val r = minOf(w, h) / 2f
-                                val cx = w / 2f
-                                val cy = h / 2f
-
-                                val nameStyle = TextStyle(
-                                    fontSize = (r * 0.30f / density).coerceAtLeast(8f).sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    textAlign = TextAlign.Center
-                                )
-                                val amountStyle = TextStyle(
-                                    fontSize = (r * 0.23f / density).coerceAtLeast(7f).sp,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    textAlign = TextAlign.Center
-                                )
-
-                                val nameLayout = textMeasurer.measure(
-                                    b.name.take(14), nameStyle,
-                                    constraints = Constraints(maxWidth = w.toInt().coerceAtLeast(1))
-                                )
-                                val amountLayout = textMeasurer.measure(
-                                    formatCurrency(b.totalSpend, sym, displayCurrency), amountStyle
-                                )
-
-                                val totalTextH = nameLayout.size.height + amountLayout.size.height + 2.dp.toPx()
-                                drawText(nameLayout,   topLeft = Offset(cx - nameLayout.size.width   / 2f, cy - totalTextH / 2f))
-                                drawText(amountLayout, topLeft = Offset(cx - amountLayout.size.width / 2f,
-                                    cy - totalTextH / 2f + nameLayout.size.height + 2.dp.toPx()))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ── + Charts bottom sheet ─────────────────────────────────────────────────────
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ChartsBottomSheet(
-    chartCardsOnDashboard: Set<String>,
-    onAddChart: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val available = ALL_CHART_CARDS.filter { it.key !in chartCardsOnDashboard }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 560.dp)
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = appStringResource(StringKey.DASHBOARD_ADD_CHARTS),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    MinusIcon(modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-
-            if (available.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center) {
-                    Text(text = appStringResource(StringKey.DASHBOARD_ALL_CHARTS_ADDED),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    available.forEach { def ->
-                        ChartOptionRow(def = def, onAdd = { onAddChart(def.key) })
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChartOptionRow(
-    def: ChartCardDef,
-    onAdd: () -> Unit
-) {
-    val title = appStringResource(def.title)
-    val description = appStringResource(def.description)
-    val sizeLabel = if (def.size == CardSize.FULL) {
-        appStringResource(StringKey.DASHBOARD_CHART_SIZE_FULL)
-    } else {
-        appStringResource(StringKey.DASHBOARD_CHART_SIZE_HALF)
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-    ) {
-        BoxWithConstraints(
-            modifier = Modifier.padding(14.dp)
-        ) {
-            val veryNarrow = maxWidth < 360.dp
-
-            if (veryNarrow) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    ChartOptionTextBlock(
-                        title = title,
-                        description = description,
-                        sizeLabel = sizeLabel,
-                        size = def.size,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    FilledTonalButton(
-                        onClick = onAdd,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 44.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = appStringResource(StringKey.DASHBOARD_ADD_BUTTON),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ChartOptionTextBlock(
-                        title = title,
-                        description = description,
-                        sizeLabel = sizeLabel,
-                        size = def.size,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    FilledTonalButton(
-                        onClick = onAdd,
-                        modifier = Modifier.heightIn(min = 44.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = appStringResource(StringKey.DASHBOARD_ADD_BUTTON),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChartOptionTextBlock(
-    title: String,
-    description: String,
-    sizeLabel: String,
-    size: CardSize,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Surface(
-            shape = RoundedCornerShape(4.dp),
-            color = if (size == CardSize.FULL) {
-                Color(0xFF6366F1).copy(alpha = 0.15f)
-            } else {
-                Color(0xFF22C55E).copy(alpha = 0.15f)
-            }
-        ) {
-            Text(
-                text = sizeLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (size == CardSize.FULL) Color(0xFF6366F1) else Color(0xFF16A34A),
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-            )
-        }
-
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-private fun MinusIcon(
-    modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.onSurface
-) {
-    Canvas(modifier = modifier) {
-        drawLine(
-            color = color,
-            start = Offset(size.width * 0.2f, size.height * 0.5f),
-            end = Offset(size.width * 0.8f, size.height * 0.5f),
-            strokeWidth = 3.dp.toPx(),
-            cap = StrokeCap.Round
-        )
     }
 }

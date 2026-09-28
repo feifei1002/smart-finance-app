@@ -30,8 +30,10 @@ import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 
 data class ConnectedAccount(
+    val accountId: String,
     val bankName: String,
     val maskedNumber: String,
+    val balance: String? = null,
     val isConnected: Boolean = true
 )
 
@@ -295,6 +297,7 @@ private fun AccountCard(account: ConnectedAccount) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -316,11 +319,16 @@ private fun AccountCard(account: ConnectedAccount) {
                     )
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
                     Text(
                         text = account.bankName,
                         style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = "**** ${account.maskedNumber}",
@@ -330,21 +338,37 @@ private fun AccountCard(account: ConnectedAccount) {
                 }
             }
 
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = if (account.isConnected) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
+            Column(
+                modifier = Modifier.widthIn(min = 96.dp, max = 130.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = if (account.isConnected) {
-                        appStringResource(StringKey.ACCOUNTS_STATUS_CONNECTED)
-                    } else {
-                        appStringResource(StringKey.ACCOUNTS_STATUS_DISCONNECTED)
-                    },
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (account.isConnected) Color(0xFF16A34A) else Color(0xFFDC2626)
-                )
+                account.balance?.let { balance ->
+                    Text(
+                        text = balance,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (account.isConnected) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
+                ) {
+                    Text(
+                        text = if (account.isConnected) {
+                            appStringResource(StringKey.ACCOUNTS_STATUS_CONNECTED)
+                        } else {
+                            appStringResource(StringKey.ACCOUNTS_STATUS_DISCONNECTED)
+                        },
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (account.isConnected) Color(0xFF16A34A) else Color(0xFFDC2626)
+                    )
+                }
             }
         }
     }

@@ -51,15 +51,18 @@ private val categoryNames = TransactionCategories.all
 
 fun formatCurrency(value: Double, symbol: String, currencyCode: String = ""): String {
     val absValue = kotlin.math.abs(value)
-    val prefix   = if (value < 0) "-" else ""
+    val prefix = if (value < 0) "-" else ""
     val zeroDecimalCurrencies = setOf("TWD", "JPY", "KRW")
+
     return if (currencyCode.uppercase() in zeroDecimalCurrencies) {
         val rounded = kotlin.math.round(absValue).toLong()
         "$prefix$symbol$rounded"
     } else {
-        val intPart = absValue.toLong()
-        val decPart = kotlin.math.round((absValue - intPart) * 100).toLong()
-        "$prefix$symbol$intPart.${decPart.toString().padStart(2, '0')}"
+        val totalCents = kotlin.math.round(absValue * 100).toLong()
+        val whole = totalCents / 100
+        val cents = kotlin.math.abs(totalCents % 100)
+
+        "$prefix$symbol$whole.${cents.toString().padStart(2, '0')}"
     }
 }
 
@@ -346,12 +349,13 @@ fun computeDashboardState(
             bankName     = account.bankName,
             maskedNumber = account.maskedNumber,
             balance      = if (convertedBalance != null)
-                formatCurrency(convertedBalance, symbol, displayCurrency) else "--"
+                formatCurrency(convertedBalance, symbol, displayCurrency) else "--",
+            balanceValue = convertedBalance
         )
     }
 
     // ── Monthly top spending category (last 6 months, converted) ─────────────
-    val monthlyTopCategories = (5 downTo 0).mapNotNull { monthsAgo ->
+    val monthlyTopCategories = (5 downTo 0).map { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
         val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year
@@ -364,7 +368,6 @@ fun computeDashboardState(
                     parts[1].toIntOrNull() == targetMonth &&
                     tx.amount < 0
         }
-        if (monthDebits.isEmpty()) return@mapNotNull null
 
         val topCategory = monthDebits
             .groupBy { TransactionCategories.normalize(it.category) }
@@ -373,17 +376,26 @@ fun computeDashboardState(
                     val converted = tx.convertedAmount(displayCurrency, rates)
                     if (converted != null) kotlin.math.abs(converted) else 0.0
                 }
-            } ?: return@mapNotNull null
+            }
 
-        MonthlyTopCategory(
-            month    = monthName,
-            category = topCategory.key,
-            amount   = topCategory.value.sumOf { tx ->
-                val converted = tx.convertedAmount(displayCurrency, rates)
-                if (converted != null) kotlin.math.abs(converted) else 0.0
-            }.toFloat(),
-            color    = colorMap[topCategory.key] ?: categoryColors[0]
-        )
+        if (topCategory == null) {
+            MonthlyTopCategory(
+                month = monthName,
+                category = "",
+                amount = 0f,
+                color = Color(0xFFCBD5E1)
+            )
+        } else {
+            MonthlyTopCategory(
+                month    = monthName,
+                category = topCategory.key,
+                amount   = topCategory.value.sumOf { tx ->
+                    val converted = tx.convertedAmount(displayCurrency, rates)
+                    if (converted != null) kotlin.math.abs(converted) else 0.0
+                }.toFloat(),
+                color    = colorMap[topCategory.key] ?: categoryColors[0]
+            )
+        }
     }
 
     return DashboardState(

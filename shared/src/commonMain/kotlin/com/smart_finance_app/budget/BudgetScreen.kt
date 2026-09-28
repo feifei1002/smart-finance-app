@@ -17,7 +17,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppPageHeader
@@ -43,6 +42,8 @@ import com.smart_finance_app.localiseCategory
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
 import com.smart_finance_app.currency.ConversionResult
+import smart_finance_app.shared.generated.resources.add
+import smart_finance_app.shared.generated.resources.arrow_drop_down
 
 // ── Category colours (matches DashboardState) ─────────────────────────────────
 
@@ -377,11 +378,11 @@ private fun EmptyBudgetCard(onAddClick: () -> Unit) {
                                 shape = CircleShape
                             )
                     ) {
-                        Text(
-                            "+",
-                            fontSize = 24.sp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Light
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.add),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                     Text(
@@ -696,7 +697,12 @@ fun AddBudgetDialog(
                                     )
                                     Text(localiseCategory(selectedCategory))
                                 }
-                                Text("▾", style = MaterialTheme.typography.bodySmall)
+                                Icon(
+                                    imageVector = vectorResource(Res.drawable.arrow_drop_down),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                         DropdownMenu(
