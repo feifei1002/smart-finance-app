@@ -879,7 +879,7 @@ private fun MobileDashboard(
                         onMoveDown    = { moveRowDown(rowIndex) },
                         onDragStarted = { isDraggingHandle = true },
                         onDragEnded   = { isDraggingHandle = false },
-                        modifier      = Modifier.height(cardHeight)
+                        modifier      = Modifier.heightIn(min = cardHeight)
                     ) {
                         when (key) {
                             "spending" -> {
@@ -892,21 +892,29 @@ private fun MobileDashboard(
                                         rates           = exchangeRates
                                     )
                                     val chartCategories = filteredCategories.filter { it.percent >= 0.01f }
-                                    Row(
+                                    Column(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        DonutChart(categories = chartCategories, modifier = Modifier.size(120.dp))
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            if (filteredCategories.isEmpty()) {
-                                                Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            } else {
-                                                filteredCategories.forEach { cat ->
+                                        if (chartCategories.isEmpty()) {
+                                            Text(
+                                                text = appStringResource(StringKey.DASHBOARD_NO_SPENDING_DATA_YET),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        } else {
+                                            DonutChart(
+                                                categories = chartCategories,
+                                                modifier = Modifier.size(120.dp)
+                                            )
+
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                chartCategories.forEach { cat ->
                                                     CategoryLegendRow(cat)
                                                 }
                                             }
