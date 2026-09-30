@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import com.smart_finance_app.AppErrorMessage
@@ -34,6 +35,11 @@ import com.smart_finance_app.appStringResource
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
 import com.smart_finance_app.currency.getCurrencySymbol
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
+import kotlinx.datetime.toLocalDateTime
+import smart_finance_app.shared.generated.resources.close
+import kotlin.time.Clock
 
 
 /** Fixed height for every half-size card (side-by-side pair). */
@@ -269,6 +275,7 @@ private fun MobileDashboard(
         val halfPositions: Map<String, Float>
     )
     var layoutSnapshot by remember { mutableStateOf<LayoutSnapshot?>(null) }
+    var enlargedCardKey by remember { mutableStateOf<String?>(null) }
 
     // ── Persisted layout state (multiplatform-settings — synchronous) ─────────
     // Keys are prefixed with userId so each user gets their own layout on shared devices.
@@ -480,7 +487,6 @@ private fun MobileDashboard(
     val filteredRawTransactions = remember(selectedAccountIds, state.rawTransactions) {
         if (selectedAccountIds.isEmpty()) state.rawTransactions
         else state.rawTransactions.filter { tx ->
-//            state.accounts.find { it.bankName in selectedAccounts } != null
             tx.accountId in selectedAccountIds
         }
     }
@@ -820,6 +826,7 @@ private fun MobileDashboard(
                                     }
                                 }
                             },
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier      = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             if (isChart) ChartCardContent(
@@ -829,7 +836,13 @@ private fun MobileDashboard(
                                 displayCurrency = CurrencyController.currentCurrency,
                                 rates           = exchangeRates
                             )
-                            else HalfCardContent(key, state)
+                            else {
+                                HalfCardContent(
+                                    cardKey = key,
+                                    state = state,
+                                    showTitle = false
+                                )
+                            }
                         }
                     }
                 }
@@ -855,6 +868,7 @@ private fun MobileDashboard(
                                 halfPositions[key] = ((halfPositions[key] ?: 0f) + delta).coerceIn(0f, 1f)
                             },
                             horizontalPosition = halfPositions[key] ?: 0f,
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier      = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             if (isChart) ChartCardContent(
@@ -864,7 +878,13 @@ private fun MobileDashboard(
                                 displayCurrency = CurrencyController.currentCurrency,
                                 rates           = exchangeRates
                             )
-                            else HalfCardContent(key, state)
+                            else {
+                                HalfCardContent(
+                                    cardKey = key,
+                                    state = state,
+                                    showTitle = false
+                                )
+                            }
                         }
                         Spacer(Modifier.weight(1f))
                     }
@@ -879,6 +899,7 @@ private fun MobileDashboard(
                         onMoveDown    = { moveRowDown(rowIndex) },
                         onDragStarted = { isDraggingHandle = true },
                         onDragEnded   = { isDraggingHandle = false },
+                        onOpenPreview = { enlargedCardKey = it },
                         modifier      = Modifier.heightIn(min = cardHeight)
                     ) {
                         when (key) {
@@ -979,6 +1000,68 @@ private fun MobileDashboard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         state.recentTransactions.take(6).forEach { tx -> TransactionRow(tx) }
+                    }
+                }
+            }
+        }
+    }
+
+    enlargedCardKey?.let { cardKey ->
+        Dialog(
+            onDismissRequest = { enlargedCardKey = null }
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(560.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = dashboardCardTitle(cardKey),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.align(Alignment.CenterStart)
+                        )
+
+                        IconButton(
+                            onClick = { enlargedCardKey = null },
+                            modifier = Modifier.align(Alignment.TopEnd)
+                            ) {
+                            Icon(
+                                painter = painterResource(Res.drawable.close),
+                                contentDescription = "Close"
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        DashboardCardPreviewContent(
+                            cardKey = cardKey,
+                            state = state,
+                            rawTransactions = filteredRawTransactions,
+                            spendingPeriod = spendingPeriod,
+                            displayCurrency = CurrencyController.currentCurrency,
+                            rates = exchangeRates
+                        )
                     }
                 }
             }
@@ -1124,7 +1207,6 @@ private fun DesktopDashboard(
     val filteredRawTransactions = remember(selectedAccountIds, state.rawTransactions) {
         if (selectedAccountIds.isEmpty()) state.rawTransactions
         else state.rawTransactions.filter { tx ->
-//            state.accounts.find { it.bankName in selectedAccounts } != null
             tx.accountId in selectedAccountIds
         }
     }
@@ -1424,7 +1506,11 @@ private fun DesktopDashboard(
                             onMoveDown = { builtinMoveDown() },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            HalfCardContent("top_categories", state)
+                            HalfCardContent(
+                                cardKey = "top_categories",
+                                state = state,
+                                showTitle = false
+                                )
                         }
                     }
                 }
@@ -1670,6 +1756,140 @@ private fun DesktopDashboard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DashboardCardPreviewContent(
+    cardKey: String,
+    state: DashboardState,
+    rawTransactions: List<TransactionData>,
+    spendingPeriod: SpendingPeriod,
+    displayCurrency: String,
+    rates: Map<String, Double>
+) {
+    when (cardKey) {
+        "spending" -> {
+            val filteredCategories = computeSpendingCategories(
+                transactions = rawTransactions,
+                period = spendingPeriod,
+                displayCurrency = displayCurrency,
+                rates = rates
+            )
+
+            val chartCategories = filteredCategories.filter { it.percent >= 0.01f }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                DonutChart(
+                    categories = chartCategories,
+                    modifier = Modifier.size(220.dp)
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    chartCategories.forEach { cat ->
+                        CategoryLegendRow(cat)
+                    }
+                }
+            }
+        }
+
+        "time_of_day" -> {
+            val sym = getCurrencySymbol(displayCurrency)
+            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+
+            val morningLabel = appStringResource(StringKey.TIME_OF_DAY_MORNING)
+            val afternoonLabel = appStringResource(StringKey.TIME_OF_DAY_AFTERNOON)
+            val nightLabel = appStringResource(StringKey.TIME_OF_DAY_NIGHT)
+
+            val buckets = mapOf(
+                "Morning" to Pair(morningLabel, Color(0xFFF59E0B)),
+                "Afternoon" to Pair(afternoonLabel, Color(0xFF6366F1)),
+                "Night" to Pair(nightLabel, Color(0xFF1E40AF))
+            )
+
+            val grouped = rawTransactions
+                .filter { tx ->
+                    val p = tx.timestamp.take(10).split("-")
+                    p.size == 3 &&
+                            p[0].toIntOrNull() == now.year &&
+                            p[1].toIntOrNull() == now.month.number &&
+                            tx.amount < 0
+                }
+                .groupBy { tx ->
+                    val hour = tx.timestamp.drop(11).take(2).toIntOrNull() ?: 12
+                    when {
+                        hour < 12 -> "Morning"
+                        hour < 18 -> "Afternoon"
+                        else -> "Night"
+                    }
+                }
+
+            val total = grouped.values
+                .flatten()
+                .sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }
+                .takeIf { it > 0 }
+                ?: 1.0
+
+            val cats = buckets.map { (key, pair) ->
+                val (label, color) = pair
+                val amount = grouped[key]
+                    ?.sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }
+                    ?: 0.0
+
+                SpendingCategory(
+                    name = label,
+                    percent = (amount / total).toFloat(),
+                    amount = formatCurrency(amount, sym, displayCurrency),
+                    color = color
+                )
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                DonutChart(
+                    categories = cats,
+                    modifier = Modifier.size(220.dp)
+                )
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    cats.forEach { cat ->
+                        CategoryLegendRow(cat)
+                    }
+                }
+            }
+        }
+
+        "trend",
+        "top_categories" -> {
+            HalfCardContent(
+                cardKey = cardKey,
+                state = state,
+                showTitle = false
+            )
+        }
+
+        else -> {
+            ChartCardContent(
+                key = cardKey,
+                state = state,
+                rawTransactions = rawTransactions,
+                displayCurrency = displayCurrency,
+                rates = rates
+            )
         }
     }
 }

@@ -75,3 +75,20 @@ internal fun isActiveChartCardKey(key: String): Boolean =
 
 internal fun isKnownDashboardCardKey(key: String): Boolean =
     dashboardCardDef(key) != null
+
+internal fun dashboardCardTitle(cardKey: String): String {
+    return when (cardKey) {
+        "spending" -> "Spending"
+        "trend" -> "Monthly Trend"
+        "top_categories" -> "Highest Spending"
+        "weekly_spending" -> "Weekly Spending"
+        "spending_per_day" -> "Spending per Day of Week"
+        "bank_comparison" -> "Bank Account Comparison"
+        "time_of_day" -> "Spending by Time of Day"
+        "largest_tx" -> "Largest Transactions"
+        "smallest_tx" -> "Smallest Transactions"
+        "merchant_frequency" -> "Merchant Spending Treemap"
+        "upcoming_bills" -> "Upcoming Bills"
+        else -> "Preview"
+    }
+}
