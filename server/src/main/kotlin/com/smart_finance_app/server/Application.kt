@@ -143,6 +143,7 @@ fun Application.module() {
 
         profileRoutes()
         exchangeRatesRoutes()
+        supportRoutes()
     }
 }
 

@@ -52,6 +52,7 @@ import com.smart_finance_app.currency.getCurrencySymbol
 import com.smart_finance_app.dashboard.DashboardResult
 import com.smart_finance_app.dashboard.formatCurrency
 import com.smart_finance_app.settings.SettingsPanel
+import com.smart_finance_app.settings.SupportApi
 
 @Composable
 fun MainNavigation(
@@ -162,6 +163,7 @@ private fun NavigationContent(
     val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
     val subscriptionApi = remember(apiBaseUrl, httpClient) { SubscriptionApi(apiBaseUrl, httpClient) }
     val profileApi = remember(apiBaseUrl, httpClient) { ProfileApi(apiBaseUrl, httpClient) }
+    val supportApi = remember(apiBaseUrl, httpClient) { SupportApi(apiBaseUrl, httpClient) }
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var transactionsLoading by remember { mutableStateOf(false) }
     var transactionsError by remember { mutableStateOf<String?>(null) }
@@ -696,6 +698,7 @@ private fun NavigationContent(
                 subscriptionApi    = subscriptionApi,
                 userPreferencesApi = userPreferencesApi,
                 profileApi         = profileApi,
+                supportApi         = supportApi,
                 onProfileUpdated   = onProfileUpdated,
                 onSignOut          = onSignOut,
                 initialPanel       = if (navigateToPlan) SettingsPanel.SubscriptionPlan

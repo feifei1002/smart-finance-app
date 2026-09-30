@@ -38,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -90,7 +91,10 @@ internal enum class SettingsPanel {
     EditProfile,
     UpdatePassword,
     Payments,
-    SubscriptionPlan
+    SubscriptionPlan,
+    Faq,
+    Feedback,
+    Support
 }
 private const val SHOW_BILLING_UI = false
 @Composable
@@ -101,6 +105,7 @@ internal fun SettingsScreen(
     subscriptionApi: SubscriptionApi,
     userPreferencesApi: UserPreferencesApi,
     profileApi: ProfileApi,
+    supportApi: SupportApi,
     onProfileUpdated: (String, String) -> Unit,
     onSignOut: () -> Unit,
     initialPanel: SettingsPanel = SettingsPanel.Main
@@ -286,106 +291,130 @@ internal fun SettingsScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackBarHostState) }
     ) { _ ->
-    when (panel) {
-        SettingsPanel.Main -> {
-            SettingsMainContent(
-                userName = userName,
-                userEmail = userEmail,
-                selectedLanguage = selectedLanguage,
-                selectedCurrency = selectedCurrency,
-                selectedAppearance = selectedAppearance,
-                onAppearanceSelected = { selectedAppearance = it },
-                onUpdateProfile = { panel = SettingsPanel.EditProfile },
-                onSubscriptionPaymentsClick = { panel = SettingsPanel.Payments },
-                onManageSubscription = { panel = SettingsPanel.SubscriptionPlan },
-                onLanguageClick = { showLanguageDialog = true },
-                onCurrencyClick = { showCurrencyDialog = true },
-                onSignOutClick = { showSignOutDialog = true }
-            )
-        }
+        when (panel) {
+            SettingsPanel.Main -> {
+                SettingsMainContent(
+                    userName = userName,
+                    userEmail = userEmail,
+                    selectedLanguage = selectedLanguage,
+                    selectedCurrency = selectedCurrency,
+                    selectedAppearance = selectedAppearance,
+                    onAppearanceSelected = { selectedAppearance = it },
+                    onUpdateProfile = { panel = SettingsPanel.EditProfile },
+                    onSubscriptionPaymentsClick = { panel = SettingsPanel.Payments },
+                    onManageSubscription = { panel = SettingsPanel.SubscriptionPlan },
+                    onLanguageClick = { showLanguageDialog = true },
+                    onCurrencyClick = { showCurrencyDialog = true },
+                    onSignOutClick = { showSignOutDialog = true },
+                    onFaqClick = { panel = SettingsPanel.Faq },
+                    onFeedbackClick = { panel = SettingsPanel.Feedback },
+                    onSupportClick = { panel = SettingsPanel.Support }
+                )
+            }
 
-        SettingsPanel.EditProfile -> {
-            EditProfileScreen(
-                userName = userName,
-                userEmail = userEmail,
-                authToken = authToken,
-                profileApi = profileApi,
-                onProfileUpdated = onProfileUpdated,
-                onUpdatePassword = { panel = SettingsPanel.UpdatePassword },
-                onBack = { panel = SettingsPanel.Main }
-            )
-        }
+            SettingsPanel.EditProfile -> {
+                EditProfileScreen(
+                    userName = userName,
+                    userEmail = userEmail,
+                    authToken = authToken,
+                    profileApi = profileApi,
+                    onProfileUpdated = onProfileUpdated,
+                    onUpdatePassword = { panel = SettingsPanel.UpdatePassword },
+                    onBack = { panel = SettingsPanel.Main }
+                )
+            }
 
-        // ── Fix 2: UpdatePassword was missing from the when block ─────────────
-        SettingsPanel.UpdatePassword -> {
-            UpdatePasswordScreen(
-                authToken = authToken,
-                profileApi = profileApi,
-                onBack = { panel = SettingsPanel.EditProfile },
-                onPasswordUpdated = onSignOut
-            )
-        }
+            // ── Fix 2: UpdatePassword was missing from the when block ─────────────
+            SettingsPanel.UpdatePassword -> {
+                UpdatePasswordScreen(
+                    authToken = authToken,
+                    profileApi = profileApi,
+                    onBack = { panel = SettingsPanel.EditProfile },
+                    onPasswordUpdated = onSignOut
+                )
+            }
 
-        SettingsPanel.Payments -> {
-            PaymentScreen(
-                paymentDetails = paymentDetails,
-                isLoading = paymentsLoading,
-                errorMessage = paymentsError,
-                invoices = invoices,
-                invoicesLoading = invoicesLoading,
-                invoicesError = invoicesError,
-                billingAddress = billingAddress,
-                billingAddressLoading = billingAddressLoading,
-                billingAddressError = billingAddressError,
-                fullName = userName,
-                email = userEmail,
-                isOpeningPortal = openingPaymentPortal,
-                onChangePaymentCard = {
-                    scope.launch {
-                        openingPaymentPortal = true
-                        paymentsError = null
-                        when (val result = subscriptionApi.createCustomerPortalSession(authToken)) {
-                            is CustomerPortalResult.Success -> uriHandler.openUri(result.portalUrl)
-                            is CustomerPortalResult.Failure -> paymentsError = AppStrings.get(
-                                LocaleController.currentLanguageCode,
-                                result.message
-                            )
+            SettingsPanel.Payments -> {
+                PaymentScreen(
+                    paymentDetails = paymentDetails,
+                    isLoading = paymentsLoading,
+                    errorMessage = paymentsError,
+                    invoices = invoices,
+                    invoicesLoading = invoicesLoading,
+                    invoicesError = invoicesError,
+                    billingAddress = billingAddress,
+                    billingAddressLoading = billingAddressLoading,
+                    billingAddressError = billingAddressError,
+                    fullName = userName,
+                    email = userEmail,
+                    isOpeningPortal = openingPaymentPortal,
+                    onChangePaymentCard = {
+                        scope.launch {
+                            openingPaymentPortal = true
+                            paymentsError = null
+                            when (val result = subscriptionApi.createCustomerPortalSession(authToken)) {
+                                is CustomerPortalResult.Success -> uriHandler.openUri(result.portalUrl)
+                                is CustomerPortalResult.Failure -> paymentsError = AppStrings.get(
+                                    LocaleController.currentLanguageCode,
+                                    result.message
+                                )
+                            }
+                            openingPaymentPortal = false
                         }
-                        openingPaymentPortal = false
-                    }
-                },
-                onViewPlans = { panel = SettingsPanel.SubscriptionPlan },
-                onBack = { panel = SettingsPanel.Main }
-            )
-        }
+                    },
+                    onViewPlans = { panel = SettingsPanel.SubscriptionPlan },
+                    onBack = { panel = SettingsPanel.Main }
+                )
+            }
 
-        SettingsPanel.SubscriptionPlan -> {
-            PlanScreen(
-                subscriptionStatus = subscriptionStatus,
-                isLoading = subscriptionLoading,
-                errorMessage = subscriptionError,
-                onSubscribeToBasic = {
-                    scope.launch {
-                        subscriptionLoading = true
-                        subscriptionError = null
-                        when (val result = subscriptionApi.createCheckoutSession(authToken)) {
-                            is CheckoutResult.Success -> uriHandler.openUri(result.checkoutUrl)
-                            is CheckoutResult.Failure -> subscriptionError = AppStrings.get(
-                                LocaleController.currentLanguageCode,
-                                result.message
-                            )
+            SettingsPanel.SubscriptionPlan -> {
+                PlanScreen(
+                    subscriptionStatus = subscriptionStatus,
+                    isLoading = subscriptionLoading,
+                    errorMessage = subscriptionError,
+                    onSubscribeToBasic = {
+                        scope.launch {
+                            subscriptionLoading = true
+                            subscriptionError = null
+                            when (val result = subscriptionApi.createCheckoutSession(authToken)) {
+                                is CheckoutResult.Success -> uriHandler.openUri(result.checkoutUrl)
+                                is CheckoutResult.Failure -> subscriptionError = AppStrings.get(
+                                    LocaleController.currentLanguageCode,
+                                    result.message
+                                )
+                            }
+                            subscriptionLoading = false
                         }
-                        subscriptionLoading = false
+                    },
+                    onBack = {
+                        subscriptionStatus = "free"
+                        panel = SettingsPanel.Main
                     }
-                },
-                onBack = {
-                    subscriptionStatus = "free"
-                    panel = SettingsPanel.Main
-                }
-            )
+                )
+            }
+
+            SettingsPanel.Faq -> {
+                FaqScreen(onBack = { panel = SettingsPanel.Main })
+            }
+
+            SettingsPanel.Feedback -> {
+                FeedbackScreen(
+                    authToken = authToken,
+                    supportApi = supportApi,
+                    onBack = { panel = SettingsPanel.Main }
+                )
+            }
+
+            SettingsPanel.Support -> {
+                SupportScreen(
+                    authToken = authToken,
+                    userEmail = userEmail,
+                    supportApi = supportApi,
+                    onBack = { panel = SettingsPanel.Main }
+                )
+            }
         }
-    }
-}}
+    }}
 
 @Composable
 private fun SettingsMainContent(
@@ -400,7 +429,10 @@ private fun SettingsMainContent(
     onManageSubscription: () -> Unit,
     onLanguageClick: () -> Unit,
     onCurrencyClick: () -> Unit,
-    onSignOutClick: () -> Unit
+    onSignOutClick: () -> Unit,
+    onFaqClick: () -> Unit,
+    onFeedbackClick: () -> Unit,
+    onSupportClick: () -> Unit
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -416,126 +448,185 @@ private fun SettingsMainContent(
             )
 
 
-            SettingsCard {
-                if (compact) {
-                    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        ProfileHeader(userName, userEmail)
-                        SettingsActionRow(
-                            icon = Res.drawable.person,
-                            title = appStringResource(StringKey.SETTINGS_PROFILE),
-                            value = null,
-                            onClick = onUpdateProfile
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        ProfileHeader(userName, userEmail)
-                        OutlinedButton(
-                            onClick = onUpdateProfile,
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(Res.drawable.person),
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = appStringResource(StringKey.SETTINGS_PROFILE),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+            // Card + footer share one Column so the container's own spacing
+            // doesn't push the footer away from the card.
+            Column(modifier = Modifier.fillMaxWidth()) {
+                SettingsCard {
+                    if (compact) {
+                        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                            ProfileHeader(userName, userEmail)
+                            SettingsActionRow(
+                                icon = Res.drawable.person,
+                                title = appStringResource(StringKey.SETTINGS_PROFILE),
+                                value = null,
+                                onClick = onUpdateProfile
                             )
                         }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            ProfileHeader(userName, userEmail)
+                            OutlinedButton(
+                                onClick = onUpdateProfile,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(Res.drawable.person),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = appStringResource(StringKey.SETTINGS_PROFILE),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
-                }
 
-                Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(20.dp))
 
-                SettingsGroup {
-                    if (SHOW_BILLING_UI) {
+                    SettingsGroup {
+                        if (SHOW_BILLING_UI) {
+                            SettingsActionRow(
+                                icon = Res.drawable.credit_card,
+                                title = appStringResource(StringKey.PAYMENT_TITLE),
+                                value = null,
+                                onClick = onSubscriptionPaymentsClick
+                            )
+
+                            SettingsDivider()
+                        }
+
                         SettingsActionRow(
-                            icon = Res.drawable.credit_card,
-                            title = appStringResource(StringKey.PAYMENT_TITLE),
-                            value = null,
-                            onClick = onSubscriptionPaymentsClick
+                            icon = Res.drawable.language,
+                            title = appStringResource(StringKey.SETTINGS_LANGUAGE),
+                            value = selectedLanguage,
+                            onClick = onLanguageClick
                         )
 
                         SettingsDivider()
+
+                        SettingsActionRow(
+                            icon = Res.drawable.currency,
+                            title = appStringResource(StringKey.SETTINGS_CURRENCY),
+                            value = selectedCurrency,
+                            onClick = onCurrencyClick
+                        )
+
+                        SettingsDivider()
+
+                        AppearanceRow(
+                            selectedAppearance = selectedAppearance,
+                            onAppearanceSelected = onAppearanceSelected
+                        )
                     }
 
-                    SettingsActionRow(
-                        icon = Res.drawable.language,
-                        title = appStringResource(StringKey.SETTINGS_LANGUAGE),
-                        value = selectedLanguage,
-                        onClick = onLanguageClick
-                    )
+                    Spacer(Modifier.height(20.dp))
 
-                    SettingsDivider()
+                    Button(
+                        onClick = onManageSubscription,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(Res.drawable.crown),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
-                    SettingsActionRow(
-                        icon = Res.drawable.currency,
-                        title = appStringResource(StringKey.SETTINGS_CURRENCY),
-                        value = selectedCurrency,
-                        onClick = onCurrencyClick
-                    )
+                    Spacer(Modifier.height(16.dp))
 
-                    SettingsDivider()
-
-                    AppearanceRow(
-                        selectedAppearance = selectedAppearance,
-                        onAppearanceSelected = onAppearanceSelected
-                    )
+                    OutlinedButton(
+                        onClick = onSignOutClick,
+                        modifier = Modifier.fillMaxWidth().heightIn(56.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(Res.drawable.logout),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = appStringResource(StringKey.SETTINGS_SIGN_OUT),
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(8.dp))
 
-                Button(
-                    onClick = onManageSubscription,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(Res.drawable.crown),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = appStringResource(StringKey.SETTINGS_MANAGE_SUBSCRIPTION),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                OutlinedButton(
-                    onClick = onSignOutClick,
-                    modifier = Modifier.fillMaxWidth().heightIn(56.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(Res.drawable.logout),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = appStringResource(StringKey.SETTINGS_SIGN_OUT),
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                SettingsFooterLinks(
+                    onFaqClick = onFaqClick,
+                    onFeedbackClick = onFeedbackClick,
+                    onSupportClick = onSupportClick
+                )
             }
         }
     }
+}
+
+/**
+ * FAQ · Feedback · Support, grouped and centred just under the settings card.
+ */
+@Composable
+private fun SettingsFooterLinks(
+    onFaqClick: () -> Unit,
+    onFeedbackClick: () -> Unit,
+    onSupportClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FooterLink(appStringResource(StringKey.SETTINGS_FAQ), onFaqClick)
+        FooterDot()
+        FooterLink(appStringResource(StringKey.SETTINGS_FEEDBACK), onFeedbackClick)
+        FooterDot()
+        FooterLink(appStringResource(StringKey.SETTINGS_SUPPORT), onSupportClick)
+    }
+}
+
+@Composable
+private fun FooterLink(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.primary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+@Composable
+private fun FooterDot() {
+    Text(
+        text = "·",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable
@@ -573,8 +664,9 @@ private fun ProfileHeader(userName: String, userEmail: String) {
     }
 }
 
+// internal (not private) so FaqScreen and later the Feedback/Support screens can reuse the same look
 @Composable
-private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -588,7 +680,7 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
@@ -721,7 +813,7 @@ private fun AppearanceIconButton(
 }
 
 @Composable
-private fun SettingsDivider() {
+internal fun SettingsDivider() {
     Surface(
         modifier = Modifier.fillMaxWidth().height(1.dp),
         color = MaterialTheme.colorScheme.outlineVariant
