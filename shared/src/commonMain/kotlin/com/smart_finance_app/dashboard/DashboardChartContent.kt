@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -94,13 +95,7 @@ internal fun ChartCardContent(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (showTitle) {
-                        Text(
-                            appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        SectionTitle(appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE))
                     }
                     BarChart(data = weeklyData, modifier = Modifier.fillMaxWidth().height(160.dp))
                 }
@@ -130,13 +125,7 @@ internal fun ChartCardContent(
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
 
                 if (showTitle) {
-                    Text(
-                        appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    SectionTitle(appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE))
                 }
                 Column(
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -225,13 +214,7 @@ internal fun ChartCardContent(
             ) {
 
                 if (showTitle) {
-                    Text(
-                        appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    SectionTitle(appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE))
                 }
 
                 if (total <= 0.0) {
@@ -280,13 +263,7 @@ internal fun ChartCardContent(
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
 
                 if (showTitle) {
-                    Text(
-                        appStringResource(StringKey.CHART_LARGEST_TX_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    SectionTitle(appStringResource(StringKey.CHART_LARGEST_TX_TITLE))
                 }
 
                 if (top5.isEmpty()) {
@@ -361,13 +338,7 @@ internal fun ChartCardContent(
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
 
                 if (showTitle) {
-                    Text(
-                        appStringResource(StringKey.CHART_SMALLEST_TX_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    SectionTitle(appStringResource(StringKey.CHART_SMALLEST_TX_TITLE))
                 }
                 if (bottom5.isEmpty()) {
                     Text(
@@ -450,25 +421,27 @@ internal fun ChartCardContent(
                 }
                 .take(10)
 
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Top
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
                     if (showTitle) {
-                        Text(
-                            appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                        SectionTitle(
+                            text = appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE),
+                            modifier = Modifier.weight(1f)
                         )
                     }
                     Text(appStringResource(StringKey.CHART_AREA_TOTAL_SPEND),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+
+                Spacer(Modifier.height(8.dp))
 
                 if (bubbles.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
