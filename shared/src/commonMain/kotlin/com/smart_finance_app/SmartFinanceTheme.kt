@@ -2,9 +2,13 @@ package com.smart_finance_app
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import com.smart_finance_app.theme.AppTheme
+import com.smart_finance_app.theme.ThemeController
 import org.jetbrains.compose.resources.Font
 import smart_finance_app.shared.generated.resources.NotoSansTC_Bold
 import smart_finance_app.shared.generated.resources.NotoSansTC_Medium
@@ -45,7 +49,40 @@ fun SmartFinanceTheme(content: @Composable () -> Unit) {
         labelSmall = baseTypography.labelSmall.copy(fontFamily = appFontFamily)
     )
 
+    val colors = when (ThemeController.currentTheme) {
+        AppTheme.PastelPurple -> lightColorScheme(
+            primary = Color(0xFF6D55AD),
+            primaryContainer = Color(0xFFE8DDF8),
+            onPrimaryContainer = Color(0xFF261047),
+            secondary = Color(0xFF7C699B),
+            surface = Color(0xFFFFF8FF),
+            surfaceVariant = Color(0xFFE8E0EA),
+            outlineVariant = Color(0xFFCDC4D0)
+        )
+
+        AppTheme.PastelBlue -> lightColorScheme(
+            primary = Color(0xFF4D74B8),
+            primaryContainer = Color(0xFFDCE8FF),
+            onPrimaryContainer = Color(0xFF102A4D),
+            secondary = Color(0xFF617895),
+            surface = Color(0xFFF8FBFF),
+            surfaceVariant = Color(0xFFDDE5F0),
+            outlineVariant = Color(0xFFC2CAD6)
+        )
+
+        AppTheme.PastelGreen -> lightColorScheme(
+            primary = Color(0xFF4D8B6A),
+            primaryContainer = Color(0xFFD9F1E3),
+            onPrimaryContainer = Color(0xFF0D3520),
+            secondary = Color(0xFF668171),
+            surface = Color(0xFFF8FFF9),
+            surfaceVariant = Color(0xFFDDE9E0),
+            outlineVariant = Color(0xFFC3CFC6)
+        )
+    }
+
     MaterialTheme(
+        colorScheme = colors,
         typography = appTypography,
         content = content
     )

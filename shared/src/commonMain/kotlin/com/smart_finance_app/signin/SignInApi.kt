@@ -21,7 +21,8 @@ data class AuthSession(
     val email: String,
     val consentAccepted: Boolean,
     val language: String = "en",
-    val currency: String = "GBP"
+    val currency: String = "GBP",
+    val theme: String = "pastel_green"
 )
 
 sealed interface SignInResult {

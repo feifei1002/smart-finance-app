@@ -44,6 +44,7 @@ import androidx.compose.runtime.compositionLocalOf
 import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.preferences.PreferencesScreen
+import com.smart_finance_app.theme.ThemeController
 
 val LocalAppLanguage = compositionLocalOf { "en" }
 
@@ -213,6 +214,7 @@ fun App(
             if (refreshedSession != null) {
                 LocaleController.setLanguage(refreshedSession.language)
                 CurrencyController.setCurrency(refreshedSession.currency)
+                ThemeController.setTheme(refreshedSession.theme)
                 screen = if (refreshedSession.consentAccepted) {
                     Screen.Main
                 } else {
@@ -265,6 +267,7 @@ fun App(
                                         tokenStorage.saveRefreshToken(result.session.refreshToken)
                                         LocaleController.setLanguage("en")
                                         CurrencyController.setCurrency("GBP")
+                                        ThemeController.setTheme("pastel_green")
                                         screen = Screen.Consent
                                     }
                                     is RegistrationResult.Failure -> registrationError = AppStrings.get(
@@ -298,6 +301,7 @@ fun App(
                                         tokenStorage.saveRefreshToken(result.session.refreshToken)
                                         LocaleController.setLanguage(result.session.language)
                                         CurrencyController.setCurrency(result.session.currency)
+                                        ThemeController.setTheme(result.session.theme)
 
                                         screen = if (result.session.consentAccepted) {
                                             Screen.Main

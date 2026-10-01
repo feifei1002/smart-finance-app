@@ -21,7 +21,8 @@ data class SignInResponse(
     val email: String,
     val consentAccepted: Boolean,
     val language: String,
-    val currency: String
+    val currency: String,
+    val theme: String
     )
 
 fun Route.signInRoutes(createAccessToken: (UUID) -> String,
@@ -49,7 +50,8 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
         val user = Database.dataSource.connection.use { connection ->
             connection.prepareStatement(
                 """
-                    SELECT id, full_name, email, password_hash, language, currency, consent_accepted_at IS NOT NULL AS consent_accepted
+                    SELECT id, full_name, email, password_hash, language, currency, theme, 
+                    consent_accepted_at IS NOT NULL AS consent_accepted
                     FROM users WHERE email = ?
                 """.trimIndent()
             ).use { statement ->
@@ -64,7 +66,8 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
                         passwordHash = result.getString("password_hash"),
                         consentAccepted = result.getBoolean("consent_accepted"),
                         language = result.getString("language") ?: "en",
-                        currency = result.getString("currency") ?: "GBP"
+                        currency = result.getString("currency") ?: "GBP",
+                        theme = result.getString("theme") ?: "pastel_green"
                     )
                 }
             }
@@ -96,10 +99,11 @@ fun Route.signInRoutes(createAccessToken: (UUID) -> String,
                 email = user.email,
                 consentAccepted = user.consentAccepted,
                 language = user.language,
-                currency = user.currency
+                currency = user.currency,
+                theme = user.theme
             )
         )
     }
 }
 
-private data class SignInUser(val id: UUID, val email: String,val name: String, val passwordHash: String, val consentAccepted: Boolean,val language: String,val currency: String )
+private data class SignInUser(val id: UUID, val email: String,val name: String, val passwordHash: String, val consentAccepted: Boolean,val language: String,val currency: String, val theme: String )

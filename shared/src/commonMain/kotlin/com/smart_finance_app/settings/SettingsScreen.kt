@@ -84,6 +84,7 @@ import com.smart_finance_app.AppPageHeader
 import com.smart_finance_app.AppScreenContainer
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.currency.CurrencyController
+import com.smart_finance_app.theme.ThemeController
 
 // ── Fix 1: removed duplicate enum entries from the merge conflict ─────────────
 internal enum class SettingsPanel {
@@ -94,7 +95,8 @@ internal enum class SettingsPanel {
     SubscriptionPlan,
     Faq,
     Feedback,
-    Support
+    Support,
+    Appearance
 }
 private const val SHOW_BILLING_UI = false
 @Composable
@@ -299,7 +301,7 @@ internal fun SettingsScreen(
                     selectedLanguage = selectedLanguage,
                     selectedCurrency = selectedCurrency,
                     selectedAppearance = selectedAppearance,
-                    onAppearanceSelected = { selectedAppearance = it },
+                    onAppearanceClick = { panel = SettingsPanel.Appearance },
                     onUpdateProfile = { panel = SettingsPanel.EditProfile },
                     onSubscriptionPaymentsClick = { panel = SettingsPanel.Payments },
                     onManageSubscription = { panel = SettingsPanel.SubscriptionPlan },
@@ -413,6 +415,14 @@ internal fun SettingsScreen(
                     onBack = { panel = SettingsPanel.Main }
                 )
             }
+
+            SettingsPanel.Appearance -> {
+                AppearanceScreen(
+                    authToken = authToken,
+                    userPreferencesApi = userPreferencesApi,
+                    onBack = { panel = SettingsPanel.Main }
+                )
+            }
         }
     }}
 
@@ -423,7 +433,7 @@ private fun SettingsMainContent(
     selectedLanguage: String,
     selectedCurrency: String,
     selectedAppearance: String,
-    onAppearanceSelected: (String) -> Unit,
+    onAppearanceClick: () -> Unit,
     onUpdateProfile: () -> Unit,
     onSubscriptionPaymentsClick: () -> Unit,
     onManageSubscription: () -> Unit,
@@ -520,9 +530,16 @@ private fun SettingsMainContent(
 
                         SettingsDivider()
 
-                        AppearanceRow(
-                            selectedAppearance = selectedAppearance,
-                            onAppearanceSelected = onAppearanceSelected
+//                        AppearanceRow(
+//                            selectedAppearance = selectedAppearance,
+//                            onAppearanceSelected = onAppearanceSelected
+//                        )
+
+                        SettingsActionRow(
+                            icon = Res.drawable.appearance,
+                            title = appStringResource(StringKey.SETTINGS_APPEARANCE),
+                            value = appStringResource(ThemeController.currentTheme.titleKey),
+                            onClick = onAppearanceClick
                         )
                     }
 
@@ -723,53 +740,6 @@ private fun SettingsActionRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
-            )
-        }
-        Icon(
-            painter = painterResource(Res.drawable.chevron_right),
-            contentDescription = null,
-            modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-@Composable
-private fun AppearanceRow(
-    selectedAppearance: String,
-    onAppearanceSelected: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            painter = painterResource(Res.drawable.appearance),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
-        )
-        Text(
-            text = appStringResource(StringKey.SETTINGS_APPEARANCE),
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AppearanceIconButton(
-                icon = Res.drawable.light_mode,
-                selected = selectedAppearance == "Light",
-                contentDescription = "Light mode",
-                onClick = { onAppearanceSelected("Light") }
-            )
-            AppearanceIconButton(
-                icon = Res.drawable.dark_mode,
-                selected = selectedAppearance == "Dark",
-                contentDescription = "Dark mode",
-                onClick = { onAppearanceSelected("Dark") }
             )
         }
         Icon(
