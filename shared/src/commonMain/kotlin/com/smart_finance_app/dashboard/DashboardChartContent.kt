@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,7 +58,8 @@ internal fun ChartCardContent(
     state: DashboardState,
     rawTransactions: List<TransactionData>,
     displayCurrency: String,
-    rates: Map<String, Double>
+    rates: Map<String, Double>,
+    showTitle: Boolean = true
 ) {
     val sym = getCurrencySymbol(displayCurrency)
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
@@ -92,13 +94,9 @@ internal fun ChartCardContent(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (showTitle) {
+                        SectionTitle(appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE))
+                    }
                     BarChart(data = weeklyData, modifier = Modifier.fillMaxWidth().height(160.dp))
                 }
             }
@@ -122,43 +120,85 @@ internal fun ChartCardContent(
 
                 acc.bankName to total
             }
+            val hasAccountSpending = accountSpend.any { it.second > 0f }
             val maxAmt = accountSpend.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1f
             val barColors = listOf(Color(0xFF6366F1), Color(0xFF22C55E), Color(0xFFF59E0B), Color(0xFFEC4899))
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                if (showTitle) {
+                    SectionTitle(appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE))
+                }
                 Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    accountSpend.forEachIndexed { i, (name, amount) ->
-                        val fraction = (amount / maxAmt).coerceIn(0f, 1f)
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (!hasAccountSpending) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
-                                text = name,
-                                style = MaterialTheme.typography.labelSmall,
+                                text = appStringResource(StringKey.CHART_NO_ACCOUNT_SPENDING_THIS_MONTH),
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                                textAlign = TextAlign.Center
                             )
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(
-                                    modifier = Modifier.weight(1f).height(8.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
-                                ) {
-                                    Box(modifier = Modifier.fillMaxHeight().fillMaxWidth(fraction)
-                                        .background(barColors[i % barColors.size], RoundedCornerShape(4.dp)))
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            accountSpend.forEachIndexed { i, (name, amount) ->
+                                val fraction = (amount / maxAmt).coerceIn(0f, 1f)
+
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        text = name,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(8.dp)
+                                                .background(
+                                                    MaterialTheme.colorScheme.surfaceVariant,
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxHeight()
+                                                    .fillMaxWidth(fraction)
+                                                    .background(
+                                                        barColors[i % barColors.size],
+                                                        RoundedCornerShape(4.dp)
+                                                    )
+                                            )
+                                        }
+
+                                        Text(
+                                            text = formatCurrency(
+                                                amount.toDouble(),
+                                                sym,
+                                                displayCurrency
+                                            ),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
-                                Text(
-                                    text = formatCurrency(amount.toDouble(), sym, displayCurrency),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1
-                                )
                             }
                         }
                     }
@@ -217,16 +257,15 @@ internal fun ChartCardContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                if (showTitle) {
+                    SectionTitle(appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE))
+                }
 
                 if (total <= 0.0) {
-                    Text(appStringResource(StringKey.CHART_NO_DATA), style = MaterialTheme.typography.bodySmall)
+                    ChartEmptyState(
+                        text = appStringResource(StringKey.CHART_NO_MONTH_DATA_YET)
+                    )
                 } else {
                     DonutChart(categories = cats, modifier = Modifier.size(64.dp))
 
@@ -269,19 +308,14 @@ internal fun ChartCardContent(
                 .toList()
 
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    appStringResource(StringKey.CHART_LARGEST_TX_TITLE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                if (showTitle) {
+                    SectionTitle(appStringResource(StringKey.CHART_LARGEST_TX_TITLE))
+                }
 
                 if (top5.isEmpty()) {
-                    Text(
-                        appStringResource(StringKey.CHART_NO_DATA),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ChartEmptyState(
+                        text = appStringResource(StringKey.CHART_NO_MONTH_DATA_YET)
                     )
                 } else {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
@@ -347,19 +381,13 @@ internal fun ChartCardContent(
                 .toList()
 
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    appStringResource(StringKey.CHART_SMALLEST_TX_TITLE),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
 
+                if (showTitle) {
+                    SectionTitle(appStringResource(StringKey.CHART_SMALLEST_TX_TITLE))
+                }
                 if (bottom5.isEmpty()) {
-                    Text(
-                        appStringResource(StringKey.CHART_NO_DATA),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ChartEmptyState(
+                        text = appStringResource(StringKey.CHART_NO_MONTH_DATA_YET)
                     )
                 } else {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceEvenly) {
@@ -436,28 +464,33 @@ internal fun ChartCardContent(
                 }
                 .take(10)
 
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Top
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.Bottom
                 ) {
-                    Text(
-                        appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (showTitle) {
+                        SectionTitle(
+                            text = appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     Text(appStringResource(StringKey.CHART_AREA_TOTAL_SPEND),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
+                Spacer(Modifier.height(8.dp))
+
                 if (bubbles.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(appStringResource(StringKey.CHART_NO_DATA_THIS_MONTH), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ChartEmptyState(
+                            text = appStringResource(StringKey.CHART_NO_MONTH_DATA_YET)
+                        )
                     }
                 } else {
                     // Horizontally scrollable treemap — each merchant gets a tile
@@ -472,7 +505,7 @@ internal fun ChartCardContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
+                            .height(120.dp)
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
@@ -530,6 +563,25 @@ internal fun ChartCardContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+internal fun ChartEmptyState(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
     }
 }
 

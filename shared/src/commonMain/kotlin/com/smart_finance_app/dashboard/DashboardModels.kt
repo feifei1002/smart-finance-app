@@ -1,7 +1,9 @@
 package com.smart_finance_app.dashboard
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import com.smart_finance_app.StringKey
+import com.smart_finance_app.appStringResource
 
 data class SpendingCategory(val name: String, val percent: Float, val amount: String, val color: Color)
 data class MonthlyPoint(val month: String, val income: Float, val expenses: Float)
@@ -75,3 +77,20 @@ internal fun isActiveChartCardKey(key: String): Boolean =
 
 internal fun isKnownDashboardCardKey(key: String): Boolean =
     dashboardCardDef(key) != null
+
+@Composable
+internal fun dashboardCardTitle(cardKey: String): String {
+    return when (cardKey) {
+        "spending" -> appStringResource(StringKey.DASHBOARD_SPENDING_OVERVIEW)
+        "trend" -> appStringResource(StringKey.DASHBOARD_MONTHLY_TREND)
+        "top_categories" -> appStringResource(StringKey.DASHBOARD_HIGHEST_SPENDING)
+        "weekly_spending" -> appStringResource(StringKey.CHART_WEEKLY_SPENDING_TITLE)
+        "spending_per_day" -> appStringResource(StringKey.CHART_SPENDING_PER_DAY_TITLE)
+        "bank_comparison" -> appStringResource(StringKey.CHART_BANK_COMPARISON_TITLE)
+        "time_of_day" -> appStringResource(StringKey.CHART_TIME_OF_DAY_TITLE)
+        "largest_tx" -> appStringResource(StringKey.CHART_LARGEST_TX_TITLE)
+        "smallest_tx" -> appStringResource(StringKey.CHART_SMALLEST_TX_TITLE)
+        "merchant_frequency" -> appStringResource(StringKey.CHART_MERCHANT_FREQUENCY_TITLE)
+        else -> "Preview"
+    }
+}
