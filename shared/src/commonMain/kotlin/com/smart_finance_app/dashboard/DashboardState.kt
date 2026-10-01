@@ -294,7 +294,7 @@ fun computeDashboardState(
 
     // ── Monthly trend (last 6 months, converted) ──────────────────────────────
     val monthLabels  = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-    val monthlyTrend = (5 downTo 0).map { monthsAgo ->
+    val monthlyTrend = (6 downTo 1).map { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
         val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year
@@ -355,7 +355,7 @@ fun computeDashboardState(
     }
 
     // ── Monthly top spending category (last 6 months, converted) ─────────────
-    val monthlyTopCategories = (5 downTo 0).map { monthsAgo ->
+    val monthlyTopCategories = (6 downTo 1).map { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
         val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year

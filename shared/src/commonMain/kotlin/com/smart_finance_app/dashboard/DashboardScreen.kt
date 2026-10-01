@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import com.smart_finance_app.AppErrorMessage
@@ -34,6 +35,7 @@ import com.smart_finance_app.appStringResource
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
 import com.smart_finance_app.currency.getCurrencySymbol
+import smart_finance_app.shared.generated.resources.close
 
 
 /** Fixed height for every half-size card (side-by-side pair). */
@@ -269,6 +271,7 @@ private fun MobileDashboard(
         val halfPositions: Map<String, Float>
     )
     var layoutSnapshot by remember { mutableStateOf<LayoutSnapshot?>(null) }
+    var enlargedCardKey by remember { mutableStateOf<String?>(null) }
 
     // ── Persisted layout state (multiplatform-settings — synchronous) ─────────
     // Keys are prefixed with userId so each user gets their own layout on shared devices.
@@ -480,7 +483,6 @@ private fun MobileDashboard(
     val filteredRawTransactions = remember(selectedAccountIds, state.rawTransactions) {
         if (selectedAccountIds.isEmpty()) state.rawTransactions
         else state.rawTransactions.filter { tx ->
-//            state.accounts.find { it.bankName in selectedAccounts } != null
             tx.accountId in selectedAccountIds
         }
     }
@@ -820,6 +822,7 @@ private fun MobileDashboard(
                                     }
                                 }
                             },
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier      = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             if (isChart) ChartCardContent(
@@ -829,7 +832,13 @@ private fun MobileDashboard(
                                 displayCurrency = CurrencyController.currentCurrency,
                                 rates           = exchangeRates
                             )
-                            else HalfCardContent(key, state)
+                            else {
+                                HalfCardContent(
+                                    cardKey = key,
+                                    state = state,
+                                    showTitle = true
+                                )
+                            }
                         }
                     }
                 }
@@ -855,6 +864,7 @@ private fun MobileDashboard(
                                 halfPositions[key] = ((halfPositions[key] ?: 0f) + delta).coerceIn(0f, 1f)
                             },
                             horizontalPosition = halfPositions[key] ?: 0f,
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier      = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             if (isChart) ChartCardContent(
@@ -864,13 +874,24 @@ private fun MobileDashboard(
                                 displayCurrency = CurrencyController.currentCurrency,
                                 rates           = exchangeRates
                             )
-                            else HalfCardContent(key, state)
+                            else {
+                                HalfCardContent(
+                                    cardKey = key,
+                                    state = state,
+                                    showTitle = true
+                                )
+                            }
                         }
                         Spacer(Modifier.weight(1f))
                     }
                 } else {
                     // Full-size card
                     val cardHeight = if (key == "merchant_frequency") TREEMAP_CARD_HEIGHT else FULL_CARD_HEIGHT
+                    val cardModifier = if (key == "spending") {
+                        Modifier.heightIn(min = cardHeight)
+                    } else {
+                        Modifier.height(cardHeight)
+                    }
                     CustomizableCard(
                         cardKey       = key,
                         isCustomizing = isCustomizing,
@@ -879,7 +900,8 @@ private fun MobileDashboard(
                         onMoveDown    = { moveRowDown(rowIndex) },
                         onDragStarted = { isDraggingHandle = true },
                         onDragEnded   = { isDraggingHandle = false },
-                        modifier      = Modifier.height(cardHeight)
+                        onOpenPreview = { enlargedCardKey = it },
+                        modifier      = cardModifier
                     ) {
                         when (key) {
                             "spending" -> {
@@ -892,21 +914,29 @@ private fun MobileDashboard(
                                         rates           = exchangeRates
                                     )
                                     val chartCategories = filteredCategories.filter { it.percent >= 0.01f }
-                                    Row(
+                                    Column(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        DonutChart(categories = chartCategories, modifier = Modifier.size(120.dp))
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            if (filteredCategories.isEmpty()) {
-                                                Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            } else {
-                                                filteredCategories.forEach { cat ->
+                                        if (chartCategories.isEmpty()) {
+                                            Text(
+                                                text = appStringResource(StringKey.DASHBOARD_NO_SPENDING_DATA_YET),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        } else {
+                                            DonutChart(
+                                                categories = chartCategories,
+                                                modifier = Modifier.size(120.dp)
+                                            )
+
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                chartCategories.forEach { cat ->
                                                     CategoryLegendRow(cat)
                                                 }
                                             }
@@ -976,6 +1006,68 @@ private fun MobileDashboard(
             }
         }
     }
+
+    enlargedCardKey?.let { cardKey ->
+        Dialog(
+            onDismissRequest = { enlargedCardKey = null }
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(560.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = dashboardCardTitle(cardKey),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.align(Alignment.CenterStart)
+                        )
+
+                        IconButton(
+                            onClick = { enlargedCardKey = null },
+                            modifier = Modifier.align(Alignment.TopEnd)
+                            ) {
+                            Icon(
+                                painter = painterResource(Res.drawable.close),
+                                contentDescription = "Close"
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        DashboardCardPreviewContent(
+                            cardKey = cardKey,
+                            state = state,
+                            rawTransactions = filteredRawTransactions,
+                            spendingPeriod = spendingPeriod,
+                            displayCurrency = CurrencyController.currentCurrency,
+                            rates = exchangeRates
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -995,16 +1087,17 @@ private fun DesktopDashboard(
     ratesWarning: String? = null,
 ) {
     val greeting = rememberGreeting()
-    val scope    = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     val accountOptions = state.accounts.map { it.bankName }
     var accountDropdownExpanded by remember { mutableStateOf(false) }
     var isCustomizing by remember { mutableStateOf(false) }
     var showChartsSheet by remember { mutableStateOf(false) }
+    var enlargedCardKey by remember { mutableStateOf<String?>(null) }
 
     // Snapshot for Cancel — hoisted here so they survive LazyColumn recomposition
     var desktopDeletedSnapshot by remember { mutableStateOf<Set<String>?>(null) }
-    var desktopChartSnapshot   by remember { mutableStateOf<Set<String>?>(null) }
-    var desktopOrderSnapshot   by remember { mutableStateOf<List<String>?>(null) }
+    var desktopChartSnapshot by remember { mutableStateOf<Set<String>?>(null) }
+    var desktopOrderSnapshot by remember { mutableStateOf<List<String>?>(null) }
     var desktopBuiltinSnapshot by remember { mutableStateOf<List<String>?>(null) }
 
     // Order of the two built-in row groups — user can drag to reorder them
@@ -1014,11 +1107,11 @@ private fun DesktopDashboard(
 
     // ── Persisted layout state — same Settings keys as MobileDashboard ──────────
     // This means customisations sync between mobile and desktop via shared storage.
-    val settings       = remember { Settings() }
-    val keyCardOrder     = remember(userId) { "${userId}_${KEY_CARD_ORDER}" }
-    val keyDeletedCards  = remember(userId) { "${userId}_${KEY_DELETED_CARDS}" }
-    val keyChartCards    = remember(userId) { "${userId}_${KEY_CHART_CARDS}" }
-    val keyMigrated      = remember(userId) { "${userId}_${KEY_MIGRATED}" }
+    val settings = remember { Settings() }
+    val keyCardOrder = remember(userId) { "${userId}_${KEY_CARD_ORDER}" }
+    val keyDeletedCards = remember(userId) { "${userId}_${KEY_DELETED_CARDS}" }
+    val keyChartCards = remember(userId) { "${userId}_${KEY_CHART_CARDS}" }
+    val keyMigrated = remember(userId) { "${userId}_${KEY_MIGRATED}" }
     val keyHalfPositions = remember(userId) { "${userId}_${KEY_HALF_POSITIONS}" }
 
     var deletedCards by remember(userId) {
@@ -1074,11 +1167,11 @@ private fun DesktopDashboard(
         runCatching { api.loadLayout(authToken) }.getOrNull()?.let { remote ->
             if (remote.chartCards.isNotBlank() || remote.deletedCards.isNotBlank()) {
                 val remoteDeleted = remote.deletedCards.decodeSet() - "budget"
-                val remoteOrder   = remote.cardOrder.decodeOrder()
+                val remoteOrder = remote.cardOrder.decodeOrder()
                     .filter { k -> k in remote.chartCards.decodeSet() && ALL_CHART_CARDS.any { it.key == k } }
                 // Only keep charts that are actually in the saved order
                 val chartsInOrder = remoteOrder.toSet()
-                deletedCards          = remoteDeleted
+                deletedCards = remoteDeleted
                 chartCardsOnDashboard = chartsInOrder
                 desktopChartOrder.clear()
                 desktopChartOrder.addAll(remoteOrder)
@@ -1116,7 +1209,6 @@ private fun DesktopDashboard(
     val filteredRawTransactions = remember(selectedAccountIds, state.rawTransactions) {
         if (selectedAccountIds.isEmpty()) state.rawTransactions
         else state.rawTransactions.filter { tx ->
-//            state.accounts.find { it.bankName in selectedAccounts } != null
             tx.accountId in selectedAccountIds
         }
     }
@@ -1146,8 +1238,8 @@ private fun DesktopDashboard(
             val rows = mutableListOf<List<String>>()
             var di = 0
             while (di < visible.size) {
-                val key     = visible[di]
-                val def     = ALL_CHART_CARDS.find { it.key == key }
+                val key = visible[di]
+                val def = ALL_CHART_CARDS.find { it.key == key }
                 val nextKey = visible.getOrNull(di + 1)
                 val nextDef = nextKey?.let { k -> ALL_CHART_CARDS.find { it.key == k } }
                 if (def?.size == CardSize.HALF && nextDef?.size == CardSize.HALF) {
@@ -1207,7 +1299,8 @@ private fun DesktopDashboard(
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Text(appStringResource(StringKey.DASHBOARD_SUBTITLE),
+                Text(
+                    appStringResource(StringKey.DASHBOARD_SUBTITLE),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1223,14 +1316,14 @@ private fun DesktopDashboard(
                             if (isCustomizing) {
                                 persistDesktopLayout()
                                 desktopDeletedSnapshot = null
-                                desktopChartSnapshot   = null
-                                desktopOrderSnapshot   = null
+                                desktopChartSnapshot = null
+                                desktopOrderSnapshot = null
                                 desktopBuiltinSnapshot = null
                                 isCustomizing = false
                             } else {
                                 desktopDeletedSnapshot = deletedCards
-                                desktopChartSnapshot   = chartCardsOnDashboard
-                                desktopOrderSnapshot   = desktopChartOrder.toList()
+                                desktopChartSnapshot = chartCardsOnDashboard
+                                desktopOrderSnapshot = desktopChartOrder.toList()
                                 desktopBuiltinSnapshot = desktopBuiltinOrder.toList()
                                 isCustomizing = true
                             }
@@ -1247,8 +1340,8 @@ private fun DesktopDashboard(
                                 desktopBuiltinOrder.addAll(it)
                             }
                             desktopDeletedSnapshot = null
-                            desktopChartSnapshot   = null
-                            desktopOrderSnapshot   = null
+                            desktopChartSnapshot = null
+                            desktopOrderSnapshot = null
                             desktopBuiltinSnapshot = null
                             isCustomizing = false
                         }
@@ -1273,7 +1366,10 @@ private fun DesktopDashboard(
                                             checked = selectedAccounts.isEmpty(),
                                             onCheckedChange = { onAccountsChanged(setOf()) }
                                         )
-                                        Text(allAccountsLabel, style = MaterialTheme.typography.bodySmall)
+                                        Text(
+                                            allAccountsLabel,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
                                     }
                                 },
                                 onClick = {
@@ -1289,15 +1385,20 @@ private fun DesktopDashboard(
                                             Checkbox(
                                                 checked = account in selectedAccounts,
                                                 onCheckedChange = { checked ->
-                                                    val next = if (checked) selectedAccounts + account else selectedAccounts - account
+                                                    val next =
+                                                        if (checked) selectedAccounts + account else selectedAccounts - account
                                                     onAccountsChanged(next)
                                                 }
                                             )
-                                            Text(account, style = MaterialTheme.typography.bodySmall)
+                                            Text(
+                                                account,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
                                         }
                                     },
                                     onClick = {
-                                        val next = if (account in selectedAccounts) selectedAccounts - account else selectedAccounts + account
+                                        val next =
+                                            if (account in selectedAccounts) selectedAccounts - account else selectedAccounts + account
                                         onAccountsChanged(next)
                                     }
                                 )
@@ -1311,11 +1412,23 @@ private fun DesktopDashboard(
         // ── Merged Balance + Income + Expenses card (fixed) ──
         item {
             FinancialOverviewCard(
-                balance  = formatCurrency(displayBalance,        getCurrencySymbol(state.currency), state.currency),
+                balance = formatCurrency(
+                    displayBalance,
+                    getCurrencySymbol(state.currency),
+                    state.currency
+                ),
                 balanceTrend = state.balanceChangePercent,
-                income   = formatCurrency(displayMonthlyIncome, getCurrencySymbol(state.currency), state.currency),
+                income = formatCurrency(
+                    displayMonthlyIncome,
+                    getCurrencySymbol(state.currency),
+                    state.currency
+                ),
                 incomeTrend = state.incomeChangePercent,
-                expenses = formatCurrency(displayMonthlyExpenses, getCurrencySymbol(state.currency), state.currency),
+                expenses = formatCurrency(
+                    displayMonthlyExpenses,
+                    getCurrencySymbol(state.currency),
+                    state.currency
+                ),
                 expensesTrend = state.expenseChangePercent
             )
         }
@@ -1331,6 +1444,7 @@ private fun DesktopDashboard(
                 val idx = desktopBuiltinOrder.indexOf(key)
                 if (idx > 0) desktopBuiltinOrder.move(idx, idx - 1)
             }
+
             fun builtinMoveDown() {
                 val idx = desktopBuiltinOrder.indexOf(key)
                 if (idx < desktopBuiltinOrder.lastIndex) desktopBuiltinOrder.move(idx, idx + 1)
@@ -1346,32 +1460,43 @@ private fun DesktopDashboard(
                             cardKey = "spending",
                             isCustomizing = isCustomizing,
                             onDelete = { deletedCards = deletedCards + it },
-                            onMoveUp   = { builtinMoveUp() },
+                            onMoveUp = { builtinMoveUp() },
                             onMoveDown = { builtinMoveDown() },
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SpendingOverviewHeader(selectedPeriod = spendingPeriod, onPeriodSelected = onPeriodSelected)
-                                val filteredCategories = computeSpendingCategories(
-                                    transactions    = filteredRawTransactions,
-                                    period          = spendingPeriod,
-                                    displayCurrency = CurrencyController.currentCurrency,
-                                    rates           = exchangeRates
+                                SpendingOverviewHeader(
+                                    selectedPeriod = spendingPeriod,
+                                    onPeriodSelected = onPeriodSelected
                                 )
-                                val chartCategories = filteredCategories.filter { it.percent >= 0.01f }
+                                val filteredCategories = computeSpendingCategories(
+                                    transactions = filteredRawTransactions,
+                                    period = spendingPeriod,
+                                    displayCurrency = CurrencyController.currentCurrency,
+                                    rates = exchangeRates
+                                )
+                                val chartCategories =
+                                    filteredCategories.filter { it.percent >= 0.01f }
 
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    DonutChart(categories = chartCategories, modifier = Modifier.size(150.dp))
+                                    DonutChart(
+                                        categories = chartCategories,
+                                        modifier = Modifier.size(150.dp)
+                                    )
                                     Column(
                                         modifier = Modifier.weight(1f),
                                         verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         if (filteredCategories.isEmpty()) {
-                                            Text("No spending data yet", style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(
+                                                "No spending data yet",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         } else {
                                             filteredCategories.forEach { cat ->
                                                 CategoryLegendRow(cat)
@@ -1387,8 +1512,9 @@ private fun DesktopDashboard(
                             cardKey = "trend",
                             isCustomizing = isCustomizing,
                             onDelete = { deletedCards = deletedCards + it },
-                            onMoveUp   = { builtinMoveUp() },
+                            onMoveUp = { builtinMoveUp() },
                             onMoveDown = { builtinMoveDown() },
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1397,7 +1523,10 @@ private fun DesktopDashboard(
                                     LegendDot(color = Color(0xFF16A34A), label = "In")
                                     LegendDot(color = Color(0xFFEF4444), label = "Out")
                                 }
-                                LineChart(data = state.monthlyTrend, modifier = Modifier.fillMaxWidth().height(160.dp))
+                                LineChart(
+                                    data = state.monthlyTrend,
+                                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                                )
                             }
                         }
                     }
@@ -1412,11 +1541,16 @@ private fun DesktopDashboard(
                             cardKey = "top_categories",
                             isCustomizing = isCustomizing,
                             onDelete = { deletedCards = deletedCards + it },
-                            onMoveUp   = { builtinMoveUp() },
+                            onMoveUp = { builtinMoveUp() },
                             onMoveDown = { builtinMoveDown() },
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            HalfCardContent("top_categories", state)
+                            HalfCardContent(
+                                cardKey = "top_categories",
+                                state = state,
+                                showTitle = false
+                            )
                         }
                     }
                 }
@@ -1425,13 +1559,16 @@ private fun DesktopDashboard(
 
         // ── Dynamically added chart cards (desktop) — rendered above the + Charts button ──
         // desktopChartRows is computed above in Composable scope via derivedStateOf.
-        itemsIndexed(desktopChartRows, key = { _, row -> "drow_${row.joinToString("|")}" }) { rowIndex, row ->
+        itemsIndexed(
+            desktopChartRows,
+            key = { _, row -> "drow_${row.joinToString("|")}" }) { rowIndex, row ->
 
             fun desktopMoveRowUp() {
                 val firstKey = row.first()
                 val idx = desktopChartOrder.indexOf(firstKey)
                 if (idx > 0) desktopChartOrder.move(idx, idx - 1)
             }
+
             fun desktopMoveRowDown() {
                 val lastKey = row.last()
                 val idx = desktopChartOrder.indexOf(lastKey)
@@ -1451,16 +1588,17 @@ private fun DesktopDashboard(
                                 chartCardsOnDashboard = chartCardsOnDashboard - key
                                 desktopChartOrder.remove(key)
                             },
-                            onMoveUp   = { desktopMoveRowUp() },
+                            onMoveUp = { desktopMoveRowUp() },
                             onMoveDown = { desktopMoveRowDown() },
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             ChartCardContent(
-                                key             = key,
-                                state           = state,
+                                key = key,
+                                state = state,
                                 rawTransactions = filteredRawTransactions,
                                 displayCurrency = CurrencyController.currentCurrency,
-                                rates           = exchangeRates
+                                rates = exchangeRates
                             )
                         }
                     }
@@ -1480,22 +1618,24 @@ private fun DesktopDashboard(
                                 chartCardsOnDashboard = chartCardsOnDashboard - key
                                 desktopChartOrder.remove(key)
                             },
-                            onMoveUp   = { desktopMoveRowUp() },
+                            onMoveUp = { desktopMoveRowUp() },
                             onMoveDown = { desktopMoveRowDown() },
+                            onOpenPreview = { enlargedCardKey = it },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
                             ChartCardContent(
-                                key             = key,
-                                state           = state,
+                                key = key,
+                                state = state,
                                 rawTransactions = filteredRawTransactions,
                                 displayCurrency = CurrencyController.currentCurrency,
-                                rates           = exchangeRates
+                                rates = exchangeRates
                             )
                         }
                         Spacer(Modifier.weight(1f))
                     }
                 } else {
-                    val cardHeight = if (key == "merchant_frequency") TREEMAP_CARD_HEIGHT else FULL_CARD_HEIGHT
+                    val cardHeight =
+                        if (key == "merchant_frequency") TREEMAP_CARD_HEIGHT else FULL_CARD_HEIGHT
                     CustomizableCard(
                         cardKey = key,
                         isCustomizing = isCustomizing,
@@ -1503,16 +1643,17 @@ private fun DesktopDashboard(
                             chartCardsOnDashboard = chartCardsOnDashboard - key
                             desktopChartOrder.remove(key)
                         },
-                        onMoveUp   = { desktopMoveRowUp() },
+                        onMoveUp = { desktopMoveRowUp() },
                         onMoveDown = { desktopMoveRowDown() },
+                        onOpenPreview = { enlargedCardKey = it },
                         modifier = Modifier.fillMaxWidth().height(cardHeight)
                     ) {
                         ChartCardContent(
-                            key             = key,
-                            state           = state,
+                            key = key,
+                            state = state,
                             rawTransactions = filteredRawTransactions,
                             displayCurrency = CurrencyController.currentCurrency,
-                            rates           = exchangeRates
+                            rates = exchangeRates
                         )
                     }
                 }
@@ -1559,13 +1700,18 @@ private fun DesktopDashboard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 SectionTitle(appStringResource(StringKey.DASHBOARD_RECENT_TRANSACTIONS))
-                                Text(appStringResource(StringKey.DASHBOARD_VIEW_ALL), style = MaterialTheme.typography.labelMedium,
+                                Text(
+                                    appStringResource(StringKey.DASHBOARD_VIEW_ALL),
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.clickable { onViewAllTransactionsClicked() })
                             }
                             if (state.recentTransactions.isEmpty()) {
-                                Text(appStringResource(StringKey.TRANSACTIONS_EMPTY), style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    appStringResource(StringKey.TRANSACTIONS_EMPTY),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             } else {
                                 Column(
                                     modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -1587,30 +1733,47 @@ private fun DesktopDashboard(
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             SectionTitle(appStringResource(StringKey.DASHBOARD_ACCOUNTS_OVERVIEW))
                             if (state.accounts.isEmpty()) {
-                                Text(appStringResource(StringKey.DASHBOARD_NO_ACCOUNTS_TITLE), style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    appStringResource(StringKey.DASHBOARD_NO_ACCOUNTS_TITLE),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             } else {
                                 Column(
-                                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                                    modifier = Modifier.weight(1f)
+                                        .verticalScroll(rememberScrollState()),
                                     verticalArrangement = Arrangement.spacedBy(0.dp)
                                 ) {
                                     state.accounts.forEach { account ->
                                         Row(
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                                .padding(vertical = 6.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column {
-                                                Text(account.bankName, style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.Medium)
-                                                Text("**** ${account.maskedNumber}", style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(
+                                                    account.bankName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    "**** ${account.maskedNumber}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
                                             }
                                             Column(horizontalAlignment = Alignment.End) {
-                                                Text(account.balance, style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.SemiBold)
-                                                Text(appStringResource(StringKey.ACCOUNTS_STATUS_CONNECTED), style = MaterialTheme.typography.labelSmall,
-                                                    color = Color(0xFF16A34A))
+                                                Text(
+                                                    account.balance,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    appStringResource(StringKey.ACCOUNTS_STATUS_CONNECTED),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF16A34A)
+                                                )
                                             }
                                         }
                                         if (account != state.accounts.last()) HorizontalDivider()
@@ -1644,7 +1807,7 @@ private fun DesktopDashboard(
                                     style = MaterialTheme.typography.labelMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
-                                    )
+                                )
                             }
                             OutlinedButton(onClick = {}, modifier = Modifier.fillMaxWidth()) {
                                 Text(
@@ -1659,6 +1822,69 @@ private fun DesktopDashboard(
 //                            Text(appStringResource(StringKey.COMMON_COMING_SOON), style = MaterialTheme.typography.bodySmall,
 //                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    enlargedCardKey?.let { cardKey ->
+        Dialog(
+            onDismissRequest = { enlargedCardKey = null }
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.72f)
+                    .widthIn(max = 900.dp)
+                    .height(620.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = dashboardCardTitle(cardKey),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .padding(end = 56.dp)
+                        )
+
+                        IconButton(
+                            onClick = { enlargedCardKey = null },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 12.dp, y = (-8).dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(Res.drawable.close),
+                                contentDescription = "Close"
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        DashboardCardPreviewContent(
+                            cardKey = cardKey,
+                            state = state,
+                            rawTransactions = filteredRawTransactions,
+                            spendingPeriod = spendingPeriod,
+                            displayCurrency = CurrencyController.currentCurrency,
+                            rates = exchangeRates
+                        )
                     }
                 }
             }

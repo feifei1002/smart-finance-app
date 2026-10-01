@@ -3,7 +3,8 @@ package com.smart_finance_app.dashboard
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.forEachGesture
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -253,6 +254,7 @@ internal fun CustomizableCard(
     onDragEnded: () -> Unit = {},
     onMoveHorizontally: (Float) -> Unit = {},
     horizontalPosition: Float? = null,
+    onOpenPreview: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -267,7 +269,18 @@ internal fun CustomizableCard(
         else (maxWidth + 12.dp) * horizontalPosition.coerceIn(0f, 1f)
         Box(modifier = Modifier.fillMaxSize().offset(x = trackOffset)) {
             DashboardCard(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .pointerInput(cardKey, isCustomizing) {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                if (!isCustomizing) {
+                                    onOpenPreview(cardKey)
+                                }
+                            }
+                        )
+                    }
                     .then(if (isCustomizing) Modifier.blur(3.dp) else Modifier),
                 content = content
             )
@@ -296,47 +309,46 @@ internal fun CustomizableCard(
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f), CircleShape)
                         .pointerInput("move_handle_$isCustomizing") {
                             if (!isCustomizing) return@pointerInput
-                            forEachGesture {
-                                awaitPointerEventScope {
-                                    var pressed = false
-                                    while (!pressed) {
-                                        val event = awaitPointerEvent(PointerEventPass.Final)
-                                        val change = event.changes.firstOrNull() ?: continue
-                                        if (change.pressed) {
-                                            change.consume()
-                                            pressed = true
-                                            dragAccumY = 0f
-                                            dragAccumX = 0f
-                                            onDragStarted()   // lock LazyColumn scroll
-                                        }
+                            awaitEachGesture {
+
+                                var pressed = false
+                                while (!pressed) {
+                                    val event = awaitPointerEvent(PointerEventPass.Final)
+                                    val change = event.changes.firstOrNull() ?: continue
+                                    if (change.pressed) {
+                                        change.consume()
+                                        pressed = true
+                                        dragAccumY = 0f
+                                        dragAccumX = 0f
+                                        onDragStarted()   // lock LazyColumn scroll
                                     }
-                                    var dragging = true
-                                    while (dragging) {
-                                        val event = awaitPointerEvent(PointerEventPass.Final)
-                                        val change = event.changes.firstOrNull() ?: break
-                                        if (change.pressed) {
-                                            val delta = change.position - change.previousPosition
-                                            change.consume()
-                                            dragAccumX += delta.x
-                                            dragAccumY += delta.y
-                                            when {
-                                                dragAccumY > swapThresholdPx -> {
-                                                    onMoveDown()
-                                                    dragAccumY = 0f; dragAccumX = 0f
-                                                }
-                                                dragAccumY < -swapThresholdPx -> {
-                                                    onMoveUp()
-                                                    dragAccumY = 0f; dragAccumX = 0f
-                                                }
-                                                abs(dragAccumX) > abs(dragAccumY) ->
-                                                    onMoveHorizontally(delta.x / 300f)
+                                }
+                                var dragging = true
+                                while (dragging) {
+                                    val event = awaitPointerEvent(PointerEventPass.Final)
+                                    val change = event.changes.firstOrNull() ?: break
+                                    if (change.pressed) {
+                                        val delta = change.position - change.previousPosition
+                                        change.consume()
+                                        dragAccumX += delta.x
+                                        dragAccumY += delta.y
+                                        when {
+                                            dragAccumY > swapThresholdPx -> {
+                                                onMoveDown()
+                                                dragAccumY = 0f; dragAccumX = 0f
                                             }
-                                        } else {
-                                            change.consume()
-                                            dragAccumY = 0f; dragAccumX = 0f
-                                            dragging = false
-                                            onDragEnded()   // unlock LazyColumn scroll
+                                            dragAccumY < -swapThresholdPx -> {
+                                                onMoveUp()
+                                                dragAccumY = 0f; dragAccumX = 0f
+                                            }
+                                            abs(dragAccumX) > abs(dragAccumY) ->
+                                                onMoveHorizontally(delta.x / 300f)
                                         }
+                                    } else {
+                                        change.consume()
+                                        dragAccumY = 0f; dragAccumX = 0f
+                                        dragging = false
+                                        onDragEnded()   // unlock LazyColumn scroll
                                     }
                                 }
                             }
@@ -657,8 +669,15 @@ internal fun SpendingOverviewHeader(
 }
 
 @Composable
-internal fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+internal fun SectionTitle(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 @Composable
@@ -766,12 +785,15 @@ internal fun TrendIndicator(percentageChange: Float) {
 @Composable
 internal fun HalfCardContent(
     cardKey: String,
-    state: DashboardState
+    state: DashboardState,
+    showTitle: Boolean = true
 ) {
     when (cardKey) {
         "trend" -> {
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_TREND))
+                if (showTitle) {
+                    SectionTitle(appStringResource(StringKey.DASHBOARD_MONTHLY_TREND))
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LegendDot(color = Color(0xFF16A34A), label = "In")
                     LegendDot(color = Color(0xFFEF4444), label = "Out")
@@ -781,7 +803,9 @@ internal fun HalfCardContent(
         }
         "top_categories" -> {
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionTitle(appStringResource(StringKey.DASHBOARD_HIGHEST_SPENDING))
+                if (showTitle) {
+                    SectionTitle(appStringResource(StringKey.DASHBOARD_HIGHEST_SPENDING))
+                }
                 HighestSpendingBarChart(
                     data = state.monthlyTopCategories,
                     modifier = Modifier.fillMaxWidth().weight(1f)
