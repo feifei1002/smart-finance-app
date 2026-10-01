@@ -13,12 +13,12 @@ import java.util.Properties
  * Sends feedback/support messages to the project Gmail inbox.
  *
  * Environment variables:
- *   SUPPORT_SMTP_USER      required  the project Gmail address (the sender)
- *   SUPPORT_SMTP_PASSWORD  required  16-character Gmail App Password (NOT the normal Gmail password)
- *   SUPPORT_INBOX          optional  where messages are delivered; defaults to SUPPORT_SMTP_USER
- *   SUPPORT_FROM_NAME      optional  display name on the email; defaults to "Smart Finance"
- *   SUPPORT_SMTP_HOST      optional  defaults to smtp.gmail.com
- *   SUPPORT_SMTP_PORT      optional  defaults to 587 (STARTTLS)
+ *   SMTP_USERNAME      required  the project Gmail address (the sender)
+ *   SMTP_PASSWORD      required  16-character Gmail App Password (NOT the normal Gmail password)
+ *   SMTP_HOST          optional  defaults to smtp.gmail.com
+ *   SMTP_PORT          optional  defaults to 587 (STARTTLS)
+ *   SUPPORT_INBOX      optional  where messages are delivered; defaults to SMTP_USERNAME
+ *   SUPPORT_FROM_NAME  optional  display name on the email; defaults to "Smart Finance"
  *
  * The password only ever lives in the server's environment — never in the app or in Git.
  */

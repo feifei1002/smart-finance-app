@@ -32,6 +32,11 @@ import com.smart_finance_app.appStringResource
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.chevron_right
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 
 @Composable
 internal fun FaqScreen(onBack: () -> Unit) {
@@ -112,13 +117,28 @@ private fun FaqRow(
             )
         }
 
+        val emphasisColor = MaterialTheme.colorScheme.onSurface
+        val answerText = remember(item.answer, emphasisColor) {
+            item.answer.withBoldMarkers(emphasisColor)
+        }
+
         AnimatedVisibility(visible = expanded) {
             Text(
-                text = item.answer,
+                text = answerText,
                 modifier = Modifier.padding(top = 10.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+private fun String.withBoldMarkers(boldColor: Color): AnnotatedString = buildAnnotatedString {
+    split("**").forEachIndexed { index, part ->
+        if (index % 2 == 1) {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = boldColor)) { append(part) }
+        } else {
+            append(part)
         }
     }
 }

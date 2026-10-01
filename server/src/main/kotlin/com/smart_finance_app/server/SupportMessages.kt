@@ -39,12 +39,26 @@ data class SupportMessageResponse(val id: String)
 
 private data class SupportUser(val email: String, val fullName: String)
 
+/** Result of saving a new message as 'pending' before it is emailed. */
+private sealed interface ReserveResult {
+    data class Reserved(val user: SupportUser) : ReserveResult
+    data object RateLimited : ReserveResult
+    data object UserNotFound : ReserveResult
+}
+
 fun Route.supportRoutes() {
     authenticate("auth-jwt") {
 
         /**
          * POST /api/support/messages
          * Sends a feedback or support message from the authenticated user to the project inbox.
+         *
+         * Order of operations:
+         *   1. Validate the request.
+         *   2. Save the message as 'pending' (rate limit is checked in the same transaction).
+         *      If this fails, nothing is emailed.
+         *   3. Send the email.
+         *   4. Mark the message 'sent' or 'failed'.
          */
         post("/api/support/messages") {
             val userId = call.principal<JWTPrincipal>()
@@ -61,7 +75,7 @@ fun Route.supportRoutes() {
                     return@post
                 }
 
-            // ── Validation ────────────────────────────────────────────────────
+            // ── 1. Validation ─────────────────────────────────────────────────
             val type = request.type.trim().lowercase()
             if (type !in allowedMessageTypes) {
                 call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid message type"))
@@ -100,22 +114,49 @@ fun Route.supportRoutes() {
             val appVersion = request.appVersion.cleanMeta()
             val language = request.language.cleanMeta()
 
-            // ── Rate limit: max N messages per user per hour ──────────────────
-            if (countRecentSupportMessages(userId) >= MAX_MESSAGES_PER_HOUR) {
+            // ── 2. Save as 'pending' before sending ───────────────────────────
+            val messageId = UUID.randomUUID()
+
+            val reserveResult = withContext(Dispatchers.IO) {
+                runCatching {
+                    reserveSupportMessage(
+                        id = messageId,
+                        userId = userId,
+                        type = type,
+                        rating = rating,
+                        category = category,
+                        message = message,
+                        platform = platform,
+                        appVersion = appVersion,
+                        language = language
+                    )
+                }
+            }.getOrElse { error ->
+                // Nothing has been emailed, so it is safe to tell the user to retry.
+                supportLogger.error("Could not save support message $messageId", error)
                 call.respond(
-                    HttpStatusCode.TooManyRequests,
-                    ErrorResponse("Too many messages. Please try again later.")
+                    HttpStatusCode.ServiceUnavailable,
+                    ErrorResponse("Could not send your message. Please try again later.")
                 )
                 return@post
             }
 
-            val user = findSupportUser(userId) ?: run {
-                call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
-                return@post
+            val user = when (reserveResult) {
+                is ReserveResult.Reserved -> reserveResult.user
+                ReserveResult.RateLimited -> {
+                    call.respond(
+                        HttpStatusCode.TooManyRequests,
+                        ErrorResponse("Too many messages. Please try again later.")
+                    )
+                    return@post
+                }
+                ReserveResult.UserNotFound -> {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+                    return@post
+                }
             }
 
-            // ── Send the email ────────────────────────────────────────────────
-            val messageId = UUID.randomUUID()
+            // ── 3. Send the email ─────────────────────────────────────────────
             val shortId = messageId.toString().take(8)
             val safeName = user.fullName.replace(Regex("[\\r\\n]+"), " ").trim().ifBlank { "User" }
 
@@ -146,6 +187,17 @@ fun Route.supportRoutes() {
             val sendResult = withContext(Dispatchers.IO) {
                 runCatching { SupportMailer.send(subject, body, replyTo = user.email) }
             }
+
+            // ── 4. Record the outcome ─────────────────────────────────────────
+            val finalStatus = if (sendResult.isSuccess) "sent" else "failed"
+            withContext(Dispatchers.IO) {
+                runCatching { updateSupportMessageStatus(messageId, finalStatus) }
+            }.onFailure { error ->
+                // The row stays 'pending', which still counts towards the hourly limit,
+                // so the limit can't be bypassed even if this update fails.
+                supportLogger.error("Could not mark support message $messageId as $finalStatus", error)
+            }
+
             sendResult.onFailure { error ->
                 // Log the id and the error only — never the user's message text.
                 supportLogger.error("Failed to send support email $messageId", error)
@@ -154,24 +206,6 @@ fun Route.supportRoutes() {
                     ErrorResponse("Could not send your message. Please try again later.")
                 )
                 return@post
-            }
-
-            // ── Keep a copy in the database ───────────────────────────────────
-            // The email already went out, so a failure here is logged but not shown to the user.
-            runCatching {
-                saveSupportMessage(
-                    id = messageId,
-                    userId = userId,
-                    type = type,
-                    rating = rating,
-                    category = category,
-                    message = message,
-                    platform = platform,
-                    appVersion = appVersion,
-                    language = language
-                )
-            }.onFailure { error ->
-                supportLogger.error("Support email $messageId sent but not saved to database", error)
             }
 
             call.respond(HttpStatusCode.Created, SupportMessageResponse(messageId.toString()))
@@ -185,42 +219,15 @@ private fun String?.cleanMeta(): String? =
         ?.take(MAX_META_LENGTH)
         ?.takeIf { it.isNotEmpty() }
 
-private fun countRecentSupportMessages(userId: UUID): Int =
-    Database.dataSource.connection.use { connection ->
-        connection.prepareStatement(
-            """
-                SELECT count(*)
-                FROM support_messages
-                WHERE user_id = ?
-                  AND created_at > now() - interval '1 hour'
-            """.trimIndent()
-        ).use { statement ->
-            statement.setObject(1, userId)
-            statement.executeQuery().use { result ->
-                if (result.next()) result.getInt(1) else 0
-            }
-        }
-    }
-
-// NOTE: check these column names match your users table (see Registration.kt / Profile.kt).
-private fun findSupportUser(userId: UUID): SupportUser? =
-    Database.dataSource.connection.use { connection ->
-        connection.prepareStatement(
-            "SELECT email, full_name FROM users WHERE id = ?"
-        ).use { statement ->
-            statement.setObject(1, userId)
-            statement.executeQuery().use { result ->
-                if (result.next()) {
-                    SupportUser(
-                        email = result.getString("email"),
-                        fullName = result.getString("full_name") ?: ""
-                    )
-                } else null
-            }
-        }
-    }
-
-private fun saveSupportMessage(
+/**
+ * In one transaction: locks the user's row, checks the hourly limit, and inserts the
+ * message as 'pending'. Locking the user's row means two requests from the same user
+ * at the same moment are counted one after the other, so both can't slip past the limit.
+ *
+ * Only 'pending' and 'sent' messages count towards the limit. 'failed' ones never reached
+ * the inbox, so users aren't locked out because of an email outage on our side.
+ */
+private fun reserveSupportMessage(
     id: UUID,
     userId: UUID,
     type: String,
@@ -230,15 +237,55 @@ private fun saveSupportMessage(
     platform: String?,
     appVersion: String?,
     language: String?
-) {
+): ReserveResult =
     Database.dataSource.connection.use { connection ->
         try {
+            val user = connection.prepareStatement(
+                "SELECT email, full_name FROM users WHERE id = ? FOR UPDATE"
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.executeQuery().use { result ->
+                    if (result.next()) {
+                        SupportUser(
+                            email = result.getString("email"),
+                            fullName = result.getString("full_name") ?: ""
+                        )
+                    } else null
+                }
+            }
+
+            if (user == null) {
+                connection.rollback()
+                return@use ReserveResult.UserNotFound
+            }
+
+            val recentCount = connection.prepareStatement(
+                """
+                    SELECT count(*)
+                    FROM support_messages
+                    WHERE user_id = ?
+                      AND status IN ('pending', 'sent')
+                      AND created_at > now() - interval '1 hour'
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.executeQuery().use { result ->
+                    if (result.next()) result.getInt(1) else 0
+                }
+            }
+
+            if (recentCount >= MAX_MESSAGES_PER_HOUR) {
+                connection.rollback()
+                return@use ReserveResult.RateLimited
+            }
+
             connection.prepareStatement(
                 """
                     INSERT INTO support_messages (
-                        id, user_id, type, rating, category, message, platform, app_version, language
+                        id, user_id, type, rating, category, message,
+                        platform, app_version, language, status
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
                 """.trimIndent()
             ).use { statement ->
                 statement.setObject(1, id)
@@ -251,6 +298,25 @@ private fun saveSupportMessage(
                 statement.setString(7, platform)
                 statement.setString(8, appVersion)
                 statement.setString(9, language)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            ReserveResult.Reserved(user)
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+
+private fun updateSupportMessageStatus(id: UUID, status: String) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                "UPDATE support_messages SET status = ? WHERE id = ?"
+            ).use { statement ->
+                statement.setString(1, status)
+                statement.setObject(2, id)
                 statement.executeUpdate()
             }
             connection.commit()
