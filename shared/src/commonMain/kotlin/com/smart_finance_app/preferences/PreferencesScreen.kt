@@ -353,7 +353,6 @@ fun PreferencesScreen(
                                     },
                                     onClick = {
                                         selectedTheme = theme
-                                        ThemeController.setTheme(theme)
                                         themeExpanded = false
                                     }
                                 )
@@ -361,9 +360,6 @@ fun PreferencesScreen(
                         }
                     }
                 }
-
-                // ── Error message ─────────────────────────────────────────────
-                errorMessage?.let { AppErrorMessage(it) }
 
                 // ── Action buttons ────────────────────────────────────────────
                 Column(

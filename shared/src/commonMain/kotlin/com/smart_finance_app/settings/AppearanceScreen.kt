@@ -54,8 +54,11 @@ internal fun AppearanceScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.surface
-    ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    ) { padding ->
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize()
+                .padding(padding)
+        ) {
             val compact = maxWidth < 700.dp
 
             AppScreenContainer(
