@@ -172,7 +172,7 @@ internal fun ChartCardContent(
                                                 .weight(1f)
                                                 .height(8.dp)
                                                 .background(
-                                                    MaterialTheme.colorScheme.surfaceVariant,
+                                                    MaterialTheme.colorScheme.outlineVariant,
                                                     RoundedCornerShape(4.dp)
                                                 )
                                         ) {

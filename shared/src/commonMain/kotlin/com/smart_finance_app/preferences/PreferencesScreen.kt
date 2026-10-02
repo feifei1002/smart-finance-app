@@ -49,6 +49,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import kotlinx.coroutines.delay
 import com.smart_finance_app.currency.getCurrencySymbol
+import com.smart_finance_app.settings.UpdateThemeResult
+import com.smart_finance_app.theme.AppTheme
+import com.smart_finance_app.theme.ThemeController
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,16 +66,19 @@ fun PreferencesScreen(
 
     var selectedLanguageCode by remember { mutableStateOf(LocaleController.currentLanguageCode) }
     var selectedCurrency     by remember { mutableStateOf(CurrencyController.currentCurrency) }
+    var selectedTheme        by remember { mutableStateOf(ThemeController.currentTheme) }
     var isSaving             by remember { mutableStateOf(false) }
     var errorMessage         by remember { mutableStateOf<String?>(null) }
     var languageExpanded     by remember { mutableStateOf(false) }
     var currencyExpanded     by remember { mutableStateOf(false) }
+    var themeExpanded        by remember { mutableStateOf(false) }
 
     val selectedLanguage = LocaleController.supportedLanguages
         .find { it.code == selectedLanguageCode }
 
     val initialLanguageCode = remember { LocaleController.currentLanguageCode }
     val initialCurrency     = remember { CurrencyController.currentCurrency }
+    val initialTheme        = remember { ThemeController.currentTheme }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -275,6 +281,88 @@ fun PreferencesScreen(
                     }
                 }
 
+                // ── Theme dropdown ───────────────────────────────────────────
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_APPEARANCE),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    ExposedDropdownMenuBox(
+                        expanded = themeExpanded,
+                        onExpandedChange = { themeExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = appStringResource(selectedTheme.titleKey),
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(
+                                    expanded = themeExpanded
+                                )
+                            },
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.primary,
+                                            shape = CircleShape
+                                        )
+                                )
+                            },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = themeExpanded,
+                            onDismissRequest = { themeExpanded = false }
+                        ) {
+                            AppTheme.entries.forEach { theme ->
+                                val isSelected = theme == selectedTheme
+
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(10.dp)
+                                                    .background(
+                                                        color = if (isSelected)
+                                                            MaterialTheme.colorScheme.primary
+                                                        else
+                                                            MaterialTheme.colorScheme.outlineVariant,
+                                                        shape = CircleShape
+                                                    )
+                                            )
+
+                                            Text(
+                                                text = appStringResource(theme.titleKey),
+                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedTheme = theme
+                                        ThemeController.setTheme(theme)
+                                        themeExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // ── Error message ─────────────────────────────────────────────
                 errorMessage?.let { AppErrorMessage(it) }
 
@@ -294,6 +382,7 @@ fun PreferencesScreen(
                                     // Apply locally first
                                     LocaleController.setLanguage(selectedLanguageCode)
                                     CurrencyController.setCurrency(selectedCurrency)
+                                    ThemeController.setTheme(selectedTheme)
 
                                     // Persist both to server
                                     val langResult = userPreferencesApi.updateLanguage(
@@ -303,10 +392,16 @@ fun PreferencesScreen(
                                         authToken, selectedCurrency
                                     )
 
+                                    val themeResult = userPreferencesApi.updateTheme(
+                                        authToken,
+                                        selectedTheme.colour
+                                    )
+
                                     val langFailed = langResult is UpdateLanguageResult.Failure
                                     val currFailed = currResult is UpdateCurrencyResult.Failure
+                                    val themeFailed = themeResult is UpdateThemeResult.Failure
 
-                                    if (langFailed || currFailed) {
+                                    if (langFailed || currFailed || themeFailed) {
                                         errorMessage = AppStrings.get(
                                             selectedLanguageCode,
                                             StringKey.PREFERENCES_SAVE_FAILED
@@ -338,6 +433,7 @@ fun PreferencesScreen(
                         onClick = {
                             LocaleController.setLanguage(initialLanguageCode)
                             CurrencyController.setCurrency(initialCurrency)
+                            ThemeController.setTheme(initialTheme)
                             onSkip()
                         },
                         modifier = Modifier.fillMaxWidth()

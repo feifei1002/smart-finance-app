@@ -233,7 +233,9 @@ fun PlanCard(
                         shape    = RoundedCornerShape(8.dp),
                         border   = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         colors   = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.onSurface
+                            contentColor = MaterialTheme.colorScheme.primary,
+                            disabledContentColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+                            disabledContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
                         )
                     ) {
                         Text(text = buttonText, fontWeight = FontWeight.SemiBold,
@@ -293,12 +295,13 @@ fun FeatureRow(
             if (comingSoon && comingSoonBadge.isNotEmpty()) {
                 Surface(
                     shape = RoundedCornerShape(4.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    color = MaterialTheme.colorScheme.primaryContainer,
                 ) {
                     Text(
                         text = comingSoonBadge,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }

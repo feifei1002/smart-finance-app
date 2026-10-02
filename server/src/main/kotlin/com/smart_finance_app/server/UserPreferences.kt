@@ -137,46 +137,46 @@ fun Route.userPreferencesRoutes() {
                 call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
             }
         }
-    }
 
-    patch("/api/user/preferences/theme") {
-        val userId = call.principal<JWTPrincipal>()
-            ?.payload?.getClaim("userId")?.asString()
-            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            ?: run {
-                call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
-                return@patch
-            }
-
-        val request = runCatching { call.receive<UpdateThemeRequest>() }
-            .getOrElse {
-                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request body"))
-                return@patch
-            }
-
-        if (request.theme !in allowedThemes) {
-            call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid theme"))
-            return@patch
-        }
-
-        val updated = Database.dataSource.connection.use { connection ->
-            try {
-                val rows = connection.prepareStatement(
-                    "UPDATE users SET theme = ? WHERE id = ?"
-                ).use { stmt ->
-                    stmt.setString(1, request.theme)
-                    stmt.setObject(2, userId)
-                    stmt.executeUpdate()
+        patch("/api/user/preferences/theme") {
+            val userId = call.principal<JWTPrincipal>()
+                ?.payload?.getClaim("userId")?.asString()
+                ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: run {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+                    return@patch
                 }
-                connection.commit()
-                rows > 0
-            } catch (e: Exception) {
-                connection.rollback()
-                throw e
-            }
-        }
 
-        if (updated) call.respond(HttpStatusCode.OK, UpdateThemeResponse(request.theme))
-        else call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+            val request = runCatching { call.receive<UpdateThemeRequest>() }
+                .getOrElse {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request body"))
+                    return@patch
+                }
+
+            if (request.theme !in allowedThemes) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid theme"))
+                return@patch
+            }
+
+            val updated = Database.dataSource.connection.use { connection ->
+                try {
+                    val rows = connection.prepareStatement(
+                        "UPDATE users SET theme = ? WHERE id = ?"
+                    ).use { stmt ->
+                        stmt.setString(1, request.theme)
+                        stmt.setObject(2, userId)
+                        stmt.executeUpdate()
+                    }
+                    connection.commit()
+                    rows > 0
+                } catch (e: Exception) {
+                    connection.rollback()
+                    throw e
+                }
+            }
+
+            if (updated) call.respond(HttpStatusCode.OK, UpdateThemeResponse(request.theme))
+            else call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+        }
     }
 }

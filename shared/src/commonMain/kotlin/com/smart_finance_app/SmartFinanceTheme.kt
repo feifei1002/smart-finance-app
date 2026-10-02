@@ -55,8 +55,12 @@ fun SmartFinanceTheme(content: @Composable () -> Unit) {
             primaryContainer = Color(0xFFE8DDF8),
             onPrimaryContainer = Color(0xFF261047),
             secondary = Color(0xFF7C699B),
+            secondaryContainer = Color(0xFFD4C3F0),
+            onSecondaryContainer = Color(0xFF261047),
             surface = Color(0xFFFFF8FF),
             surfaceVariant = Color(0xFFE8E0EA),
+            onSurface = Color(0xFF1F1A24),
+            onSurfaceVariant = Color(0xFF51495B),
             outlineVariant = Color(0xFFCDC4D0)
         )
 
@@ -65,8 +69,12 @@ fun SmartFinanceTheme(content: @Composable () -> Unit) {
             primaryContainer = Color(0xFFDCE8FF),
             onPrimaryContainer = Color(0xFF102A4D),
             secondary = Color(0xFF617895),
+            secondaryContainer = Color(0xFFC5D8F7),
+            onSecondaryContainer = Color(0xFF102A4D),
             surface = Color(0xFFF8FBFF),
             surfaceVariant = Color(0xFFDDE5F0),
+            onSurface = Color(0xFF181C24),
+            onSurfaceVariant = Color(0xFF46505E),
             outlineVariant = Color(0xFFC2CAD6)
         )
 
@@ -75,8 +83,12 @@ fun SmartFinanceTheme(content: @Composable () -> Unit) {
             primaryContainer = Color(0xFFD9F1E3),
             onPrimaryContainer = Color(0xFF0D3520),
             secondary = Color(0xFF668171),
+            secondaryContainer = Color(0xFFBFE5CF),
+            onSecondaryContainer = Color(0xFF0D3520),
             surface = Color(0xFFF8FFF9),
             surfaceVariant = Color(0xFFDDE9E0),
+            onSurface = Color(0xFF18211B),
+            onSurfaceVariant = Color(0xFF465248),
             outlineVariant = Color(0xFFC3CFC6)
         )
     }
