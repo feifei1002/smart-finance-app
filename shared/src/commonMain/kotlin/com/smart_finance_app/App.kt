@@ -267,7 +267,7 @@ fun App(
                                         tokenStorage.saveRefreshToken(result.session.refreshToken)
                                         LocaleController.setLanguage("en")
                                         CurrencyController.setCurrency("GBP")
-                                        ThemeController.setTheme("pastel_green")
+                                        ThemeController.setTheme(result.session.theme)
                                         screen = Screen.Consent
                                     }
                                     is RegistrationResult.Failure -> registrationError = AppStrings.get(

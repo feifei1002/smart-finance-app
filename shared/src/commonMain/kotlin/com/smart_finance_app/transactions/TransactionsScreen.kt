@@ -81,7 +81,9 @@ private fun themedFilterChipColors() = FilterChipDefaults.filterChipColors(
     containerColor = MaterialTheme.colorScheme.surface,
     labelColor = MaterialTheme.colorScheme.onSurface,
     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-    selectedLabelColor = MaterialTheme.colorScheme.primary
+    selectedLabelColor = MaterialTheme.colorScheme.primary,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
 )
 
 @Composable
@@ -498,16 +500,19 @@ private fun DesktopTransactionsTable(
             FilterChip(
                 selected = selectedFilter == "All",
                 onClick = { onFilterSelected("All") },
+                colors = themedFilterChipColors(),
                 label = { Text(filterAllLabel) }
             )
             FilterChip(
                 selected = selectedFilter == "Income",
                 onClick = { onFilterSelected("Income"); onPageSelected(0) },
+                colors = themedFilterChipColors(),
                 label = { Text(filterIncomeLabel) }
             )
             FilterChip(
                 selected = selectedFilter == "Expenses",
                 onClick = { onFilterSelected("Expenses"); onPageSelected(0) },
+                colors = themedFilterChipColors(),
                 label = { Text(filterExpensesLabel) }
             )
         }

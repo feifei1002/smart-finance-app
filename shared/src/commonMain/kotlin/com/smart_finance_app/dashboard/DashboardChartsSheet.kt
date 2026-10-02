@@ -25,7 +25,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -213,16 +212,12 @@ internal fun ChartOptionTextBlock(
 
         Surface(
             shape = RoundedCornerShape(4.dp),
-            color = if (size == CardSize.FULL) {
-                Color(0xFF6366F1).copy(alpha = 0.15f)
-            } else {
-                Color(0xFF22C55E).copy(alpha = 0.15f)
-            }
+            color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Text(
                 text = sizeLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (size == CardSize.FULL) Color(0xFF6366F1) else Color(0xFF16A34A),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis,

@@ -8,8 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.smart_finance_app.*
@@ -24,71 +22,85 @@ internal fun AppearanceScreen(
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    val selectedTheme = ThemeController.currentTheme
+    val snackbarHostState = remember { SnackbarHostState() }
+    var savingTheme by remember { mutableStateOf(false) }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val compact = maxWidth < 700.dp
+    fun selectTheme(theme: AppTheme) {
+        if (savingTheme || ThemeController.currentTheme == theme) return
 
-        AppScreenContainer(
-            compact = compact,
-            maxWidth = if (compact) 560.dp else 900.dp
-        ) {
-            AppPageHeader(
-                title = appStringResource(StringKey.SETTINGS_APPEARANCE_TITLE),
-                subtitle = appStringResource(StringKey.SETTINGS_CHOOSE_THEME),
-                onBack = onBack,
-                compact = compact
-            )
+        val previousTheme = ThemeController.currentTheme
+        ThemeController.setTheme(theme)
+        savingTheme = true
 
+        scope.launch {
+            when (userPreferencesApi.updateTheme(authToken, theme.colour)) {
+                UpdateThemeResult.Success -> Unit
 
-            Spacer(Modifier.height(16.dp))
-
-            SettingsCard {
-                SettingsGroup {
-                    ThemeOptionRow(
-                        theme = AppTheme.PastelBlue,
-                        selected = selectedTheme == AppTheme.PastelBlue,
-                        swatchColor = Color(0xFF4D74B8),
-                        onClick = {
-                            ThemeController.setTheme(AppTheme.PastelBlue)
-                            scope.launch {
-                                userPreferencesApi.updateTheme(authToken, AppTheme.PastelBlue.colour)
-                            }
-                        }
-                    )
-
-                    SettingsDivider()
-
-                    ThemeOptionRow(
-                        theme = AppTheme.PastelPurple,
-                        selected = selectedTheme == AppTheme.PastelPurple,
-                        swatchColor = Color(0xFF6D55AD),
-                        onClick = {
-                            ThemeController.setTheme(AppTheme.PastelPurple)
-                            scope.launch {
-                                userPreferencesApi.updateTheme(
-                                    authToken,
-                                    AppTheme.PastelPurple.colour
-                                )
-                            }
-                        }
-                    )
-
-                    SettingsDivider()
-
-                    ThemeOptionRow(
-                        theme = AppTheme.PastelGreen,
-                        selected = selectedTheme == AppTheme.PastelGreen,
-                        swatchColor = Color(0xFF4D8B6A),
-                        onClick = {
-                            ThemeController.setTheme(AppTheme.PastelGreen)
-                            scope.launch {
-                                userPreferencesApi.updateTheme(authToken, AppTheme.PastelGreen.colour)
-                            }
-                        }
+                is UpdateThemeResult.Failure -> {
+                    ThemeController.setTheme(previousTheme)
+                    snackbarHostState.showSnackbar(
+                        AppStrings.get(
+                            LocaleController.currentLanguageCode,
+                            StringKey.SETTINGS_THEME_SAVE_FAILED
+                        )
                     )
                 }
+            }
 
+            savingTheme = false
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val compact = maxWidth < 700.dp
+
+            AppScreenContainer(
+                compact = compact,
+                maxWidth = if (compact) 560.dp else 900.dp
+            ) {
+                AppPageHeader(
+                    title = appStringResource(StringKey.SETTINGS_APPEARANCE_TITLE),
+                    subtitle = appStringResource(StringKey.SETTINGS_CHOOSE_THEME),
+                    onBack = onBack,
+                    compact = compact
+                )
+
+
+                Spacer(Modifier.height(16.dp))
+
+                SettingsCard {
+                    SettingsGroup {
+                        ThemeOptionRow(
+                            theme = AppTheme.PastelBlue,
+                            selected = ThemeController.currentTheme == AppTheme.PastelBlue,
+                            enabled = !savingTheme,
+                            onClick = { selectTheme(AppTheme.PastelBlue) }
+                        )
+
+                        SettingsDivider()
+
+                        ThemeOptionRow(
+                            theme = AppTheme.PastelPurple,
+                            selected = ThemeController.currentTheme == AppTheme.PastelPurple,
+                            enabled = !savingTheme,
+                            onClick = { selectTheme(AppTheme.PastelPurple) }
+                        )
+
+                        SettingsDivider()
+
+                        ThemeOptionRow(
+                            theme = AppTheme.PastelGreen,
+                            selected = ThemeController.currentTheme == AppTheme.PastelGreen,
+                            enabled = !savingTheme,
+                            onClick = { selectTheme(AppTheme.PastelGreen) }
+                        )
+                    }
+
+                }
             }
         }
     }
@@ -98,13 +110,13 @@ internal fun AppearanceScreen(
 private fun ThemeOptionRow(
     theme: AppTheme,
     selected: Boolean,
-    swatchColor: Color,
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -112,8 +124,7 @@ private fun ThemeOptionRow(
         Box(
             modifier = Modifier
                 .size(14.dp)
-                .clip(CircleShape)
-                .background(swatchColor)
+                .background(theme.swatchColor, CircleShape)
         )
 
         Text(
@@ -125,6 +136,7 @@ private fun ThemeOptionRow(
 
         RadioButton(
             selected = selected,
+            enabled = enabled,
             onClick = onClick
         )
     }

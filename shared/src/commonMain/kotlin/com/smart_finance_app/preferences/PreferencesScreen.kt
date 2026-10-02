@@ -47,7 +47,6 @@ import com.smart_finance_app.settings.UpdateLanguageResult
 import com.smart_finance_app.settings.UserPreferencesApi
 import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
-import kotlinx.coroutines.delay
 import com.smart_finance_app.currency.getCurrencySymbol
 import com.smart_finance_app.settings.UpdateThemeResult
 import com.smart_finance_app.theme.AppTheme
@@ -371,6 +370,10 @@ fun PreferencesScreen(
                     modifier            = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    errorMessage?.let {
+                        AppErrorMessage(it)
+                    }
+
                     Button(
                         enabled  = !isSaving,
                         onClick = {
@@ -379,11 +382,6 @@ fun PreferencesScreen(
                                 errorMessage = null
 
                                 try {
-                                    // Apply locally first
-                                    LocaleController.setLanguage(selectedLanguageCode)
-                                    CurrencyController.setCurrency(selectedCurrency)
-                                    ThemeController.setTheme(selectedTheme)
-
                                     // Persist both to server
                                     val langResult = userPreferencesApi.updateLanguage(
                                         authToken, selectedLanguageCode
@@ -406,9 +404,12 @@ fun PreferencesScreen(
                                             selectedLanguageCode,
                                             StringKey.PREFERENCES_SAVE_FAILED
                                         )
-                                        // Let user see the warning briefly before navigating
-                                        delay(2500)
+
+                                        return@launch
                                     }
+                                    LocaleController.setLanguage(selectedLanguageCode)
+                                    CurrencyController.setCurrency(selectedCurrency)
+                                    ThemeController.setTheme(selectedTheme)
 
                                     // Navigate regardless — preferences already applied locally
                                     onContinue()
