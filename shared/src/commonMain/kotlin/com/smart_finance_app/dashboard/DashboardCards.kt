@@ -161,7 +161,7 @@ internal fun FinancialOverviewCard(
                 ) {
                     Text(text = appStringResource(StringKey.DASHBOARD_CURRENT_BALANCE),
                         style = MaterialTheme.typography.labelMedium,
-                        color = accentColor.copy(alpha = 0.8f),
+                        color = accentColor,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
@@ -397,6 +397,9 @@ internal fun DashboardCard(modifier: Modifier = Modifier, content: @Composable C
     Card(
         modifier = modifier.fillMaxWidth().fillMaxHeight(),
         shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp), content = content)
@@ -675,6 +678,7 @@ internal fun SectionTitle(text: String, modifier: Modifier = Modifier) {
         modifier = modifier,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis
     )
@@ -738,7 +742,7 @@ internal fun TransactionRow(tx: Transaction) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(tx.amount, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold,
-            color = if (tx.isIncome) Color(0xFF16A34A) else MaterialTheme.colorScheme.onSurface)
+            color = if (tx.isIncome) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
     }
 }
 

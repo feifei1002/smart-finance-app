@@ -53,7 +53,6 @@ internal fun AppearanceScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize()

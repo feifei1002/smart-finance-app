@@ -404,7 +404,8 @@ private fun MobileTransactionRow(
             Icon(
                 painter = painterResource(Res.drawable.edit),
                 contentDescription = "Edit transaction category",
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -648,7 +649,8 @@ private fun TransactionTableRow(
                 Icon(
                     painter = painterResource(Res.drawable.edit),
                     contentDescription = editLabel,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
