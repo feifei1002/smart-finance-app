@@ -1,5 +1,6 @@
 package com.smart_finance_app.dashboard
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -399,6 +400,10 @@ internal fun DashboardCard(modifier: Modifier = Modifier, content: @Composable C
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {

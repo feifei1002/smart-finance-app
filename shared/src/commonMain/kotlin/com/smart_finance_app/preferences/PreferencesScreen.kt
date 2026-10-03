@@ -42,13 +42,11 @@ import com.smart_finance_app.LocaleController
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.currency.CurrencyController
-import com.smart_finance_app.settings.UpdateCurrencyResult
-import com.smart_finance_app.settings.UpdateLanguageResult
 import com.smart_finance_app.settings.UserPreferencesApi
 import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.smart_finance_app.currency.getCurrencySymbol
-import com.smart_finance_app.settings.UpdateThemeResult
+import com.smart_finance_app.settings.UpdatePreferencesResult
 import com.smart_finance_app.theme.AppTheme
 import com.smart_finance_app.theme.ThemeController
 
@@ -378,37 +376,26 @@ fun PreferencesScreen(
                                 errorMessage = null
 
                                 try {
-                                    // Persist both to server
-                                    val langResult = userPreferencesApi.updateLanguage(
-                                        authToken, selectedLanguageCode
-                                    )
-                                    val currResult = userPreferencesApi.updateCurrency(
-                                        authToken, selectedCurrency
-                                    )
-
-                                    val themeResult = userPreferencesApi.updateTheme(
+                                    when (val result = userPreferencesApi.updatePreferences(
                                         authToken,
+                                        selectedLanguageCode,
+                                        selectedCurrency,
                                         selectedTheme.colour
-                                    )
+                                    )) {
+                                        UpdatePreferencesResult.Success -> {
+                                            LocaleController.setLanguage(selectedLanguageCode)
+                                            CurrencyController.setCurrency(selectedCurrency)
+                                            ThemeController.setTheme(selectedTheme)
+                                            onContinue()
+                                        }
 
-                                    val langFailed = langResult is UpdateLanguageResult.Failure
-                                    val currFailed = currResult is UpdateCurrencyResult.Failure
-                                    val themeFailed = themeResult is UpdateThemeResult.Failure
-
-                                    if (langFailed || currFailed || themeFailed) {
-                                        errorMessage = AppStrings.get(
-                                            selectedLanguageCode,
-                                            StringKey.PREFERENCES_SAVE_FAILED
-                                        )
-
-                                        return@launch
+                                        is UpdatePreferencesResult.Failure -> {
+                                            errorMessage = AppStrings.get(
+                                                selectedLanguageCode,
+                                                result.message
+                                            )
+                                        }
                                     }
-                                    LocaleController.setLanguage(selectedLanguageCode)
-                                    CurrencyController.setCurrency(selectedCurrency)
-                                    ThemeController.setTheme(selectedTheme)
-
-                                    // Navigate regardless — preferences already applied locally
-                                    onContinue()
                                 } finally {
                                     isSaving = false
                                 }

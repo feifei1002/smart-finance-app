@@ -33,6 +33,20 @@ data class UpdateThemeRequest(val theme: String)
 @Serializable
 data class UpdateThemeResponse(val theme: String)
 
+
+@Serializable
+data class UpdatePreferencesRequest(
+    val language: String,
+    val currency: String,
+    val theme: String
+)
+
+@Serializable
+data class UpdatePreferencesResponse(
+    val language: String,
+    val currency: String,
+    val theme: String
+)
 fun Route.userPreferencesRoutes() {
     authenticate("auth-jwt") {
 
@@ -178,5 +192,74 @@ fun Route.userPreferencesRoutes() {
             if (updated) call.respond(HttpStatusCode.OK, UpdateThemeResponse(request.theme))
             else call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
         }
+
+        patch("/api/user/preferences") {
+            val userId = call.principal<JWTPrincipal>()
+                ?.payload?.getClaim("userId")?.asString()
+                ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                ?: run {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+                    return@patch
+                }
+
+            val request = runCatching { call.receive<UpdatePreferencesRequest>() }
+                .getOrElse {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request body"))
+                    return@patch
+                }
+
+            if (request.language !in allowedLanguages) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid language"))
+                return@patch
+            }
+
+            if (request.currency !in allowedCurrencies) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid currency"))
+                return@patch
+            }
+
+            if (request.theme !in allowedThemes) {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid theme"))
+                return@patch
+            }
+
+            val updated = Database.dataSource.connection.use { connection ->
+                try {
+                    val rows = connection.prepareStatement(
+                        """
+                UPDATE users
+                SET language = ?, currency = ?, theme = ?
+                WHERE id = ?
+                """.trimIndent()
+                    ).use { stmt ->
+                        stmt.setString(1, request.language)
+                        stmt.setString(2, request.currency)
+                        stmt.setString(3, request.theme)
+                        stmt.setObject(4, userId)
+                        stmt.executeUpdate()
+                    }
+
+                    connection.commit()
+                    rows > 0
+                } catch (e: Exception) {
+                    connection.rollback()
+                    throw e
+                }
+            }
+
+            if (updated) {
+                call.respond(
+                    HttpStatusCode.OK,
+                    UpdatePreferencesResponse(
+                        language = request.language,
+                        currency = request.currency,
+                        theme = request.theme
+                    )
+                )
+            } else {
+                call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+            }
+        }
+
     }
 }
