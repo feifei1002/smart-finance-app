@@ -575,7 +575,7 @@ fun CompactBudgetProgressRow(
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                IconButton(onClick = onEdit, modifier = Modifier.size(24.dp)) {
+                IconButton(onClick = onEdit, modifier = Modifier.size(18.dp)) {
                     Icon(
                         imageVector = vectorResource(Res.drawable.edit),
                         contentDescription = null,
@@ -583,7 +583,7 @@ fun CompactBudgetProgressRow(
                     )
                 }
 
-                IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(18.dp)) {
                     Icon(
                         imageVector = vectorResource(Res.drawable.delete),
                         contentDescription = null,

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,10 +26,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,9 +56,7 @@ import com.smart_finance_app.AppErrorMessage
 import com.smart_finance_app.AppPageHeader
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
-import smart_finance_app.shared.generated.resources.download
 import smart_finance_app.shared.generated.resources.edit
-import smart_finance_app.shared.generated.resources.filter
 import smart_finance_app.shared.generated.resources.search
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
@@ -77,6 +74,16 @@ data class TransactionUI(
     val currency: String,
     val merchantLogoUrl: String? = null,
     val accountId: String? = null
+)
+
+@Composable
+private fun themedFilterChipColors() = FilterChipDefaults.filterChipColors(
+    containerColor = MaterialTheme.colorScheme.surface,
+    labelColor = MaterialTheme.colorScheme.onSurface,
+    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+    selectedLabelColor = MaterialTheme.colorScheme.primary,
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
 )
 
 @Composable
@@ -250,20 +257,11 @@ private fun MobileTransactionsList(
                 title = appStringResource(StringKey.TRANSACTIONS_TITLE),
                 compact = true
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconButton(onClick = { showSearch = !showSearch }) {
-                    Icon(
-                        painter = painterResource(Res.drawable.search),
-                        contentDescription = searchPlaceholder
-                    )
-                }
-
-                IconButton(onClick = {}) {
-                    Icon(
-                        painter = painterResource(Res.drawable.filter),
-                        contentDescription = null
-                    )
-                }
+            IconButton(onClick = { showSearch = !showSearch }) {
+                Icon(
+                    painter = painterResource(Res.drawable.search),
+                    contentDescription = searchPlaceholder
+                )
             }
         }
 
@@ -290,6 +288,7 @@ private fun MobileTransactionsList(
             FilterChip(
                 selected = selectedFilter == "All",
                 onClick = { onFilterSelected("All") },
+                colors = themedFilterChipColors(),
                 label = {
                     Text(
                         text = filterAllLabel,
@@ -301,6 +300,7 @@ private fun MobileTransactionsList(
             FilterChip(
                 selected = selectedFilter == "Income",
                 onClick = { onFilterSelected("Income") },
+                colors = themedFilterChipColors(),
                 label = {
                     Text(
                         text = filterIncomeLabel,
@@ -312,6 +312,7 @@ private fun MobileTransactionsList(
             FilterChip(
                 selected = selectedFilter == "Expenses",
                 onClick = { onFilterSelected("Expenses") },
+                colors = themedFilterChipColors(),
                 label = {
                     Text(
                         text = filterExpensesLabel,
@@ -403,7 +404,8 @@ private fun MobileTransactionRow(
             Icon(
                 painter = painterResource(Res.drawable.edit),
                 contentDescription = "Edit transaction category",
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -490,36 +492,6 @@ private fun DesktopTransactionsTable(
                 },
                 placeholder = { Text(searchPlaceholder) }
             )
-
-            OutlinedButton(
-                onClick = {},
-                modifier = Modifier.heightIn(min = 56.dp),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(
-                    painter = painterResource(Res.drawable.filter),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                // "Filters" and "Export" are UI chrome labels — add to strings.xml
-                // if you want them localised; for MVP they're fine as-is
-                Text("Filters")
-            }
-
-            OutlinedButton(
-                onClick = {},
-                modifier = Modifier.heightIn(min = 56.dp),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(
-                    painter = painterResource(Res.drawable.download),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Export")
-            }
         }
 
         Row(
@@ -529,16 +501,19 @@ private fun DesktopTransactionsTable(
             FilterChip(
                 selected = selectedFilter == "All",
                 onClick = { onFilterSelected("All") },
+                colors = themedFilterChipColors(),
                 label = { Text(filterAllLabel) }
             )
             FilterChip(
                 selected = selectedFilter == "Income",
                 onClick = { onFilterSelected("Income"); onPageSelected(0) },
+                colors = themedFilterChipColors(),
                 label = { Text(filterIncomeLabel) }
             )
             FilterChip(
                 selected = selectedFilter == "Expenses",
                 onClick = { onFilterSelected("Expenses"); onPageSelected(0) },
+                colors = themedFilterChipColors(),
                 label = { Text(filterExpensesLabel) }
             )
         }
@@ -674,7 +649,8 @@ private fun TransactionTableRow(
                 Icon(
                     painter = painterResource(Res.drawable.edit),
                     contentDescription = editLabel,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -828,7 +804,7 @@ private fun EditTransactionCategoryDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (transaction.amount >= 0) {
-                            Color(0xFF6F58A8)
+                            MaterialTheme.colorScheme.secondary
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         }

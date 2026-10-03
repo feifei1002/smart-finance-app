@@ -1031,6 +1031,7 @@ private fun MobileDashboard(
                             text = dashboardCardTitle(cardKey),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.align(Alignment.CenterStart)
@@ -1851,6 +1852,7 @@ private fun DesktopDashboard(
                             text = dashboardCardTitle(cardKey),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier

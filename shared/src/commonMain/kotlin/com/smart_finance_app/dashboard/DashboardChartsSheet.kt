@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.IconButton
@@ -24,7 +25,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -138,6 +138,10 @@ internal fun ChartOptionRow(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 44.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Text(
@@ -166,6 +170,10 @@ internal fun ChartOptionRow(
                     FilledTonalButton(
                         onClick = onAdd,
                         modifier = Modifier.heightIn(min = 44.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                     ) {
                         Text(
@@ -204,16 +212,12 @@ internal fun ChartOptionTextBlock(
 
         Surface(
             shape = RoundedCornerShape(4.dp),
-            color = if (size == CardSize.FULL) {
-                Color(0xFF6366F1).copy(alpha = 0.15f)
-            } else {
-                Color(0xFF22C55E).copy(alpha = 0.15f)
-            }
+            color = MaterialTheme.colorScheme.secondaryContainer
         ) {
             Text(
                 text = sizeLabel,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (size == CardSize.FULL) Color(0xFF6366F1) else Color(0xFF16A34A),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis,

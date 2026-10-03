@@ -16,6 +16,17 @@ private data class UpdateLanguageRequest(val language: String)
 @Serializable
 private data class UpdateCurrencyRequest(val currency: String)
 
+@Serializable
+private data class UpdateThemeRequest(val theme: String)
+
+@Serializable
+private data class UpdatePreferencesRequest(
+    val language: String,
+    val currency: String,
+    val theme: String
+)
+
+
 sealed interface UpdateLanguageResult {
     data object Success : UpdateLanguageResult
     data class Failure(val message: StringKey) : UpdateLanguageResult
@@ -24,6 +35,16 @@ sealed interface UpdateLanguageResult {
 sealed interface UpdateCurrencyResult {
     data object Success : UpdateCurrencyResult
     data class Failure(val message: StringKey) : UpdateCurrencyResult
+}
+
+sealed interface UpdateThemeResult {
+    data object Success : UpdateThemeResult
+    data class Failure(val message: StringKey) : UpdateThemeResult
+}
+
+sealed interface UpdatePreferencesResult {
+    data object Success : UpdatePreferencesResult
+    data class Failure(val message: StringKey) : UpdatePreferencesResult
 }
 
 class UserPreferencesApi(baseUrl: String, private val client: HttpClient) {
@@ -62,6 +83,53 @@ class UserPreferencesApi(baseUrl: String, private val client: HttpClient) {
             }
         } catch (_: Exception) {
             UpdateCurrencyResult.Failure(StringKey.COMMON_ERROR_SERVER)
+        }
+    }
+
+    suspend fun updateTheme(token: String, themeCode: String): UpdateThemeResult {
+        return try {
+            val response = client.patch("$normalizedBaseUrl/api/user/preferences/theme") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(UpdateThemeRequest(themeCode))
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> UpdateThemeResult.Success
+                HttpStatusCode.Unauthorized -> UpdateThemeResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> UpdateThemeResult.Failure(StringKey.SETTINGS_THEME_SAVE_FAILED)
+            }
+        } catch (_: Exception) {
+            UpdateThemeResult.Failure(StringKey.COMMON_ERROR_SERVER)
+        }
+    }
+
+    suspend fun updatePreferences(
+        token: String,
+        languageCode: String,
+        currencyCode: String,
+        themeCode: String
+    ): UpdatePreferencesResult {
+        return try {
+            val response = client.patch("$normalizedBaseUrl/api/user/preferences") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    UpdatePreferencesRequest(
+                        language = languageCode,
+                        currency = currencyCode,
+                        theme = themeCode
+                    )
+                )
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> UpdatePreferencesResult.Success
+                HttpStatusCode.Unauthorized -> UpdatePreferencesResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> UpdatePreferencesResult.Failure(StringKey.PREFERENCES_SAVE_FAILED)
+            }
+        } catch (_: Exception) {
+            UpdatePreferencesResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

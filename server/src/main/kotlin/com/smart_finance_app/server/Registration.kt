@@ -26,7 +26,8 @@ data class RegisterResponse(
     val email: String,
     val consentAccepted: Boolean,
     val language: String,
-    val currency: String
+    val currency: String,
+    val theme: String
 )
 
 @Serializable
@@ -81,7 +82,8 @@ fun Route.registrationRoutes(
                 email = email,
                 consentAccepted = false,
                 language = "en" ,
-                currency = "GBP"
+                currency = "GBP",
+                theme = "pastel_green"
             )
         )
     }
@@ -95,14 +97,15 @@ private fun createUser(
     try {
         connection.prepareStatement(
             """
-            INSERT INTO users (full_name, email, password_hash)
-            VALUES (?, ?, ?)
+            INSERT INTO users (full_name, email, password_hash, theme)
+            VALUES (?, ?, ?, ?)
             RETURNING id
             """.trimIndent()
         ).use { statement ->
             statement.setString(1, fullName)
             statement.setString(2, email)
             statement.setString(3, passwordHash)
+            statement.setString(4, "pastel_green")
 
             statement.executeQuery().use { result ->
                 check(result.next())
