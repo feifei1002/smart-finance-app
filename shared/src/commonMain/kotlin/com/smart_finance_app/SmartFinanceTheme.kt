@@ -54,42 +54,119 @@ fun SmartFinanceTheme(content: @Composable () -> Unit) {
             primary = Color(0xFF6D55AD),
             primaryContainer = Color(0xFFE8DDF8),
             onPrimaryContainer = Color(0xFF261047),
+
             secondary = Color(0xFF7C699B),
+            onSecondary = Color.White,
             secondaryContainer = Color(0xFFD4C3F0),
             onSecondaryContainer = Color(0xFF261047),
+
+            tertiary = Color(0xFF8E5A79),
+            onTertiary = Color.White,
+            tertiaryContainer = Color(0xFFFFD8EA),
+            onTertiaryContainer = Color(0xFF381123),
+
+            background = Color(0xFFFFF8FF),
+            onBackground = Color(0xFF1F1A24),
+
             surface = Color(0xFFFFF8FF),
             surfaceVariant = Color(0xFFE8E0EA),
             onSurface = Color(0xFF1F1A24),
             onSurfaceVariant = Color(0xFF51495B),
-            outlineVariant = Color(0xFFCDC4D0)
+
+            outline = Color(0xFF7D7484),
+            outlineVariant = Color(0xFFCDC4D0),
+
+            error = Color(0xFFBA1A1A),
+            onError = Color.White,
+            errorContainer = Color(0xFFFFDAD6),
+            onErrorContainer = Color(0xFF410002),
+
+            inverseSurface = Color(0xFF342F39),
+            inverseOnSurface = Color(0xFFF7EFF8),
+            inversePrimary = Color(0xFFD4BBFF),
+
+            surfaceTint = Color(0xFF6D55AD),
+            scrim = Color(0xFF000000)
         )
 
         AppTheme.PastelBlue -> lightColorScheme(
             primary = Color(0xFF4D74B8),
+            onPrimary = Color.White,
             primaryContainer = Color(0xFFDCE8FF),
             onPrimaryContainer = Color(0xFF102A4D),
+
             secondary = Color(0xFF617895),
+            onSecondary = Color.White,
             secondaryContainer = Color(0xFFC5D8F7),
             onSecondaryContainer = Color(0xFF102A4D),
+
+            tertiary = Color(0xFF5D6F8F),
+            onTertiary = Color.White,
+            tertiaryContainer = Color(0xFFDDE6FF),
+            onTertiaryContainer = Color(0xFF17284A),
+
+            background = Color(0xFFF8FBFF),
+            onBackground = Color(0xFF181C24),
+
             surface = Color(0xFFF8FBFF),
             surfaceVariant = Color(0xFFDDE5F0),
             onSurface = Color(0xFF181C24),
             onSurfaceVariant = Color(0xFF46505E),
-            outlineVariant = Color(0xFFC2CAD6)
+
+            outline = Color(0xFF737C89),
+            outlineVariant = Color(0xFFC2CAD6),
+
+            error = Color(0xFFBA1A1A),
+            onError = Color.White,
+            errorContainer = Color(0xFFFFDAD6),
+            onErrorContainer = Color(0xFF410002),
+
+            inverseSurface = Color(0xFF2D3139),
+            inverseOnSurface = Color(0xFFEFF2FA),
+            inversePrimary = Color(0xFFB6CEFF),
+
+            surfaceTint = Color(0xFF4D74B8),
+            scrim = Color(0xFF000000)
         )
 
         AppTheme.PastelGreen -> lightColorScheme(
             primary = Color(0xFF4D8B6A),
+            onPrimary = Color.White,
             primaryContainer = Color(0xFFD9F1E3),
             onPrimaryContainer = Color(0xFF0D3520),
+
             secondary = Color(0xFF668171),
+            onSecondary = Color.White,
             secondaryContainer = Color(0xFFBFE5CF),
             onSecondaryContainer = Color(0xFF0D3520),
+
+            tertiary = Color(0xFF5F7F8A),
+            onTertiary = Color.White,
+            tertiaryContainer = Color(0xFFD7EEF3),
+            onTertiaryContainer = Color(0xFF0A3038),
+
+            background = Color(0xFFF8FFF9),
+            onBackground = Color(0xFF18211B),
+
             surface = Color(0xFFF8FFF9),
             surfaceVariant = Color(0xFFDDE9E0),
             onSurface = Color(0xFF18211B),
             onSurfaceVariant = Color(0xFF465248),
-            outlineVariant = Color(0xFFC3CFC6)
+
+            outline = Color(0xFF748077),
+            outlineVariant = Color(0xFFC3CFC6),
+
+            error = Color(0xFFBA1A1A),
+            onError = Color.White,
+            errorContainer = Color(0xFFFFDAD6),
+            onErrorContainer = Color(0xFF410002),
+
+            inverseSurface = Color(0xFF2D332E),
+            inverseOnSurface = Color(0xFFEFF7EF),
+            inversePrimary = Color(0xFF9BD4AF),
+
+            surfaceTint = Color(0xFF4D8B6A),
+            scrim = Color(0xFF000000)
         )
     }
 
