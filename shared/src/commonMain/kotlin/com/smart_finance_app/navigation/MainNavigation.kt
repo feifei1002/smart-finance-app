@@ -754,6 +754,14 @@ private fun NavigationContent(
                     isSaving = savingSelectedAccounts,
                     errorMessage = accountSelectionError,
                     onBack = {
+                        val state = accountSelectionState
+
+                        if (state != null) {
+                            scope.launch {
+                                bankingApi.cancelAccountSelection(authToken, state)
+                            }
+                        }
+                        
                         accountSelectionState = null
                         selectableAccounts = emptyList()
                         selectedAccountIds = emptySet()

@@ -1051,7 +1051,11 @@ private fun savePendingBankAccountSelection(
                 statement.setTimestamp(3, Timestamp.from(tokenExpiry))
                 statement.setString(4, gson.toJson(accounts))
                 statement.setString(5, state)
-                statement.executeUpdate()
+                val updatedRows = statement.executeUpdate()
+
+                if (updatedRows != 1) {
+                    error("Could not update pending bank connection session")
+                }
             }
 
             connection.commit()
@@ -1180,6 +1184,7 @@ private fun saveSelectedBankAccounts(
                   AND state = ?
                   AND status = 'awaiting_account_selection'
                   AND expires_at > NOW()
+                FOR UPDATE
                 """.trimIndent()
             ).use { statement ->
                 statement.setObject(1, userId)

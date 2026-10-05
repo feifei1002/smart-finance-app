@@ -244,6 +244,23 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
         }
     }
 
+    suspend fun cancelAccountSelection(
+        token: String,
+        state: String
+    ): Boolean {
+        return try {
+            val response = client.post(
+                "$normalizedBaseUrl/api/banking/connection-session/$state/cancel"
+            ) {
+                bearerAuth(token)
+            }
+
+            response.status == HttpStatusCode.OK
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /**
      * Loads available bank providers from the backend.
      *
