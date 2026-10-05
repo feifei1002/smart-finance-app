@@ -21,6 +21,7 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
+import java.sql.Connection
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
@@ -302,6 +303,7 @@ fun Route.bankingRoutes() {
         }
 
         get("/api/banking/connection-session/{state}/accounts") {
+            expireOldBankConnectionSelections()
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.userIdOrNull()
                 ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
@@ -316,6 +318,7 @@ fun Route.bankingRoutes() {
         }
 
         post("/api/banking/connection-session/{state}/accounts") {
+            expireOldBankConnectionSelections()
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.userIdOrNull()
                 ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
@@ -337,6 +340,27 @@ fun Route.bankingRoutes() {
             }
         }
 
+        post("/api/banking/connection-session/{state}/cancel") {
+            expireOldBankConnectionSelections()
+
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val state = call.parameters["state"]
+                ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Missing state"))
+
+            val cancelled = cancelPendingBankAccountSelection(userId, state)
+
+            if (cancelled) {
+                call.respond(HttpStatusCode.OK)
+            } else {
+                call.respond(
+                    HttpStatusCode.NotFound,
+                    ErrorResponse("Connection session not found")
+                )
+            }
+        }
 
         delete("/api/banking/accounts/{accountId}") {
             val principal = call.principal<JWTPrincipal>()
@@ -515,6 +539,7 @@ fun Route.bankingRoutes() {
         }
 
         get("/api/banking/connection-session/{state}") {
+            expireOldBankConnectionSelections()
             val principal = call.principal<JWTPrincipal>()
             val userId = principal?.userIdOrNull()
                 ?: return@get call.respond(
@@ -724,9 +749,6 @@ fun Route.bankingRoutes() {
             return@get
         }
 
-//        markBankConnectionSession(state, "completed")
-        markBankConnectionSession(state, "awaiting_account_selection")
-
         // Simple success page — the user sees this in their browser
         // after approving access at their bank
         call.respondText(
@@ -848,6 +870,9 @@ private fun disconnectConnectedAccount(userId: UUID, accountId: String): Boolean
                 """
                 UPDATE connected_accounts
                 SET connection_status = 'disconnected',
+                    access_token = NULL,
+                    refresh_token = NULL,
+                    token_expiry = NULL,
                     updated_at = NOW()
                 WHERE user_id = ?
                   AND account_id = ?
@@ -1010,13 +1035,15 @@ private fun savePendingBankAccountSelection(
             connection.prepareStatement(
                 """
                 UPDATE bank_connection_sessions
-                SET access_token = ?,
+                SET status = 'awaiting_account_selection',
+                    access_token = ?,
                     refresh_token = ?,
                     token_expiry = ?,
                     available_accounts = ?::jsonb,
                     expires_at = NOW() + INTERVAL '15 minutes',
                     updated_at = NOW()
                 WHERE state = ?
+                  AND status = 'processing'
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, Encryption.encrypt(accessToken))
@@ -1028,6 +1055,40 @@ private fun savePendingBankAccountSelection(
             }
 
             connection.commit()
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
+}
+
+private fun cancelPendingBankAccountSelection(
+    userId: UUID,
+    state: String
+): Boolean {
+    return Database.dataSource.connection.use { connection ->
+        try {
+            val updatedRows = connection.prepareStatement(
+                """
+                UPDATE bank_connection_sessions
+                SET status = 'cancelled',
+                    access_token = NULL,
+                    refresh_token = NULL,
+                    token_expiry = NULL,
+                    available_accounts = NULL,
+                    updated_at = NOW()
+                WHERE user_id = ?
+                  AND state = ?
+                  AND status = 'awaiting_account_selection'
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, state)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            updatedRows > 0
         } catch (e: Exception) {
             connection.rollback()
             throw e
@@ -1167,6 +1228,7 @@ private fun saveSelectedBankAccounts(
             }
 
             saveConnectedAccounts(
+                connection = connection,
                 userId = userId,
                 accounts = selectedAccounts,
                 accessToken = session.accessToken,
@@ -1209,6 +1271,7 @@ private fun saveSelectedBankAccounts(
  * bank just refreshes the tokens rather than creating duplicates.
  */
 private fun saveConnectedAccounts(
+    connection: Connection,
     userId: UUID,
     accounts: List<TrueLayerAccount>,
     accessToken: String,
@@ -1217,39 +1280,31 @@ private fun saveConnectedAccounts(
     providerId: String,
     providerName: String
 ) {
-    Database.dataSource.connection.use { connection ->
-        try {
-            accounts.forEach { account ->
-                connection.prepareStatement(
-                    """
-                    INSERT INTO connected_accounts
-                        (user_id, bank_name, account_id, access_token, refresh_token, token_expiry, provider, account_number, connection_status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'connected')
-                    ON CONFLICT (user_id, account_id)
-                    DO UPDATE SET
-                        access_token   = EXCLUDED.access_token,
-                        refresh_token  = EXCLUDED.refresh_token,
-                        token_expiry   = EXCLUDED.token_expiry,
-                        account_number = EXCLUDED.account_number,
-                        connection_status = 'connected',
-                        updated_at     = NOW()
-                    """.trimIndent()
-                ).use { statement ->
-                    statement.setObject(1, userId)
-                    statement.setString(2,  providerName)
-                    statement.setString(3, account.accountId)
-                    statement.setString(4, Encryption.encrypt(accessToken))   // encrypted at rest
-                    statement.setString(5, Encryption.encrypt(refreshToken))  // encrypted at rest
-                    statement.setTimestamp(6, Timestamp.from(tokenExpiry))
-                    statement.setString(7, providerId)
-                    statement.setString(8, account.accountNumber?.number)      // real account number
-                    statement.executeUpdate()
-                }
-            }
-            connection.commit()
-        } catch (e: Exception) {
-            connection.rollback()
-            throw e
+    accounts.forEach { account ->
+        connection.prepareStatement(
+            """
+            INSERT INTO connected_accounts
+                (user_id, bank_name, account_id, access_token, refresh_token, token_expiry, provider, account_number, connection_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'connected')
+            ON CONFLICT (user_id, account_id)
+            DO UPDATE SET
+                access_token = EXCLUDED.access_token,
+                refresh_token = EXCLUDED.refresh_token,
+                token_expiry = EXCLUDED.token_expiry,
+                account_number = EXCLUDED.account_number,
+                connection_status = 'connected',
+                updated_at = NOW()
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.setString(2, providerName)
+            statement.setString(3, account.accountId)
+            statement.setString(4, Encryption.encrypt(accessToken))
+            statement.setString(5, Encryption.encrypt(refreshToken))
+            statement.setTimestamp(6, Timestamp.from(tokenExpiry))
+            statement.setString(7, providerId)
+            statement.setString(8, account.accountNumber?.number)
+            statement.executeUpdate()
         }
     }
 }
@@ -1587,7 +1642,33 @@ private fun markBankConnectionSession(state: String, status: String) {
     }
 }
 
-//private fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
+private fun expireOldBankConnectionSelections() {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                UPDATE bank_connection_sessions
+                SET access_token = NULL,
+                    refresh_token = NULL,
+                    token_expiry = NULL,
+                    available_accounts = NULL,
+                    status = 'expired',
+                    updated_at = NOW()
+                WHERE status = 'awaiting_account_selection'
+                  AND expires_at <= NOW()
+                """.trimIndent()
+            ).use { statement ->
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
+}
+
 suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
     val storedAccounts = getStoredAccountsWithTokens(userId)
 

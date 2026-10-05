@@ -523,7 +523,11 @@ private fun NavigationContent(
             LaunchedEffect(pendingConnectionState, authToken) {
                 val state = pendingConnectionState ?: return@LaunchedEffect
 
-                while (true) {
+                var finished = false
+
+                repeat(60) {
+                    if (finished) return@repeat
+
                     delay(2_000.milliseconds)
 
                     when (val result = bankingApi.getConnectionStatus(authToken, state)) {
@@ -533,7 +537,7 @@ private fun NavigationContent(
                                     pendingConnectionState = null
                                     accountsRefreshRequest++
                                     bankConnectionRefreshRequest++
-                                    break
+                                    finished = true
                                 }
 
                                 "awaiting_account_selection" -> {
@@ -542,23 +546,34 @@ private fun NavigationContent(
                                     accountSelectionState = state
                                     selectedAccountIds = emptySet()
                                     accountSelectionError = null
-                                    break
+                                    finished = true
                                 }
 
                                 "failed" -> {
                                     pendingConnectionState = null
-                                    error = "Bank connection failed. Please try again."
-                                    break
+                                    error = AppStrings.get(
+                                        LocaleController.currentLanguageCode,
+                                        StringKey.CONNECT_BANK_FAILED
+                                    )
+                                    finished = true
                                 }
                             }
                         }
+
                         is BankConnectionStatusResult.Failure -> {
+                            pendingConnectionState = null
                             error = AppStrings.get(
                                 LocaleController.currentLanguageCode,
                                 result.message
                             )
+                            finished = true
                         }
                     }
+                }
+
+                if (!finished) {
+                    pendingConnectionState = null
+                    error = "Bank connection timed out. Please try again."
                 }
             }
 
