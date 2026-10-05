@@ -573,7 +573,10 @@ private fun NavigationContent(
 
                 if (!finished) {
                     pendingConnectionState = null
-                    error = "Bank connection timed out. Please try again."
+                    error = AppStrings.get(
+                        LocaleController.currentLanguageCode,
+                        StringKey.CONNECT_BANK_TIMED_OUT
+                    )
                 }
             }
 
@@ -761,7 +764,7 @@ private fun NavigationContent(
                                 bankingApi.cancelAccountSelection(authToken, state)
                             }
                         }
-                        
+
                         accountSelectionState = null
                         selectableAccounts = emptyList()
                         selectedAccountIds = emptySet()

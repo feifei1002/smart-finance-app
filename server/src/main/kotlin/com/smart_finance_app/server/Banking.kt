@@ -1176,6 +1176,13 @@ private fun saveSelectedBankAccounts(
 
     return Database.dataSource.connection.use { connection ->
         try {
+            connection.prepareStatement(
+                "SELECT pg_advisory_xact_lock(hashtext(?))"
+            ).use { statement ->
+                statement.setString(1, userId.toString())
+                statement.executeQuery().close()
+            }
+
             val session = connection.prepareStatement(
                 """
                 SELECT provider_id, provider_name, access_token, refresh_token, token_expiry, available_accounts
