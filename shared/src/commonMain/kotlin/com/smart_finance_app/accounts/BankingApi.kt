@@ -4,6 +4,7 @@ import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -16,6 +17,11 @@ import kotlinx.serialization.Serializable
 private data class CreateBankConnectionRequest(val providerId: String, val providerName: String)
 
 @Serializable
+private data class SelectBankAccountsRequest(
+    val accountIds: List<String>
+)
+
+@Serializable
 private data class ConnectBankResponse(
     val authUrl: String,
     val state: String
@@ -25,7 +31,19 @@ private data class ConnectBankResponse(
 private data class BankConnectionStatusResponse(val status: String)
 
 @Serializable
-data class ConnectedAccountResponse(val accountId: String, val bankName: String, val maskedNumber: String, val provider: String)
+data class SelectableBankAccountResponse(
+    val accountId: String,
+    val bankName: String,
+    val maskedNumber: String
+)
+
+@Serializable
+data class ConnectedAccountResponse(
+    val accountId: String,
+    val bankName: String,
+    val maskedNumber: String,
+    val provider: String
+)
 
 @Serializable
 data class BankProviderVariantResponse(
@@ -44,6 +62,21 @@ sealed interface BankConnectionResult {
     data class Success(val authUrl: String, val state: String): BankConnectionResult
     data object AccountLimitReached : BankConnectionResult
     data class Failure(val message: StringKey): BankConnectionResult
+}
+
+sealed interface SelectableAccountsResult {
+    data class Success(val accounts: List<SelectableBankAccountResponse>) : SelectableAccountsResult
+    data class Failure(val message: StringKey) : SelectableAccountsResult
+}
+
+sealed interface SaveSelectedAccountsResult {
+    data object Success : SaveSelectedAccountsResult
+    data class Failure(val message: StringKey) : SaveSelectedAccountsResult
+}
+
+sealed interface DisconnectAccountResult {
+    data object Success : DisconnectAccountResult
+    data class Failure(val message: StringKey) : DisconnectAccountResult
 }
 
 sealed interface ConnectedAccountResult {
@@ -141,6 +174,76 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
         }
     }
 
+    suspend fun getSelectableAccounts(
+        token: String,
+        state: String
+    ): SelectableAccountsResult {
+        return try {
+            val response = client.get(
+                "$normalizedBaseUrl/api/banking/connection-session/$state/accounts"
+            ) {
+                bearerAuth(token)
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> {
+                    SelectableAccountsResult.Success(response.body())
+                }
+
+                HttpStatusCode.Unauthorized -> {
+                    SelectableAccountsResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                }
+
+                HttpStatusCode.NotFound -> {
+                    SelectableAccountsResult.Failure(StringKey.BANKING_ERROR_CONNECT_FAILED)
+                }
+
+                else -> {
+                    SelectableAccountsResult.Failure(StringKey.BANKING_ERROR_LOAD_ACCOUNTS_FAILED)
+                }
+            }
+        } catch (_: Exception) {
+            SelectableAccountsResult.Failure(StringKey.COMMON_ERROR_SERVER)
+        }
+    }
+
+    suspend fun saveSelectedAccounts(
+        token: String,
+        state: String,
+        accountIds: List<String>
+    ): SaveSelectedAccountsResult {
+        return try {
+            val response = client.post(
+                "$normalizedBaseUrl/api/banking/connection-session/$state/accounts"
+            ) {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(SelectBankAccountsRequest(accountIds))
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> {
+                    SaveSelectedAccountsResult.Success
+                }
+
+                HttpStatusCode.Unauthorized -> {
+                    SaveSelectedAccountsResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                }
+
+                HttpStatusCode.BadRequest,
+                HttpStatusCode.Forbidden -> {
+                    SaveSelectedAccountsResult.Failure(StringKey.BANKING_ERROR_CONNECT_FAILED)
+                }
+
+                else -> {
+                    SaveSelectedAccountsResult.Failure(StringKey.COMMON_ERROR_SERVER)
+                }
+            }
+        } catch (_: Exception) {
+            SaveSelectedAccountsResult.Failure(StringKey.COMMON_ERROR_SERVER)
+        }
+    }
+
     /**
      * Loads available bank providers from the backend.
      *
@@ -194,6 +297,29 @@ class BankingApi(baseUrl: String, private val client: HttpClient) {
             }
         } catch (_: Exception) {
             BankConnectionStatusResult.Failure(StringKey.COMMON_ERROR_SERVER)
+        }
+    }
+
+    suspend fun disconnectAccount(
+        token: String,
+        accountId: String
+    ): DisconnectAccountResult {
+        return try {
+            val response = client.delete("$normalizedBaseUrl/api/banking/accounts/$accountId") {
+                bearerAuth(token)
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK -> DisconnectAccountResult.Success
+                HttpStatusCode.Unauthorized -> {
+                    DisconnectAccountResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                }
+                else -> {
+                    DisconnectAccountResult.Failure(StringKey.BANKING_ERROR_DISCONNECT_ACCOUNT_FAILED)
+                }
+            }
+        } catch (_: Exception) {
+            DisconnectAccountResult.Failure(StringKey.COMMON_ERROR_SERVER)
         }
     }
 }

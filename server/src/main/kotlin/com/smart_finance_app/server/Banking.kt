@@ -12,6 +12,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
@@ -38,6 +39,18 @@ data class AccountResponse(
     val bankName: String,
     val maskedNumber: String,
     val provider: String
+)
+
+@Serializable
+data class SelectableBankAccountResponse(
+    val accountId: String,
+    val bankName: String,
+    val maskedNumber: String
+)
+
+@Serializable
+data class SelectBankAccountsRequest(
+    val accountIds: List<String>
 )
 
 @Serializable
@@ -197,6 +210,15 @@ private data class TrueLayerProvidersResponse(
     val results: List<TrueLayerProvider>
 )
 
+private data class PendingBankSelection(
+    val providerId: String,
+    val providerName: String,
+    val accessToken: String,
+    val refreshToken: String,
+    val tokenExpiry: Instant,
+    val accountsJson: String
+)
+
 // ── Logo.dev config ─────────────────────────────────────────────────────────
 private object LogoDevConfig {
     val secretKey: String?
@@ -239,10 +261,7 @@ fun Route.bankingRoutes() {
 
             // Derive limit from subscription plan
             val subscriptionStatus = getSubscriptionStatus(userId)
-            val maxAccounts = when (subscriptionStatus) {
-                "basic" -> 6
-                else -> 2 // free
-            }
+            val maxAccounts = maxAccountsForSubscription(subscriptionStatus)
 
             val existingAccounts = getConnectedAccountsForUser(userId)
             if (existingAccounts.size >= maxAccounts) {
@@ -280,6 +299,63 @@ fun Route.bankingRoutes() {
 
             val accounts = getConnectedAccountsForUser(UUID.fromString(userId))
             call.respond(accounts)
+        }
+
+        get("/api/banking/connection-session/{state}/accounts") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val state = call.parameters["state"]
+                ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Missing state"))
+
+            val accounts = getPendingSelectableAccounts(userId, state)
+                ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Connection session not found"))
+
+            call.respond(accounts)
+        }
+
+        post("/api/banking/connection-session/{state}/accounts") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val state = call.parameters["state"]
+                ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Missing state"))
+
+            val request = call.receive<SelectBankAccountsRequest>()
+
+            val result = saveSelectedBankAccounts(userId, state, request.accountIds)
+
+            if (result) {
+                call.respond(HttpStatusCode.OK)
+            } else {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    ErrorResponse("Could not save selected accounts")
+                )
+            }
+        }
+
+
+        delete("/api/banking/accounts/{accountId}") {
+            val principal = call.principal<JWTPrincipal>()
+            val userId = principal?.userIdOrNull()
+                ?: return@delete call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            val accountId = call.parameters["accountId"]
+                ?: return@delete call.respond(HttpStatusCode.BadRequest)
+
+            val disconnected = disconnectConnectedAccount(userId, accountId)
+
+            if (disconnected) {
+                call.respond(HttpStatusCode.OK)
+            } else {
+                call.respond(
+                    HttpStatusCode.NotFound,
+                    ErrorResponse("Connected account not found")
+                )
+            }
         }
 
         /**
@@ -590,8 +666,6 @@ fun Route.bankingRoutes() {
             return@get
         }
 
-//        val userId = session.userId
-
         // ── Step 1: Exchange auth code for tokens ─────────────────────────
         val tokenResponse = runCatching {
             exchangeCodeForTokens(code)
@@ -628,39 +702,16 @@ fun Route.bankingRoutes() {
             return@get
         }
 
-        val subscriptionStatus = getSubscriptionStatus(session.userId)
-        val maxAccounts = when (subscriptionStatus) {
-            "basic" -> 6
-            else -> 2
-        }
-
-        val existingAccounts = getConnectedAccountsForUser(session.userId)
-        val existingAccountIds = existingAccounts.map { it.accountId }.toSet()
-
-        val newAccountCount = accounts.count { account ->
-            account.accountId !in existingAccountIds
-        }
-
-        if (existingAccounts.size + newAccountCount > maxAccounts) {
-            markBankConnectionSession(state, "failed")
-            call.respondText(
-                "Account limit reached. Your plan allows up to $maxAccounts connected accounts.",
-                status = HttpStatusCode.Forbidden
-            )
-            return@get
-        }
-
         // ── Step 3: Save each account to the database ─────────────────────
         runCatching {
-            saveConnectedAccounts(
-                userId       = session.userId,
-                accounts     = accounts,
-                accessToken  = tokenResponse.accessToken,
+            savePendingBankAccountSelection(
+                state = state,
+                accessToken = tokenResponse.accessToken,
                 refreshToken = tokenResponse.refreshToken,
-                tokenExpiry  = tokenExpiry,
-                providerId = session.providerId,
-                providerName = session.providerName
+                tokenExpiry = tokenExpiry,
+                accounts = accounts
             )
+
         }.getOrElse {
             markBankConnectionSession(state, "failed")
 
@@ -673,7 +724,8 @@ fun Route.bankingRoutes() {
             return@get
         }
 
-        markBankConnectionSession(state, "completed")
+//        markBankConnectionSession(state, "completed")
+        markBankConnectionSession(state, "awaiting_account_selection")
 
         // Simple success page — the user sees this in their browser
         // after approving access at their bank
@@ -744,6 +796,76 @@ private fun fetchAccounts(accessToken: String): List<TrueLayerAccount> {
 
     return gson.fromJson(responseBody, TrueLayerAccountsResponse::class.java).results
 }
+
+private fun getPendingSelectableAccounts(
+    userId: UUID,
+    state: String
+): List<SelectableBankAccountResponse>? =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT provider_name, available_accounts
+            FROM bank_connection_sessions
+            WHERE user_id = ?
+              AND state = ?
+              AND status = 'awaiting_account_selection'
+              AND expires_at > NOW()
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.setString(2, state)
+
+            statement.executeQuery().use { result ->
+                if (!result.next()) return@use null
+
+                val providerName = result.getString("provider_name")
+                val json = result.getString("available_accounts")
+
+                val accountListType = object : TypeToken<List<TrueLayerAccount>>() {}.type
+                val accounts: List<TrueLayerAccount> = gson.fromJson(json, accountListType)
+
+                val connectedAccountIds = getConnectedAccountsForUser(userId)
+                    .map { it.accountId }
+                    .toSet()
+
+                accounts
+                    .filter { account -> account.accountId !in connectedAccountIds }
+                    .map { account ->
+                        SelectableBankAccountResponse(
+                            accountId = account.accountId,
+                            bankName = providerName,
+                            maskedNumber = account.accountNumber?.number?.takeLast(4) ?: "****"
+                        )
+                    }
+            }
+        }
+    }
+
+private fun disconnectConnectedAccount(userId: UUID, accountId: String): Boolean =
+    Database.dataSource.connection.use { connection ->
+        try {
+            val updatedRows = connection.prepareStatement(
+                """
+                UPDATE connected_accounts
+                SET connection_status = 'disconnected',
+                    updated_at = NOW()
+                WHERE user_id = ?
+                  AND account_id = ?
+                  AND connection_status = 'connected'
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, accountId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            updatedRows > 0
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
 
 // ── TrueLayer balance + transaction fetchers ─────────────────────────────────
 
@@ -876,13 +998,50 @@ private fun ensureFreshToken(stored: StoredAccount): String {
 /**
  * Returns connected accounts for the accounts screen (no tokens exposed).
  */
+private fun savePendingBankAccountSelection(
+    state: String,
+    accessToken: String,
+    refreshToken: String,
+    tokenExpiry: Instant,
+    accounts: List<TrueLayerAccount>
+) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                UPDATE bank_connection_sessions
+                SET access_token = ?,
+                    refresh_token = ?,
+                    token_expiry = ?,
+                    available_accounts = ?::jsonb,
+                    expires_at = NOW() + INTERVAL '15 minutes',
+                    updated_at = NOW()
+                WHERE state = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, Encryption.encrypt(accessToken))
+                statement.setString(2, Encryption.encrypt(refreshToken))
+                statement.setTimestamp(3, Timestamp.from(tokenExpiry))
+                statement.setString(4, gson.toJson(accounts))
+                statement.setString(5, state)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
+}
+
 private fun getConnectedAccountsForUser(userId: UUID): List<AccountResponse> =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
             SELECT account_id, bank_name, provider, account_number
             FROM connected_accounts
-            WHERE user_id = ?
+            WHERE user_id = ? AND connection_status = 'connected'
             ORDER BY created_at ASC
             """.trimIndent()
         ).use { statement ->
@@ -919,7 +1078,7 @@ private fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
             """
             SELECT id, account_id, bank_name, access_token, refresh_token, token_expiry
             FROM connected_accounts
-            WHERE user_id = ?
+            WHERE user_id = ? AND connection_status = 'connected'
             ORDER BY created_at ASC
             """.trimIndent()
         ).use { statement ->
@@ -942,6 +1101,107 @@ private fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
             }
         }
     }
+
+private fun saveSelectedBankAccounts(
+    userId: UUID,
+    state: String,
+    selectedAccountIds: List<String>
+): Boolean {
+    if (selectedAccountIds.isEmpty()) return false
+
+    return Database.dataSource.connection.use { connection ->
+        try {
+            val session = connection.prepareStatement(
+                """
+                SELECT provider_id, provider_name, access_token, refresh_token, token_expiry, available_accounts
+                FROM bank_connection_sessions
+                WHERE user_id = ?
+                  AND state = ?
+                  AND status = 'awaiting_account_selection'
+                  AND expires_at > NOW()
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, state)
+
+                statement.executeQuery().use { result ->
+                    if (!result.next()) return@use null
+
+                    PendingBankSelection(
+                        providerId = result.getString("provider_id"),
+                        providerName = result.getString("provider_name"),
+                        accessToken = Encryption.decrypt(result.getString("access_token")),
+                        refreshToken = Encryption.decrypt(result.getString("refresh_token")),
+                        tokenExpiry = result.getTimestamp("token_expiry").toInstant(),
+                        accountsJson = result.getString("available_accounts")
+                    )
+                }
+            } ?: return@use false
+
+            val accountListType = object : TypeToken<List<TrueLayerAccount>>() {}.type
+            val accounts: List<TrueLayerAccount> = gson.fromJson(session.accountsJson, accountListType)
+
+            val selectedAccounts = accounts.filter { it.accountId in selectedAccountIds }
+
+            val connectedAccountIds = getConnectedAccountsForUser(userId)
+                .map { it.accountId }
+                .toSet()
+
+            if (selectedAccounts.any { it.accountId in connectedAccountIds }) {
+                connection.rollback()
+                return@use false
+            }
+
+            if (selectedAccounts.size != selectedAccountIds.toSet().size) {
+                connection.rollback()
+                return@use false
+            }
+
+            val connectedCount = getConnectedAccountsForUser(userId).size
+            val subscriptionStatus = getSubscriptionStatus(userId)
+            val maxAccounts = maxAccountsForSubscription(subscriptionStatus)
+
+            if (connectedCount + selectedAccounts.size > maxAccounts) {
+                connection.rollback()
+                return@use false
+            }
+
+            saveConnectedAccounts(
+                userId = userId,
+                accounts = selectedAccounts,
+                accessToken = session.accessToken,
+                refreshToken = session.refreshToken,
+                tokenExpiry = session.tokenExpiry,
+                providerId = session.providerId,
+                providerName = session.providerName
+            )
+
+            connection.prepareStatement(
+                """
+                UPDATE bank_connection_sessions
+                SET status = 'completed',
+                    access_token = NULL,
+                    refresh_token = NULL,
+                    token_expiry = NULL,
+                    available_accounts = NULL,
+                    updated_at = NOW()
+                WHERE user_id = ?
+                  AND state = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, state)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            true
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
+}
 
 /**
  * Saves each connected account to the connected_accounts table.
@@ -2006,6 +2266,13 @@ private fun getTransactionAmountForUser(
                 if (result.next()) result.getDouble("amount") else null
             }
         }
+    }
+}
+
+private fun maxAccountsForSubscription(subscriptionStatus: String?): Int {
+    return when (subscriptionStatus) {
+        "basic" -> 6
+        else -> 2
     }
 }
 
