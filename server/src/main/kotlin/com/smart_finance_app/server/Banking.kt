@@ -20,6 +20,7 @@ import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.slf4j.LoggerFactory
 import java.net.URLEncoder
 import java.sql.Connection
 import java.sql.Timestamp
@@ -234,6 +235,7 @@ private data class LogoDevSearchResult(val name: String, val domain: String)
 // ── Shared HTTP client and JSON parser ────────────────────────────────────────
 
 private val httpClient = OkHttpClient()
+private val bankingLogger = LoggerFactory.getLogger("Banking")
 private val gson = Gson()
 
 // Bank Provider List Cache
@@ -587,7 +589,7 @@ fun Route.bankingRoutes() {
                 call.respond(HttpStatusCode.Forbidden, ErrorResponse("Forbidden"))
                 return@post
             }
-            
+
             val updatedCount = recategorizeTransactionsForUser(userId)
             call.respond(mapOf("updatedCount" to updatedCount))
         }
@@ -705,7 +707,7 @@ fun Route.bankingRoutes() {
         }
 
         val tokenExpiry = Instant.now().plusSeconds(tokenResponse.expiresIn.toLong())
-        
+
         val accounts = runCatching {
             fetchAccounts(tokenResponse.accessToken)
         }.getOrElse {
@@ -1013,7 +1015,7 @@ private fun ensureFreshToken(stored: StoredAccount): String {
             if (updatedRows != 1) {
                 error("Account was disconnected before token refresh completed")
             }
-            
+
             connection.commit()
         } catch (e: Exception) {
             connection.rollback()
@@ -1022,6 +1024,43 @@ private fun ensureFreshToken(stored: StoredAccount): String {
     }
 
     return newTokens.accessToken
+}
+
+// ── Account deletion ─────────────────────────────────────────────────────────
+
+/**
+ * Best-effort cleanup at TrueLayer before a user's account is deleted.
+ * Calls TrueLayer's DELETE /api/delete once per bank connection so TrueLayer drops the
+ * data it holds for that token. Failures are swallowed: our own rows (including the
+ * encrypted tokens) are deleted regardless, which cuts off access from our side.
+ */
+fun deleteTrueLayerDataForUser(userId: UUID) {
+    getStoredAccountsWithTokens(userId)
+        .distinctBy { it.refreshToken } // accounts from one bank login share a token
+        .forEach { stored ->
+            runCatching {
+                val token = ensureFreshToken(stored)
+                val request = Request.Builder()
+                    .url("${TrueLayerConfig.AUTH_BASE_URL}/api/delete")
+                    .header("Authorization", "Bearer $token")
+                    .delete()
+                    .build()
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        bankingLogger.warn(
+                            "TrueLayer delete failed for user {} / account {}: HTTP {}",
+                            userId, stored.accountId, response.code
+                        )
+                    }
+                }
+            }.onFailure { exception ->
+                // Token refresh or network error — never log the token itself
+                bankingLogger.warn(
+                    "TrueLayer delete errored for user {} / account {}",
+                    userId, stored.accountId, exception
+                )
+            }
+        }
 }
 
 // ── Database operations ───────────────────────────────────────────────────────

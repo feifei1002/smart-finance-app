@@ -110,6 +110,9 @@ internal fun SettingsScreen(
     supportApi: SupportApi,
     onProfileUpdated: (String, String) -> Unit,
     onSignOut: () -> Unit,
+    // Called after the server confirms the account is gone (from Edit Profile).
+    // Must clear local tokens/cached data and go to the sign-in screen.
+    onAccountDeleted: () -> Unit = onSignOut,
     initialPanel: SettingsPanel = SettingsPanel.Main
 ) {
     val uriHandler = LocalUriHandler.current
@@ -322,6 +325,7 @@ internal fun SettingsScreen(
                     profileApi = profileApi,
                     onProfileUpdated = onProfileUpdated,
                     onUpdatePassword = { panel = SettingsPanel.UpdatePassword },
+                    onAccountDeleted = onAccountDeleted,
                     onBack = { panel = SettingsPanel.Main }
                 )
             }

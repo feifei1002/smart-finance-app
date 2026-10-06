@@ -8,6 +8,7 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
@@ -199,8 +200,151 @@ fun Route.profileRoutes() {
 
             call.respond(ChangePasswordResponse("Password updated successfully"))
         }
+
+        /**
+         * DELETE /api/profile/me
+         *
+         * Permanently deletes the signed-in user and every row that belongs to them.
+         * 1. Best-effort: ask TrueLayer to delete its data for each bank connection
+         *    (never blocks the account deletion if TrueLayer is unreachable).
+         * 2. One DB transaction removes all user-owned rows, then the user row.
+         */
+        delete("/api/profile/me") {
+            val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
+                ?: return@delete call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            runCatching { deleteTrueLayerDataForUser(userId) }
+                .onFailure { call.application.environment.log.warn("TrueLayer cleanup failed for $userId", it) }
+
+            val deleted = runCatching { deleteUserAndAllData(userId) }
+                .getOrElse { exception ->
+                    call.application.environment.log.error("Account deletion failed for $userId", exception)
+                    return@delete call.respond(
+                        HttpStatusCode.InternalServerError,
+                        ErrorResponse("Could not delete account")
+                    )
+                }
+
+            if (!deleted) {
+                return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+            }
+
+            call.respond(HttpStatusCode.NoContent)
+        }
     }
 }
+
+/**
+ * Used by the "auth-jwt" validate block so tokens belonging to a deleted user are
+ * rejected on every authenticated route, even before the JWT itself expires.
+ * Primary-key lookup, so it's cheap to run per request.
+ */
+fun userExists(userId: UUID): Boolean =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement("SELECT 1 FROM users WHERE id = ?").use { statement ->
+            statement.setObject(1, userId)
+            statement.executeQuery().use { it.next() }
+        }
+    }
+
+/**
+ * Tables deleted first, in this order, because other user-owned rows point at them
+ * (e.g. transactions.connected_account_id -> connected_accounts.id).
+ * Every other table with a user_id column is found automatically below, so new
+ * tables (budgets, consents, preferences, subscriptions, support messages, …)
+ * are covered without editing this list.
+ */
+private val orderedUserTables = listOf(
+    "transactions",
+    "transaction_sync_status",
+    "dashboard_layouts",
+    "bank_connection_sessions",
+    "connected_accounts",
+    "refresh_tokens"
+)
+
+private fun deleteUserAndAllData(userId: UUID): Boolean =
+    Database.dataSource.connection.use { connection ->
+        try {
+            // Lock the user row. Any concurrent INSERT/UPDATE into a table with a
+            // FOREIGN KEY (user_id) REFERENCES users(id) must take a KEY SHARE lock on
+            // this row, so it waits here and then fails once the user is gone.
+            // This only protects tables that have that FK — keep every user-owned
+            // table constrained (see PR notes / schema check query).
+            val email = connection.prepareStatement(
+                "SELECT email FROM users WHERE id = ? FOR UPDATE"
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.executeQuery().use { if (it.next()) it.getString("email") else null }
+            }
+
+            if (email == null) {
+                connection.rollback()
+                return@use false
+            }
+
+            // Every real table in the public schema that has a user_id column.
+            val discoveredTables = connection.prepareStatement(
+                """
+                SELECT c.table_name
+                FROM information_schema.columns c
+                JOIN information_schema.tables t
+                  ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+                WHERE c.table_schema = 'public'
+                  AND c.column_name = 'user_id'
+                  AND t.table_type = 'BASE TABLE'
+                  AND c.table_name <> 'users'
+                """.trimIndent()
+            ).use { statement ->
+                statement.executeQuery().use { result ->
+                    buildList { while (result.next()) add(result.getString(1)) }
+                }
+            }.toSet()
+
+            val tablesInOrder = orderedUserTables.filter { it in discoveredTables } +
+                    (discoveredTables - orderedUserTables.toSet()).sorted()
+
+            tablesInOrder.forEach { table ->
+                // Table names come from the database catalogue, never from the request.
+                val quoted = "\"" + table.replace("\"", "\"\"") + "\""
+                connection.prepareStatement("DELETE FROM $quoted WHERE user_id = ?").use { statement ->
+                    statement.setObject(1, userId)
+                    statement.executeUpdate()
+                }
+            }
+
+            // auth_rate_limits has no user_id column. Rows are keyed by an identifier
+            // string, e.g. the email (sign-in) or "change-password:<userId>".
+            // Exact (case-insensitive) match on the whole identifier or its suffix,
+            // so no other user's rows can be caught.
+            connection.prepareStatement(
+                """
+                DELETE FROM auth_rate_limits
+                WHERE lower(identifier) = lower(?)
+                   OR right(identifier, char_length(?) + 1) = ':' || ?
+                   OR lower(right(identifier, char_length(?) + 1)) = ':' || lower(?)
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, email)
+                statement.setString(2, userId.toString())
+                statement.setString(3, userId.toString())
+                statement.setString(4, email)
+                statement.setString(5, email)
+                statement.executeUpdate()
+            }
+
+            connection.prepareStatement("DELETE FROM users WHERE id = ?").use { statement ->
+                statement.setObject(1, userId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            true
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
 
 private fun getProfile(userId: UUID): ProfileResponse? =
     Database.dataSource.connection.use { connection ->
