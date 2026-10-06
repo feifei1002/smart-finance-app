@@ -102,7 +102,7 @@ fun App(
                 if (isPasswordResetRoute) {
                     Screen.ResetPassword
                 } else {
-                    Screen.Registration
+                    Screen.SignIn
                 }
             )
         }
