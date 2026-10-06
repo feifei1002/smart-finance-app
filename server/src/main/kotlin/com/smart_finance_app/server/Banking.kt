@@ -1717,7 +1717,6 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
     }
 }
 
-//private fun saveImportedTransaction(
 suspend fun saveImportedTransaction(
     userId: UUID,
     account: StoredAccount,
