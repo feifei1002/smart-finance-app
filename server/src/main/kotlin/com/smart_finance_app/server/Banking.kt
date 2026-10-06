@@ -665,7 +665,7 @@ fun Route.bankingRoutes() {
 
         // TrueLayer sends an error param if the user denied access
         if (error != null) {
-            markBankConnectionSession(state, "failed")
+            failBankConnectionSession(state)
             call.respondText(
                 "Bank connection cancelled: $error",
                 status = HttpStatusCode.BadRequest
@@ -674,7 +674,7 @@ fun Route.bankingRoutes() {
         }
 
         if (code == null) {
-            markBankConnectionSession(state, "failed")
+            failBankConnectionSession(state)
             call.respondText(
                 "Missing code or state parameter",
                 status = HttpStatusCode.BadRequest
@@ -695,7 +695,7 @@ fun Route.bankingRoutes() {
         val tokenResponse = runCatching {
             exchangeCodeForTokens(code)
         }.getOrElse {
-            markBankConnectionSession(state, "failed")
+            failBankConnectionSession(state)
             call.application.environment.log.error("Failed to exchange code for tokens", it)
             call.respondText(
                 "Bank connection failed. Please try again.",
@@ -709,7 +709,7 @@ fun Route.bankingRoutes() {
         val accounts = runCatching {
             fetchAccounts(tokenResponse.accessToken)
         }.getOrElse {
-            markBankConnectionSession(state, "failed")
+            failBankConnectionSession(state)
             call.application.environment.log.error("Failed to fetch accounts from TrueLayer", it)
             call.respondText(
                 "Bank connection failed. Please try again.",
@@ -719,7 +719,7 @@ fun Route.bankingRoutes() {
         }
 
         if (accounts.isEmpty()) {
-            markBankConnectionSession(state, "failed")
+            failBankConnectionSession(state)
             call.respondText(
                 "No accounts found for this bank connection",
                 status = HttpStatusCode.OK
@@ -738,7 +738,7 @@ fun Route.bankingRoutes() {
             )
 
         }.getOrElse {
-            markBankConnectionSession(state, "failed")
+            failBankConnectionSession(state)
 
             call.application.environment.log.error("Failed to save connected accounts", it)
 
@@ -1368,6 +1368,35 @@ private fun getBankConnectionSessionStatus(userId: UUID, state: String): String?
         }
     }
 
+private fun failBankConnectionSession(state: String) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                UPDATE bank_connection_sessions
+                SET status = 'failed',
+                    access_token = NULL,
+                    refresh_token = NULL,
+                    token_expiry = NULL,
+                    available_accounts = NULL,
+                    completed_at = NOW(),
+                    updated_at = NOW()
+                WHERE state = ?
+                  AND status IN ('pending', 'processing')
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, state)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (e: Exception) {
+            connection.rollback()
+            throw e
+        }
+    }
+}
+
 /**
  * Builds the TrueLayer authorisation URL for the selected bank provider.
  *
@@ -1625,35 +1654,6 @@ private fun getPendingBankConnectionSession(state: String): BankConnectionSessio
         }
     }
 
-/**
- * Updates the status of a bank connection session.
- *
- * Used to mark the flow as completed after accounts are saved, or failed when
- * TrueLayer returns an error or the callback cannot be processed.
- */
-private fun markBankConnectionSession(state: String, status: String) {
-    Database.dataSource.connection.use { connection ->
-        try {
-            connection.prepareStatement(
-                """
-                UPDATE bank_connection_sessions
-                SET status = ?, completed_at = now()
-                WHERE state = ?
-                  AND status = 'processing'
-                """.trimIndent()
-            ).use { statement ->
-                statement.setString(1, status)
-                statement.setString(2, state)
-                statement.executeUpdate()
-            }
-            connection.commit()
-        } catch (e: Exception) {
-            connection.rollback()
-            throw e
-        }
-    }
-}
-
 private fun expireOldBankConnectionSelections() {
     Database.dataSource.connection.use { connection ->
         try {
@@ -1743,15 +1743,21 @@ suspend fun saveImportedTransaction(
         try {
             val inserted = connection.prepareStatement(
                 """
-                    INSERT INTO transactions 
-                        (
-                            user_id, connected_account_id, provider_account_id, provider_transaction_id,
-                            merchant_name, description, category, account_name, amount, currency,
-                            transaction_type, transaction_timestamp, merchant_logo_url
-                        )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (user_id, provider_account_id, provider_transaction_id)
-                DO NOTHING
+                    INSERT INTO transactions (
+                        user_id, connected_account_id, provider_account_id, provider_transaction_id,
+                        merchant_name, description, category, account_name, amount, currency,
+                        transaction_type, transaction_timestamp, merchant_logo_url
+                    )
+                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM connected_accounts
+                        WHERE id = ?
+                          AND user_id = ?
+                          AND connection_status = 'connected'
+                    )
+                    ON CONFLICT (user_id, provider_account_id, provider_transaction_id)
+                    DO NOTHING
                 """.trimIndent()
             ).use { statement ->
                 statement.setObject(1, userId)
@@ -1767,6 +1773,8 @@ suspend fun saveImportedTransaction(
                 statement.setString(11, transaction.type)
                 statement.setTimestamp(12, Timestamp.from(Instant.parse(transaction.timestamp)))
                 statement.setString(13, merchantLogoUrl)
+                statement.setObject(14, account.dbId)
+                statement.setObject(15, userId)
                 statement.executeUpdate() == 1
             }
 
