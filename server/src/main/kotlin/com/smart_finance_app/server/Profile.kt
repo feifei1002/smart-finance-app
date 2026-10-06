@@ -266,15 +266,19 @@ private val orderedUserTables = listOf(
 private fun deleteUserAndAllData(userId: UUID): Boolean =
     Database.dataSource.connection.use { connection ->
         try {
-            // Lock the user row so nothing else writes for this user mid-delete.
-            val exists = connection.prepareStatement(
-                "SELECT 1 FROM users WHERE id = ? FOR UPDATE"
+            // Lock the user row. Any concurrent INSERT/UPDATE into a table with a
+            // FOREIGN KEY (user_id) REFERENCES users(id) must take a KEY SHARE lock on
+            // this row, so it waits here and then fails once the user is gone.
+            // This only protects tables that have that FK — keep every user-owned
+            // table constrained (see PR notes / schema check query).
+            val email = connection.prepareStatement(
+                "SELECT email FROM users WHERE id = ? FOR UPDATE"
             ).use { statement ->
                 statement.setObject(1, userId)
-                statement.executeQuery().use { it.next() }
+                statement.executeQuery().use { if (it.next()) it.getString("email") else null }
             }
 
-            if (!exists) {
+            if (email == null) {
                 connection.rollback()
                 return@use false
             }
@@ -307,6 +311,26 @@ private fun deleteUserAndAllData(userId: UUID): Boolean =
                     statement.setObject(1, userId)
                     statement.executeUpdate()
                 }
+            }
+
+            // auth_rate_limits has no user_id column. Rows are keyed by an identifier
+            // string, e.g. the email (sign-in) or "change-password:<userId>".
+            // Exact (case-insensitive) match on the whole identifier or its suffix,
+            // so no other user's rows can be caught.
+            connection.prepareStatement(
+                """
+                DELETE FROM auth_rate_limits
+                WHERE lower(identifier) = lower(?)
+                   OR right(identifier, char_length(?) + 1) = ':' || ?
+                   OR lower(right(identifier, char_length(?) + 1)) = ':' || lower(?)
+                """.trimIndent()
+            ).use { statement ->
+                statement.setString(1, email)
+                statement.setString(2, userId.toString())
+                statement.setString(3, userId.toString())
+                statement.setString(4, email)
+                statement.setString(5, email)
+                statement.executeUpdate()
             }
 
             connection.prepareStatement("DELETE FROM users WHERE id = ?").use { statement ->
