@@ -14,6 +14,8 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.plugins.cors.routing.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Date
@@ -79,11 +81,12 @@ fun Application.module() {
 
             validate { credential ->
                 val userId = credential.payload.getClaim("userId").asString()
-                if (!userId.isNullOrBlank()) {
-                    JWTPrincipal(credential.payload)
-                } else {
-                    null
-                }
+                    ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                    ?: return@validate null
+
+                // Reject tokens belonging to accounts that have been deleted
+                val exists = withContext(Dispatchers.IO) { userExists(userId) }
+                if (exists) JWTPrincipal(credential.payload) else null
             }
 
             challenge { _, _ ->
