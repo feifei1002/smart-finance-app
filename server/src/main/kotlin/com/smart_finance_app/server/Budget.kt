@@ -202,31 +202,13 @@ private fun getUserId(principal: JWTPrincipal?): UUID? =
 
 private fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
     Database.dataSource.connection.use { connection ->
-        connection.createStatement().use { stmt ->
-            stmt.execute(
-                """
-                CREATE TABLE IF NOT EXISTS budgets (
-                    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    category    TEXT NOT NULL,
-                    amount      DECIMAL(10,2) NOT NULL,
-                    period      TEXT NOT NULL CHECK (period IN ('monthly', 'weekly')),
-                    currency    TEXT NOT NULL DEFAULT 'GBP',
-                    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    UNIQUE (user_id, category, period)
-                )
-                """.trimIndent()
-            )
-        }
-
         connection.prepareStatement(
-            """
-            SELECT id, category, amount, period, currency, created_at
-            FROM budgets
-            WHERE user_id = ?
-            ORDER BY created_at ASC
-            """.trimIndent()
+        """
+        SELECT id, category, amount, period, currency, created_at
+        FROM budgets
+        WHERE user_id = ?
+        ORDER BY created_at ASC
+        """.trimIndent()
         ).use { statement ->
             statement.setObject(1, userId)
             statement.executeQuery().use { result ->
@@ -234,11 +216,11 @@ private fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
                 while (result.next()) {
                     list.add(
                         BudgetResponse(
-                            id        = result.getObject("id").toString(),
-                            category  = result.getString("category"),
-                            amount    = result.getDouble("amount"),
-                            period    = result.getString("period"),
-                            currency  = result.getString("currency") ?: "GBP",  // ← add
+                            id = result.getObject("id").toString(),
+                            category = result.getString("category"),
+                            amount = result.getDouble("amount"),
+                            period = result.getString("period"),
+                            currency = result.getString("currency") ?: "GBP",  // ← add
                             createdAt = result.getTimestamp("created_at").toString()
                         )
                     )
