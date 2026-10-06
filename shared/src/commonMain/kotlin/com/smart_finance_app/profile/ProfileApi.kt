@@ -4,6 +4,7 @@ import com.smart_finance_app.StringKey
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
@@ -47,8 +48,33 @@ sealed interface ChangePasswordResult {
     data class Failure(val message: StringKey) : ChangePasswordResult
 }
 
+sealed interface DeleteAccountResult {
+    data object Success : DeleteAccountResult
+    data class Failure(val message: StringKey) : DeleteAccountResult
+}
+
 class ProfileApi(baseUrl: String, private val client: HttpClient) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
+
+    /**
+     * Permanently deletes the signed-in user's account and all their data on the server.
+     * On Success the caller must clear local session state and go to the sign-in screen.
+     */
+    suspend fun deleteAccount(token: String): DeleteAccountResult {
+        return try {
+            val response = client.delete("$normalizedBaseUrl/api/profile/me") {
+                bearerAuth(token)
+            }
+
+            when (response.status) {
+                HttpStatusCode.OK, HttpStatusCode.NoContent -> DeleteAccountResult.Success
+                HttpStatusCode.Unauthorized -> DeleteAccountResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
+                else -> DeleteAccountResult.Failure(StringKey.SETTINGS_DELETE_ACCOUNT_FAILED)
+            }
+        } catch (_: Exception) {
+            DeleteAccountResult.Failure(StringKey.COMMON_ERROR_SERVER)
+        }
+    }
 
     suspend fun updateProfile(
         token: String,

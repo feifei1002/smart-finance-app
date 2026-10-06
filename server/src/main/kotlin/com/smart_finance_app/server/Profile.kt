@@ -8,6 +8,7 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
@@ -199,8 +200,114 @@ fun Route.profileRoutes() {
 
             call.respond(ChangePasswordResponse("Password updated successfully"))
         }
+
+        /**
+         * DELETE /api/profile/me
+         *
+         * Permanently deletes the signed-in user and every row that belongs to them.
+         * 1. Best-effort: ask TrueLayer to delete its data for each bank connection
+         *    (never blocks the account deletion if TrueLayer is unreachable).
+         * 2. One DB transaction removes all user-owned rows, then the user row.
+         */
+        delete("/api/profile/me") {
+            val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
+                ?: return@delete call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
+
+            runCatching { deleteTrueLayerDataForUser(userId) }
+                .onFailure { call.application.environment.log.warn("TrueLayer cleanup failed for $userId", it) }
+
+            val deleted = runCatching { deleteUserAndAllData(userId) }
+                .getOrElse { exception ->
+                    call.application.environment.log.error("Account deletion failed for $userId", exception)
+                    return@delete call.respond(
+                        HttpStatusCode.InternalServerError,
+                        ErrorResponse("Could not delete account")
+                    )
+                }
+
+            if (!deleted) {
+                return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+            }
+
+            call.respond(HttpStatusCode.NoContent)
+        }
     }
 }
+
+/**
+ * Tables deleted first, in this order, because other user-owned rows point at them
+ * (e.g. transactions.connected_account_id -> connected_accounts.id).
+ * Every other table with a user_id column is found automatically below, so new
+ * tables (budgets, consents, preferences, subscriptions, support messages, …)
+ * are covered without editing this list.
+ */
+private val orderedUserTables = listOf(
+    "transactions",
+    "transaction_sync_status",
+    "dashboard_layouts",
+    "bank_connection_sessions",
+    "connected_accounts",
+    "refresh_tokens"
+)
+
+private fun deleteUserAndAllData(userId: UUID): Boolean =
+    Database.dataSource.connection.use { connection ->
+        try {
+            // Lock the user row so nothing else writes for this user mid-delete.
+            val exists = connection.prepareStatement(
+                "SELECT 1 FROM users WHERE id = ? FOR UPDATE"
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.executeQuery().use { it.next() }
+            }
+
+            if (!exists) {
+                connection.rollback()
+                return@use false
+            }
+
+            // Every real table in the public schema that has a user_id column.
+            val discoveredTables = connection.prepareStatement(
+                """
+                SELECT c.table_name
+                FROM information_schema.columns c
+                JOIN information_schema.tables t
+                  ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+                WHERE c.table_schema = 'public'
+                  AND c.column_name = 'user_id'
+                  AND t.table_type = 'BASE TABLE'
+                  AND c.table_name <> 'users'
+                """.trimIndent()
+            ).use { statement ->
+                statement.executeQuery().use { result ->
+                    buildList { while (result.next()) add(result.getString(1)) }
+                }
+            }.toSet()
+
+            val tablesInOrder = orderedUserTables.filter { it in discoveredTables } +
+                    (discoveredTables - orderedUserTables.toSet()).sorted()
+
+            tablesInOrder.forEach { table ->
+                // Table names come from the database catalogue, never from the request.
+                val quoted = "\"" + table.replace("\"", "\"\"") + "\""
+                connection.prepareStatement("DELETE FROM $quoted WHERE user_id = ?").use { statement ->
+                    statement.setObject(1, userId)
+                    statement.executeUpdate()
+                }
+            }
+
+            connection.prepareStatement("DELETE FROM users WHERE id = ?").use { statement ->
+                statement.setObject(1, userId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+            true
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
 
 private fun getProfile(userId: UUID): ProfileResponse? =
     Database.dataSource.connection.use { connection ->

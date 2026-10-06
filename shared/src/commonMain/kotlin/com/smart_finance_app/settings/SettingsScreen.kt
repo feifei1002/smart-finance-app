@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -58,6 +59,7 @@ import com.smart_finance_app.payments.PaymentScreen
 import com.smart_finance_app.payments.PlanScreen
 import com.smart_finance_app.payments.SubscriptionApi
 import com.smart_finance_app.payments.SubscriptionStatusResult
+import com.smart_finance_app.profile.DeleteAccountResult
 import com.smart_finance_app.profile.EditProfileScreen
 import com.smart_finance_app.profile.ProfileApi
 import com.smart_finance_app.profile.UpdatePasswordScreen
@@ -110,6 +112,10 @@ internal fun SettingsScreen(
     supportApi: SupportApi,
     onProfileUpdated: (String, String) -> Unit,
     onSignOut: () -> Unit,
+    // Called after the server confirms the account is gone. Must clear local tokens/cached
+    // data and go to the sign-in screen. Defaults to onSignOut; pass a dedicated handler
+    // if your sign-out also calls the server (that call would fail for a deleted user).
+    onAccountDeleted: () -> Unit = onSignOut,
     initialPanel: SettingsPanel = SettingsPanel.Main
 ) {
     val uriHandler = LocalUriHandler.current
@@ -138,6 +144,8 @@ internal fun SettingsScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var deletingAccount by remember { mutableStateOf(false) }
     val snackBarHostState = remember { SnackbarHostState() }
 
     val selectedLanguage = LocaleController.supportedLanguages
@@ -247,6 +255,75 @@ internal fun SettingsScreen(
         )
     }
 
+    // ── Delete account confirmation ───────────────────────────────────────────
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            // Don't allow dismissing while the request is in flight
+            onDismissRequest = { if (!deletingAccount) showDeleteAccountDialog = false },
+            title = { Text(appStringResource(StringKey.SETTINGS_DELETE_ACCOUNT_CONFIRM_TITLE)) },
+            text = { Text(appStringResource(StringKey.SETTINGS_DELETE_ACCOUNT_CONFIRM_MESSAGE)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            deletingAccount = true
+                            when (val result = profileApi.deleteAccount(authToken)) {
+                                is DeleteAccountResult.Success -> {
+                                    deletingAccount = false
+                                    showDeleteAccountDialog = false
+                                    onAccountDeleted()
+                                }
+
+                                is DeleteAccountResult.Failure -> {
+                                    deletingAccount = false
+                                    showDeleteAccountDialog = false
+                                    snackBarHostState.showSnackbar(
+                                        message = AppStrings.get(
+                                            LocaleController.currentLanguageCode,
+                                            result.message
+                                        ),
+                                        duration = SnackbarDuration.Short
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    enabled = !deletingAccount,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    if (deletingAccount) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onError
+                        )
+                    } else {
+                        Text(
+                            text = appStringResource(StringKey.SETTINGS_DELETE_ACCOUNT_CONFIRM_BUTTON),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAccountDialog = false },
+                    enabled = !deletingAccount
+                ) {
+                    Text(
+                        text = appStringResource(StringKey.SETTINGS_CANCEL),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        )
+    }
+
     LaunchedEffect(authToken, panel) {
         if (authToken.isNotBlank() && panel == SettingsPanel.Payments) {
             paymentsLoading = true
@@ -308,6 +385,7 @@ internal fun SettingsScreen(
                     onLanguageClick = { showLanguageDialog = true },
                     onCurrencyClick = { showCurrencyDialog = true },
                     onSignOutClick = { showSignOutDialog = true },
+                    onDeleteAccountClick = { showDeleteAccountDialog = true },
                     onFaqClick = { panel = SettingsPanel.Faq },
                     onFeedbackClick = { panel = SettingsPanel.Feedback },
                     onSupportClick = { panel = SettingsPanel.Support }
@@ -440,6 +518,7 @@ private fun SettingsMainContent(
     onLanguageClick: () -> Unit,
     onCurrencyClick: () -> Unit,
     onSignOutClick: () -> Unit,
+    onDeleteAccountClick: () -> Unit,
     onFaqClick: () -> Unit,
     onFeedbackClick: () -> Unit,
     onSupportClick: () -> Unit
@@ -579,6 +658,23 @@ private fun SettingsMainContent(
                         Spacer(Modifier.width(10.dp))
                         Text(
                             text = appStringResource(StringKey.SETTINGS_SIGN_OUT),
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Same outlined style as Sign out
+                    OutlinedButton(
+                        onClick = onDeleteAccountClick,
+                        modifier = Modifier.fillMaxWidth().heightIn(56.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = appStringResource(StringKey.SETTINGS_DELETE_ACCOUNT),
                             color = MaterialTheme.colorScheme.error,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,

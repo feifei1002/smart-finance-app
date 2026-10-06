@@ -587,7 +587,7 @@ fun Route.bankingRoutes() {
                 call.respond(HttpStatusCode.Forbidden, ErrorResponse("Forbidden"))
                 return@post
             }
-            
+
             val updatedCount = recategorizeTransactionsForUser(userId)
             call.respond(mapOf("updatedCount" to updatedCount))
         }
@@ -705,7 +705,7 @@ fun Route.bankingRoutes() {
         }
 
         val tokenExpiry = Instant.now().plusSeconds(tokenResponse.expiresIn.toLong())
-        
+
         val accounts = runCatching {
             fetchAccounts(tokenResponse.accessToken)
         }.getOrElse {
@@ -1013,7 +1013,7 @@ private fun ensureFreshToken(stored: StoredAccount): String {
             if (updatedRows != 1) {
                 error("Account was disconnected before token refresh completed")
             }
-            
+
             connection.commit()
         } catch (e: Exception) {
             connection.rollback()
@@ -1022,6 +1022,30 @@ private fun ensureFreshToken(stored: StoredAccount): String {
     }
 
     return newTokens.accessToken
+}
+
+// ── Account deletion ─────────────────────────────────────────────────────────
+
+/**
+ * Best-effort cleanup at TrueLayer before a user's account is deleted.
+ * Calls TrueLayer's DELETE /api/delete once per bank connection so TrueLayer drops the
+ * data it holds for that token. Failures are swallowed: our own rows (including the
+ * encrypted tokens) are deleted regardless, which cuts off access from our side.
+ */
+fun deleteTrueLayerDataForUser(userId: UUID) {
+    getStoredAccountsWithTokens(userId)
+        .distinctBy { it.refreshToken } // accounts from one bank login share a token
+        .forEach { stored ->
+            runCatching {
+                val token = ensureFreshToken(stored)
+                val request = Request.Builder()
+                    .url("${TrueLayerConfig.AUTH_BASE_URL}/api/delete")
+                    .header("Authorization", "Bearer $token")
+                    .delete()
+                    .build()
+                httpClient.newCall(request).execute().close()
+            }
+        }
 }
 
 // ── Database operations ───────────────────────────────────────────────────────
