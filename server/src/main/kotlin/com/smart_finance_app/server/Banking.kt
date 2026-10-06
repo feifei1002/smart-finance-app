@@ -995,11 +995,12 @@ private fun ensureFreshToken(stored: StoredAccount): String {
     // Update tokens in database
     Database.dataSource.connection.use { connection ->
         try {
-            connection.prepareStatement(
+            val updatedRows = connection.prepareStatement(
                 """
                 UPDATE connected_accounts
                 SET access_token = ?, refresh_token = ?, token_expiry = ?, updated_at = NOW()
                 WHERE id = ?
+                    AND connection_status = 'connected'
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, Encryption.encrypt(newTokens.accessToken))
@@ -1008,6 +1009,11 @@ private fun ensureFreshToken(stored: StoredAccount): String {
                 statement.setObject(4, stored.dbId)
                 statement.executeUpdate()
             }
+
+            if (updatedRows != 1) {
+                error("Account was disconnected before token refresh completed")
+            }
+            
             connection.commit()
         } catch (e: Exception) {
             connection.rollback()
