@@ -20,6 +20,7 @@ import kotlinx.serialization.Serializable
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.slf4j.LoggerFactory
 import java.net.URLEncoder
 import java.sql.Connection
 import java.sql.Timestamp
@@ -234,6 +235,7 @@ private data class LogoDevSearchResult(val name: String, val domain: String)
 // ── Shared HTTP client and JSON parser ────────────────────────────────────────
 
 private val httpClient = OkHttpClient()
+private val bankingLogger = LoggerFactory.getLogger("Banking")
 private val gson = Gson()
 
 // Bank Provider List Cache
@@ -1043,7 +1045,20 @@ fun deleteTrueLayerDataForUser(userId: UUID) {
                     .header("Authorization", "Bearer $token")
                     .delete()
                     .build()
-                httpClient.newCall(request).execute().close()
+                httpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        bankingLogger.warn(
+                            "TrueLayer delete failed for user {} / account {}: HTTP {}",
+                            userId, stored.accountId, response.code
+                        )
+                    }
+                }
+            }.onFailure { exception ->
+                // Token refresh or network error — never log the token itself
+                bankingLogger.warn(
+                    "TrueLayer delete errored for user {} / account {}",
+                    userId, stored.accountId, exception
+                )
             }
         }
 }

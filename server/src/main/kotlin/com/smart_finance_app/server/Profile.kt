@@ -235,6 +235,19 @@ fun Route.profileRoutes() {
 }
 
 /**
+ * Used by the "auth-jwt" validate block so tokens belonging to a deleted user are
+ * rejected on every authenticated route, even before the JWT itself expires.
+ * Primary-key lookup, so it's cheap to run per request.
+ */
+fun userExists(userId: UUID): Boolean =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement("SELECT 1 FROM users WHERE id = ?").use { statement ->
+            statement.setObject(1, userId)
+            statement.executeQuery().use { it.next() }
+        }
+    }
+
+/**
  * Tables deleted first, in this order, because other user-owned rows point at them
  * (e.g. transactions.connected_account_id -> connected_accounts.id).
  * Every other table with a user_id column is found automatically below, so new
