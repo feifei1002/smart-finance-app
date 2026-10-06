@@ -44,6 +44,10 @@ import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.AppStrings
 import com.smart_finance_app.LocaleController
+import com.smart_finance_app.accounts.AccountSelectionScreen
+import com.smart_finance_app.accounts.SaveSelectedAccountsResult
+import com.smart_finance_app.accounts.SelectableAccountsResult
+import com.smart_finance_app.accounts.SelectableBankAccountResponse
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.currency.ConversionResult
 import com.smart_finance_app.currency.CurrencyController
@@ -238,7 +242,11 @@ private fun NavigationContent(
                         )
                     }
 
-                    transactions = if (append) transactions + newItems else newItems
+                    transactions = if (append) {
+                        (transactions + newItems).distinctBy { it.id }
+                    } else {
+                        newItems.distinctBy { it.id }
+                    }
                     transactionsPage = result.page.page
                     transactionsHasMore = result.page.hasMore
                     transactionsTotalCount = result.page.totalCount
@@ -486,11 +494,22 @@ private fun NavigationContent(
             var banksLoading by remember { mutableStateOf(false) }
             var pendingConnectionState by remember { mutableStateOf<String?>(null) }
             var subscriptionStatus by remember { mutableStateOf("free") }
-            val maxAccounts = if (subscriptionStatus == "basic") 6 else 2
+            var accountSelectionState by remember { mutableStateOf<String?>(null) }
+            var selectableAccounts by remember { mutableStateOf<List<SelectableBankAccountResponse>>(emptyList()) }
+            var selectedAccountIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+            var accountSelectionError by remember { mutableStateOf<String?>(null) }
+            var accountSelectionLoading by remember { mutableStateOf(false) }
+            var savingSelectedAccounts by remember { mutableStateOf(false) }
+            var accountsRefreshRequest by remember { mutableStateOf(0) }
 
             val scope = rememberCoroutineScope()
             val uriHandler = LocalUriHandler.current
             val bankingApi = remember(apiBaseUrl, httpClient) { BankingApi(apiBaseUrl, httpClient) }
+            val maxAccounts = when (subscriptionStatus) {
+                "basic" -> 6
+                else -> 2
+            }
+            val remainingAccountSlots = (maxAccounts - accounts.size).coerceAtLeast(0)
 
             LaunchedEffect(authToken) {
                 if (authToken.isNotBlank()) {
@@ -504,7 +523,11 @@ private fun NavigationContent(
             LaunchedEffect(pendingConnectionState, authToken) {
                 val state = pendingConnectionState ?: return@LaunchedEffect
 
-                while (true) {
+                var finished = false
+
+                repeat(60) {
+                    if (finished) return@repeat
+
                     delay(2_000.milliseconds)
 
                     when (val result = bankingApi.getConnectionStatus(authToken, state)) {
@@ -512,24 +535,48 @@ private fun NavigationContent(
                             when (result.status) {
                                 "completed" -> {
                                     pendingConnectionState = null
+                                    accountsRefreshRequest++
                                     bankConnectionRefreshRequest++
-                                    onNavigateToTransactions()
-                                    break
+                                    finished = true
                                 }
+
+                                "awaiting_account_selection" -> {
+                                    pendingConnectionState = null
+                                    showConnectBank = false
+                                    accountSelectionState = state
+                                    selectedAccountIds = emptySet()
+                                    accountSelectionError = null
+                                    finished = true
+                                }
+
                                 "failed" -> {
                                     pendingConnectionState = null
-                                    error = "Bank connection failed. Please try again."
-                                    break
+                                    error = AppStrings.get(
+                                        LocaleController.currentLanguageCode,
+                                        StringKey.CONNECT_BANK_FAILED
+                                    )
+                                    finished = true
                                 }
                             }
                         }
+
                         is BankConnectionStatusResult.Failure -> {
+                            pendingConnectionState = null
                             error = AppStrings.get(
                                 LocaleController.currentLanguageCode,
                                 result.message
                             )
+                            finished = true
                         }
                     }
+                }
+
+                if (!finished) {
+                    pendingConnectionState = null
+                    error = AppStrings.get(
+                        LocaleController.currentLanguageCode,
+                        StringKey.CONNECT_BANK_TIMED_OUT
+                    )
                 }
             }
 
@@ -565,7 +612,37 @@ private fun NavigationContent(
                 }
             }
 
-            LaunchedEffect(authToken, showConnectBank, CurrencyController.currentCurrency, exchangeRates) {
+            LaunchedEffect(accountSelectionState, authToken) {
+                val state = accountSelectionState ?: return@LaunchedEffect
+                if (authToken.isBlank()) return@LaunchedEffect
+
+                accountSelectionLoading = true
+                accountSelectionError = null
+
+                when (val result = bankingApi.getSelectableAccounts(authToken, state)) {
+                    is SelectableAccountsResult.Success -> {
+                        selectableAccounts = result.accounts
+                        selectedAccountIds = emptySet()
+                    }
+
+                    is SelectableAccountsResult.Failure -> {
+                        accountSelectionError = AppStrings.get(
+                            LocaleController.currentLanguageCode,
+                            result.message
+                        )
+                    }
+                }
+
+                accountSelectionLoading = false
+            }
+
+            LaunchedEffect(
+                authToken,
+                showConnectBank,
+                accountsRefreshRequest,
+                CurrencyController.currentCurrency,
+                exchangeRates
+            ) {
                 if (!showConnectBank && authToken.isNotBlank()) {
                     accountsLoading = true
                     accountsError = null
@@ -637,42 +714,115 @@ private fun NavigationContent(
 
             if (showConnectBank) {
                 ConnectBankAccountScreen(
-                    banks        = banks,
-                    errorMessage = error ?: banksError,
-                    isLoading    = loading || banksLoading,
-                    onCancel     = { showConnectBank = false },
-                    onContinue   = { selectedBank ->
+                    banks         = banks,
+                    errorMessage  = error ?: banksError,
+                    isLoading     = loading || banksLoading,
+                    onCancel      = { showConnectBank = false },
+                    onContinue    = { selectedBank ->
                         scope.launch {
                             loading = true
                             error = null
+
                             when (val result = bankingApi.createConnectionSession(
-                                token = authToken, bank = selectedBank
+                                token = authToken,
+                                bank = selectedBank
                             )) {
                                 is BankConnectionResult.Success -> {
                                     pendingConnectionState = result.state
                                     uriHandler.openUri(result.authUrl)
                                 }
-                                is BankConnectionResult.AccountLimitReached -> {
-                                    loading = false
-                                    showAccountLimitDialog = true
-                                }
+
                                 is BankConnectionResult.Failure -> {
                                     error = AppStrings.get(
                                         LocaleController.currentLanguageCode,
                                         result.message
                                     )
                                 }
+
+                                BankConnectionResult.AccountLimitReached -> {
+                                    showAccountLimitDialog = true
+                                }
                             }
+
                             loading = false
+                        }
+                    }
+                )
+            } else if (accountSelectionState != null) {
+                AccountSelectionScreen(
+                    accounts = selectableAccounts,
+                    selectedAccountIds = selectedAccountIds,
+                    remainingSlots = remainingAccountSlots,
+                    isLoading = accountSelectionLoading,
+                    isSaving = savingSelectedAccounts,
+                    errorMessage = accountSelectionError,
+                    onBack = {
+                        val state = accountSelectionState
+
+                        if (state != null) {
+                            scope.launch {
+                                bankingApi.cancelAccountSelection(authToken, state)
+                            }
+                        }
+
+                        accountSelectionState = null
+                        selectableAccounts = emptyList()
+                        selectedAccountIds = emptySet()
+                    },
+                    onToggleAccount = { accountId ->
+                        selectedAccountIds =
+                            if (accountId in selectedAccountIds) {
+                                selectedAccountIds - accountId
+                            } else if (selectedAccountIds.size < remainingAccountSlots) {
+                                selectedAccountIds + accountId
+                            } else {
+                                selectedAccountIds
+                            }
+                    },
+                    onConfirm = {
+                        val state = accountSelectionState ?: return@AccountSelectionScreen
+
+                        scope.launch {
+                            savingSelectedAccounts = true
+                            accountSelectionError = null
+
+                            try {
+                                when (val result = bankingApi.saveSelectedAccounts(
+                                    token = authToken,
+                                    state = state,
+                                    accountIds = selectedAccountIds.toList()
+                                )) {
+                                    SaveSelectedAccountsResult.Success -> {
+                                        accountSelectionState = null
+                                        selectableAccounts = emptyList()
+                                        selectedAccountIds = emptySet()
+                                        accountsRefreshRequest++
+                                        bankConnectionRefreshRequest++
+                                    }
+
+                                    is SaveSelectedAccountsResult.Failure -> {
+                                        accountSelectionError = AppStrings.get(
+                                            LocaleController.currentLanguageCode,
+                                            result.message
+                                        )
+                                    }
+                                }
+                            } finally {
+                                savingSelectedAccounts = false
+                            }
                         }
                     }
                 )
             } else {
                 AccountsScreen(
-                    accounts              = accounts,
-                    maxAccounts           = maxAccounts,
-                    onConnectBank         = { showConnectBank = true },
-                    onAccountLimitReached = { showAccountLimitDialog = true }
+                    accounts = accounts,
+                    onConnectBank = { showConnectBank = true },
+                    onDisconnectAccount = { account ->
+                        bankingApi.disconnectAccount(authToken, account.accountId)
+                    },
+                    onAccountDisconnected = { accountId ->
+                        accounts = accounts.filterNot { it.accountId == accountId }
+                    }
                 )
             }
         }

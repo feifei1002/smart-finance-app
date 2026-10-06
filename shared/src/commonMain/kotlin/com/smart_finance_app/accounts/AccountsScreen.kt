@@ -1,5 +1,6 @@
 package com.smart_finance_app.accounts
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +30,7 @@ import smart_finance_app.shared.generated.resources.add
 import smart_finance_app.shared.generated.resources.cancel
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
+import kotlinx.coroutines.launch
 
 data class ConnectedAccount(
     val accountId: String,
@@ -40,11 +43,17 @@ data class ConnectedAccount(
 @Composable
 fun AccountsScreen(
     accounts: List<ConnectedAccount> = emptyList(),
-    maxAccounts: Int = 2,
     onConnectBank: () -> Unit = {},
-    onAccountLimitReached: () -> Unit = {}
+    onDisconnectAccount: suspend (ConnectedAccount) -> DisconnectAccountResult,
+    onAccountDisconnected: (String) -> Unit
 ) {
     var showConsentDialog by remember { mutableStateOf(false) }
+    var selectedAccount by remember { mutableStateOf<ConnectedAccount?>(null) }
+    var accountToDisconnect by remember { mutableStateOf<ConnectedAccount?>(null) }
+    var disconnecting by remember { mutableStateOf(false) }
+    var disconnectError by remember { mutableStateOf<StringKey?>(null) }
+
+    val scope = rememberCoroutineScope()
 
     if (showConsentDialog) {
         BankConsentDialog(
@@ -54,6 +63,82 @@ fun AccountsScreen(
                 onConnectBank()
             }
         )
+    }
+
+    accountToDisconnect?.let { account ->
+        AlertDialog(
+            onDismissRequest = {
+                if (!disconnecting) accountToDisconnect = null
+            },
+            title = {
+                Text(appStringResource(StringKey.ACCOUNTS_DISCONNECT_TITLE))
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(appStringResource(StringKey.ACCOUNTS_DISCONNECT_MESSAGE))
+
+                    disconnectError?.let { messageKey ->
+                        Text(
+                            text = appStringResource(messageKey),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !disconnecting,
+                    onClick = {
+                        scope.launch {
+                            disconnecting = true
+
+                            when (val result = onDisconnectAccount(account)) {
+                                DisconnectAccountResult.Success -> {
+                                    onAccountDisconnected(account.accountId)
+                                    accountToDisconnect = null
+                                    selectedAccount = null
+                                }
+
+                                is DisconnectAccountResult.Failure -> {
+                                    disconnectError = result.message
+                                }
+                            }
+
+                            disconnecting = false
+                        }
+                    }
+                ) {
+                    Text(appStringResource(StringKey.ACCOUNTS_DISCONNECT_CONFIRM))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !disconnecting,
+                    onClick = {
+                        disconnectError = null
+                        accountToDisconnect = null
+                    }
+                ) {
+                    Text(appStringResource(StringKey.COMMON_CANCEL))
+                }
+            }
+        )
+    }
+    val selected = selectedAccount
+
+    if (selected != null) {
+        AccountDetailsScreen(
+            account = selected,
+            onBack = { selectedAccount = null },
+            onDisconnectClick = {
+                disconnectError = null
+                accountToDisconnect = selected
+            }
+        )
+        return
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -76,14 +161,7 @@ fun AccountsScreen(
                 subtitle = appStringResource(StringKey.ACCOUNTS_SUBTITLE),
                 compact = compact
             )
-
-            ConnectBankCard(onConnectBank = {
-                if (accounts.size >= maxAccounts) {
-                    onAccountLimitReached()
-                } else {
-                    showConsentDialog = true
-                }
-            })
+            ConnectBankCard(onConnectBank = { showConsentDialog = true })
 
             Text(
                 text = appStringResource(StringKey.ACCOUNTS_YOUR_ACCOUNTS),
@@ -100,7 +178,12 @@ fun AccountsScreen(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     accounts.forEach { account ->
-                        AccountCard(account)
+                        AccountCard(
+                            account = account,
+                            modifier = Modifier.clickable {
+                                selectedAccount = account
+                            }
+                        )
                     }
                 }
             }
@@ -280,12 +363,16 @@ private fun ConnectBankCard(onConnectBank: () -> Unit) {
 }
 
 @Composable
-private fun AccountCard(account: ConnectedAccount) {
+private fun AccountCard(account: ConnectedAccount, modifier: Modifier = Modifier) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {

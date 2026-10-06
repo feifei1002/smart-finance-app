@@ -372,7 +372,7 @@ private fun MoveIcon(
     Icon(
         painter = painterResource(Res.drawable.moving),
         contentDescription = "Move",
-        tint = Color.Unspecified,
+        tint = color,
         modifier = modifier
     )
 }

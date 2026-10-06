@@ -234,7 +234,7 @@ private fun MobileTransactionsList(
             else       -> true
         }
         matchesSearch && matchesFilter
-    }
+    }.distinctBy { it.id }
 
     Column(
         modifier = Modifier
@@ -456,7 +456,7 @@ private fun DesktopTransactionsTable(
             else       -> true
         }
         matchesSearch && matchesFilter
-    }
+    }.distinctBy { it.id }
 
     val totalPages = ceil(totalCount / pageSize.toDouble()).toInt().coerceAtLeast(1)
 
