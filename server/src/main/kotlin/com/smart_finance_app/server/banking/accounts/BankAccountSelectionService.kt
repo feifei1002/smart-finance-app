@@ -6,7 +6,7 @@ import com.smart_finance_app.server.Encryption
 import com.smart_finance_app.server.banking.config.bankingGson
 import com.smart_finance_app.server.banking.config.maxAccountsForSubscription
 import com.smart_finance_app.server.banking.truelayer.TrueLayerAccount
-import com.smart_finance_app.server.getSubscriptionStatus
+import com.smart_finance_app.server.subscriptions.getSubscriptionStatus
 import java.util.UUID
 import kotlin.use
 

@@ -8,11 +8,11 @@ import com.smart_finance_app.server.createRefreshToken
 import com.smart_finance_app.server.dashboard.dashboardRoutes
 import com.smart_finance_app.server.exchangeRatesRoutes
 import com.smart_finance_app.server.passwordResetRoutes
-import com.smart_finance_app.server.profileRoutes
+import com.smart_finance_app.server.profile.profileRoutes
 import com.smart_finance_app.server.registrationRoutes
 import com.smart_finance_app.server.sessionRoutes
 import com.smart_finance_app.server.signInRoutes
-import com.smart_finance_app.server.subscriptionRoutes
+import com.smart_finance_app.server.subscriptions.subscriptionRoutes
 import com.smart_finance_app.server.supportRoutes
 import com.smart_finance_app.server.userPreferencesRoutes
 import io.ktor.server.application.Application

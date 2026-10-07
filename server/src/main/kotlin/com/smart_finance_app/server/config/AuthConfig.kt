@@ -3,7 +3,7 @@ package com.smart_finance_app.server.config
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.smart_finance_app.server.ErrorResponse
-import com.smart_finance_app.server.userExists
+import com.smart_finance_app.server.profile.userExists
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.install

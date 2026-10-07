@@ -55,7 +55,7 @@ object CategoryServiceClient {
             response.category
         } catch (e: Exception) {
             // STOP SILENTLY FAILING: Print the exact reason to your backend terminal
-            println("❌ ML Service Error for description '$description': ${e.message}")
+            println("ML Service Error for description '$description': ${e.message}")
             e.printStackTrace()
 
             "Others" // Fallback category on failure
