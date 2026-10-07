@@ -2,6 +2,8 @@ package com.smart_finance_app.server
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.smart_finance_app.server.banking.routes.bankingRoutes
+import com.smart_finance_app.server.dashboard.dashboardRoutes
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
@@ -117,6 +119,7 @@ fun Application.module() {
         passwordResetRoutes()
         consentRoutes()
         bankingRoutes()
+        dashboardRoutes()
         budgetRoutes()
 
         get("/") {
