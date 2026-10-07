@@ -13,8 +13,8 @@ import com.smart_finance_app.server.registrationRoutes
 import com.smart_finance_app.server.sessionRoutes
 import com.smart_finance_app.server.signInRoutes
 import com.smart_finance_app.server.subscriptions.subscriptionRoutes
-import com.smart_finance_app.server.supportRoutes
-import com.smart_finance_app.server.userPreferencesRoutes
+import com.smart_finance_app.server.support.supportRoutes
+import com.smart_finance_app.server.preferences.userPreferencesRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.routing.routing
 
