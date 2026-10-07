@@ -30,14 +30,24 @@ fun Route.subscriptionRoutes() {
             val user = getSubscriptionUser(userId)
                 ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
 
-            val customerId = user.stripeCustomerId ?: createStripeCustomer(userId, user.name, user.email).also {
-                saveStripeCustomerId(userId, it)
+            val customerId = user.stripeCustomerId ?: runCatching {
+                createStripeCustomer(userId, user.name, user.email).also {
+                    saveStripeCustomerId(userId, it)
+                }
+            }.getOrElse {
+                call.respond(HttpStatusCode.BadGateway, ErrorResponse("Could not create Stripe customer"))
+                return@post
             }
 
-            val checkoutUrl = createCheckoutSession(
-                userId = userId,
-                customerId = customerId
-            )
+            val checkoutUrl = runCatching {
+                createCheckoutSession(
+                    userId = userId,
+                    customerId = customerId
+                )
+            }.getOrElse {
+                call.respond(HttpStatusCode.BadGateway, ErrorResponse("Could not create checkout session"))
+                return@post
+            }
 
             call.respond(CheckoutSessionResponse(checkoutUrl = checkoutUrl))
         }
@@ -59,7 +69,12 @@ fun Route.subscriptionRoutes() {
                 return@get
             }
 
-            val card = getDefaultCardForCustomer(user.stripeCustomerId)
+            val card = runCatching {
+                getDefaultCardForCustomer(user.stripeCustomerId)
+            }.getOrElse {
+                call.respond(HttpStatusCode.BadGateway, ErrorResponse("Could not load payment method"))
+                return@get
+            }
 
             call.respond(
                 PaymentDetailsResponse(subscriptionStatus = status, card = card)
@@ -80,7 +95,12 @@ fun Route.subscriptionRoutes() {
                     ErrorResponse("No Stripe customer exists for this user")
                 )
 
-            val portalUrl = createCustomerPortalUrl(customerId)
+            val portalUrl = runCatching {
+                createCustomerPortalUrl(customerId)
+            }.getOrElse {
+                call.respond(HttpStatusCode.BadGateway, ErrorResponse("Could not create customer portal session"))
+                return@post
+            }
 
             call.respond(CustomerPortalResponse(portalUrl = portalUrl))
         }

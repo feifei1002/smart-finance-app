@@ -45,7 +45,11 @@ internal fun Route.bankConnectionRoutes() {
         }
 
 
-        val request = call.receive<CreateBankConnectionRequest>()
+        val request = runCatching { call.receive<CreateBankConnectionRequest>() }
+            .getOrElse {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request body"))
+                return@post
+            }
         val state = UUID.randomUUID().toString()
 
         createBankConnectionSession(
@@ -109,7 +113,11 @@ internal fun Route.bankConnectionRoutes() {
         val state = call.parameters["state"]
             ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Missing state"))
 
-        val request = call.receive<SelectBankAccountsRequest>()
+        val request = runCatching { call.receive<SelectBankAccountsRequest>() }
+            .getOrElse {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request body"))
+                return@post
+            }
 
         val result = saveSelectedBankAccounts(userId, state, request.accountIds)
 

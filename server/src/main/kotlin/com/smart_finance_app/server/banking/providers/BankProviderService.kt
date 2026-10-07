@@ -7,6 +7,7 @@ import com.smart_finance_app.server.banking.models.BankProviderResponse
 import com.smart_finance_app.server.banking.models.BankProviderVariantResponse
 import com.smart_finance_app.server.banking.truelayer.TrueLayerProvider
 import com.smart_finance_app.server.banking.truelayer.fetchTrueLayerProviders
+import org.slf4j.LoggerFactory
 import kotlin.use
 
 // Bank Provider List Cache
@@ -16,6 +17,8 @@ private val trueLayerProviderListType = object : TypeToken<List<TrueLayerProvide
 
 private const val PROVIDER_CACHE_KEY = "truelayer-providers:all"
 
+private val bankProviderLogger = LoggerFactory.getLogger("BankProviderService")
+
 internal fun fetchTrueLayerProvidersFromDB(): List<TrueLayerProvider> {
 
     val cachedProviders = getCachedTrueLayerProviders(
@@ -24,7 +27,7 @@ internal fun fetchTrueLayerProvidersFromDB(): List<TrueLayerProvider> {
     )
 
     if (cachedProviders != null) {
-        println("Using cached TrueLayer providers: ${cachedProviders.size}")
+        bankProviderLogger.info("Using cached TrueLayer providers: {}", cachedProviders.size)
         return cachedProviders
     }
 
@@ -32,7 +35,7 @@ internal fun fetchTrueLayerProvidersFromDB(): List<TrueLayerProvider> {
         val freshProviders = fetchTrueLayerProviders()
         saveCachedTrueLayerProviders(PROVIDER_CACHE_KEY, freshProviders)
 
-        println("Fetched fresh TrueLayer providers: ${freshProviders.size}")
+        bankProviderLogger.info("Fetched fresh TrueLayer providers: {}", freshProviders.size)
         freshProviders
     }.getOrElse { exception ->
         val expiredCache = getCachedTrueLayerProviders(
@@ -41,7 +44,11 @@ internal fun fetchTrueLayerProvidersFromDB(): List<TrueLayerProvider> {
         )
 
         if (expiredCache != null) {
-            println("TrueLayer fetch failed, using expired provider cache: ${expiredCache.size}")
+            bankProviderLogger.warn(
+                "TrueLayer fetch failed, using expired provider cache: {}",
+                expiredCache.size,
+                exception
+            )
             expiredCache
         } else {
             throw exception

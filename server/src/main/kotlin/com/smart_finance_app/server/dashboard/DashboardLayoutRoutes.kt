@@ -40,7 +40,11 @@ internal fun Route.dashboardLayoutRoutes() {
         val userId = principal?.userIdOrNull()
             ?: return@put call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-        val body = call.receive<DashboardLayoutRequest>()
+        val body = runCatching { call.receive<DashboardLayoutRequest>() }
+            .getOrElse {
+                call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request body"))
+                return@put
+            }
         val cleaned = cleanDashboardLayout(body)
 
         saveDashboardLayout(userId, cleaned)

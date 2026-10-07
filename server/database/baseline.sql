@@ -313,6 +313,7 @@ CREATE TABLE public.users (
     theme text DEFAULT 'pastel_green'::text NOT NULL,
     CONSTRAINT users_currency_check CHECK ((currency = ANY (ARRAY['GBP'::text, 'USD'::text, 'EUR'::text, 'TWD'::text, 'PLN'::text]))),
     CONSTRAINT users_language_check CHECK ((language = ANY (ARRAY['en'::text, 'es'::text, 'fr'::text, 'nl'::text, 'de'::text, 'it'::text, 'pl'::text, 'zh-TW'::text])))
+    CONSTRAINT users_theme_check CHECK (theme = ANY (ARRAY['pastel_blue', 'pastel_purple', 'pastel_green']))
 );
 
 

@@ -1,9 +1,11 @@
 package com.smart_finance_app.server.budget
 
 import com.smart_finance_app.server.Database
+import org.slf4j.LoggerFactory
 import java.util.UUID
 import kotlin.use
 
+private val budgetLogger = LoggerFactory.getLogger("BankProviderService")
 internal fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
@@ -70,8 +72,7 @@ internal fun createBudget(userId: UUID, request: BudgetRequest): BudgetResponse 
             result
         } catch (e: Exception) {
             runCatching { connection.rollback() }
-            println("DATABASE ERROR IN CREATE_BUDGET: ${e.message}")
-            e.printStackTrace()
+            budgetLogger.error("Database error while creating budget", e)
             throw e
         } finally {
             runCatching { connection.autoCommit = previousAutoCommit }
@@ -102,8 +103,7 @@ internal fun updateBudget(userId: UUID, budgetId: UUID, request: BudgetRequest):
             rows > 0
         } catch (e: Exception) {
             runCatching { connection.rollback() }
-            println("DATABASE ERROR IN UPDATE_BUDGET: ${e.message}")
-            e.printStackTrace()
+            budgetLogger.error("Database error while updating budget", e)
             throw e
         } finally {
             runCatching { connection.autoCommit = previousAutoCommit }
@@ -129,8 +129,7 @@ internal fun deleteBudget(userId: UUID, budgetId: UUID): Boolean =
             rows > 0
         } catch (e: Exception) {
             runCatching { connection.rollback() }
-            println("DATABASE ERROR IN DELETE_BUDGET: ${e.message}")
-            e.printStackTrace()
+            budgetLogger.error("Database error while deleting budget", e)
             throw e
         } finally {
             runCatching { connection.autoCommit = previousAutoCommit }
