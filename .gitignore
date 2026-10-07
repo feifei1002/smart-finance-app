@@ -20,6 +20,7 @@ node_modules/
 yarn.lock
 *.pem
 transaction_category_model.joblib
+*.env
 
 
 # Python / Machine Learning rules
