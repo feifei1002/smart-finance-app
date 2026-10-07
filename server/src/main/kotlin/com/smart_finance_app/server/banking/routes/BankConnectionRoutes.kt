@@ -15,7 +15,7 @@ import com.smart_finance_app.server.banking.accounts.getPendingSelectableAccount
 import com.smart_finance_app.server.banking.config.maxAccountsForSubscription
 import com.smart_finance_app.server.banking.accounts.saveSelectedBankAccounts
 import com.smart_finance_app.server.common.userIdOrNull
-import com.smart_finance_app.server.getSubscriptionStatus
+import com.smart_finance_app.server.subscriptions.getSubscriptionStatus
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
