@@ -23,19 +23,29 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
     var duplicateCount = 0
 
     return try {
+        val failedAccounts = mutableListOf<String>()
+
         storedAccounts.forEach { account ->
-            val token = ensureFreshToken(account)
-            val transactions = fetchTransactions(token, account.accountId)
+            runCatching {
+                val token = ensureFreshToken(account)
+                val transactions = fetchTransactions(token, account.accountId)
 
-            transactions.forEach { transaction ->
-                val inserted = saveImportedTransaction(userId, account, transaction)
+                transactions.forEach { transaction ->
+                    val inserted = saveImportedTransaction(userId, account, transaction)
 
-                if(inserted) {
-                    importedCount++
-                } else {
-                    duplicateCount++
+                    if (inserted) {
+                        importedCount++
+                    } else {
+                        duplicateCount++
+                    }
                 }
+            }.onFailure { exception ->
+                failedAccounts.add("${account.accountName}: ${exception.message ?: "Unknown error"}")
             }
+        }
+
+        if (importedCount == 0 && duplicateCount == 0 && failedAccounts.isNotEmpty()) {
+            error("All account syncs failed: ${failedAccounts.joinToString("; ")}")
         }
 
         val syncedAt = Instant.now()

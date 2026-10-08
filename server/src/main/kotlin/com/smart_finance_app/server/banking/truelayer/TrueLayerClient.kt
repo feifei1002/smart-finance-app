@@ -16,26 +16,81 @@ import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
 
-// ── TrueLayer config ─────────────────────────────────────────────────────────
+internal enum class TrueLayerEnvironment {
+    Mock, Sandbox, Production
+}
 
+// ── TrueLayer config ─────────────────────────────────────────────────────────
 object TrueLayerConfig {
+    private val environment: TrueLayerEnvironment
+        get() = when (System.getenv("TRUELAYER_ENVIRONMENT")?.lowercase()) {
+            "production", "prod" -> TrueLayerEnvironment.Production
+            "sandbox" -> TrueLayerEnvironment.Sandbox
+            "mock" -> TrueLayerEnvironment.Mock
+            else -> TrueLayerEnvironment.Mock
+        }
+
     val clientId: String
-        get() = System.getenv("TRUELAYER_CLIENT_ID")
-            ?: error("Missing environment variable: TRUELAYER_CLIENT_ID")
+        get() = when (environment) {
+            TrueLayerEnvironment.Mock ->
+                System.getenv("TRUELAYER_MOCK_CLIENT_ID")
+            TrueLayerEnvironment.Sandbox ->
+                System.getenv("TRUELAYER_SANDBOX_CLIENT_ID")
+            TrueLayerEnvironment.Production ->
+                System.getenv("TRUELAYER_PROD_CLIENT_ID")
+        } ?: error("Missing TrueLayer client ID for $environment")
+//    val clientId: String
+//        get() = System.getenv("TRUELAYER_CLIENT_ID")
+//            ?: error("Missing environment variable: TRUELAYER_CLIENT_ID")
 
     val clientSecret: String
-        get() = System.getenv("TRUELAYER_CLIENT_SECRET")
-            ?: error("Missing environment variable: TRUELAYER_CLIENT_SECRET")
+        get() = when (environment) {
+            TrueLayerEnvironment.Mock ->
+                System.getenv("TRUELAYER_MOCK_CLIENT_SECRET")
+            TrueLayerEnvironment.Sandbox ->
+                System.getenv("TRUELAYER_SANDBOX_CLIENT_SECRET")
+            TrueLayerEnvironment.Production ->
+                System.getenv("TRUELAYER_PROD_CLIENT_SECRET")
+        } ?: error("Missing TrueLayer client secret for $environment")
 
     val redirectUri: String
-        get() = System.getenv("TRUELAYER_REDIRECT_URI")
-            ?: error("Missing environment variable: TRUELAYER_REDIRECT_URI")
+        get() = when (environment) {
+            TrueLayerEnvironment.Mock ->
+                System.getenv("TRUELAYER_MOCK_REDIRECT_URI")
+            TrueLayerEnvironment.Sandbox ->
+                System.getenv("TRUELAYER_SANDBOX_REDIRECT_URI")
+            TrueLayerEnvironment.Production ->
+                System.getenv("TRUELAYER_PROD_REDIRECT_URI")
+        } ?: error("Missing TrueLayer redirect URI for $environment")
 
     // Sandbox URLs — switch to truelayer.com (without -sandbox) for production
-    const val AUTH_BASE_URL = "https://auth.truelayer-sandbox.com"
-    const val API_BASE_URL  = "https://api.truelayer-sandbox.com"
+//    const val AUTH_BASE_URL = "https://auth.truelayer-sandbox.com"
+//    const val API_BASE_URL  = "https://api.truelayer-sandbox.com"
+//
+//    const val PROVIDERS_BASE_URL = "https://auth.truelayer.com"
 
-    const val PROVIDERS_BASE_URL = "https://auth.truelayer.com"
+    val isMock: Boolean
+        get() = environment == TrueLayerEnvironment.Mock
+
+    val isProduction: Boolean
+        get() = environment == TrueLayerEnvironment.Production
+
+    val AUTH_BASE_URL: String
+        get() = if (isProduction) {
+            "https://auth.truelayer.com"
+        } else {
+            "https://auth.truelayer-sandbox.com"
+        }
+
+    val API_BASE_URL: String
+        get() = when (environment) {
+            TrueLayerEnvironment.Mock,
+            TrueLayerEnvironment.Sandbox -> "https://api.truelayer-sandbox.com"
+
+            TrueLayerEnvironment.Production -> "https://api.truelayer.com"
+        }
+    val PROVIDERS_BASE_URL: String
+        get() = "https://auth.truelayer.com"
 
     const val SCOPES = "info accounts balance transactions offline_access"
 }

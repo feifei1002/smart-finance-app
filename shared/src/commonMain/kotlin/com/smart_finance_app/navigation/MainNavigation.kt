@@ -535,14 +535,20 @@ private fun NavigationContent(
                             when (result.status) {
                                 "completed" -> {
                                     pendingConnectionState = null
+                                    error = null
+                                    banksError = null
+                                    showConnectBank = false
                                     accountsRefreshRequest++
                                     bankConnectionRefreshRequest++
+                                    onNavigateToTransactions()
                                     finished = true
                                 }
 
                                 "awaiting_account_selection" -> {
                                     pendingConnectionState = null
                                     showConnectBank = false
+                                    error = null
+                                    banksError = null
                                     accountSelectionState = state
                                     selectedAccountIds = emptySet()
                                     accountSelectionError = null
@@ -560,14 +566,15 @@ private fun NavigationContent(
                             }
                         }
 
-                        is BankConnectionStatusResult.Failure -> {
-                            pendingConnectionState = null
-                            error = AppStrings.get(
-                                LocaleController.currentLanguageCode,
-                                result.message
-                            )
-                            finished = true
-                        }
+//                        is BankConnectionStatusResult.Failure -> {
+//                            pendingConnectionState = null
+//                            error = AppStrings.get(
+//                                LocaleController.currentLanguageCode,
+//                                result.message
+//                            )
+//                            finished = true
+//                        }
+                        is BankConnectionStatusResult.Failure -> Unit
                     }
                 }
 
@@ -722,6 +729,7 @@ private fun NavigationContent(
                         scope.launch {
                             loading = true
                             error = null
+                            banksError = null
 
                             when (val result = bankingApi.createConnectionSession(
                                 token = authToken,
