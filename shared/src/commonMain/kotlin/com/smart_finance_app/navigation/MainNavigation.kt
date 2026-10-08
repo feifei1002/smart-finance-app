@@ -289,11 +289,13 @@ private fun NavigationContent(
         transactionsSyncing = true
 
         try {
-            when (val syncResult = transactionsApi.syncTransactions(authToken)) {
-                is TransactionSyncResult.Success -> Unit
+            transactionsSyncError = when (val syncResult = transactionsApi.syncTransactions(authToken)) {
+                is TransactionSyncResult.Success -> {
+                    null
+                }
 
                 is TransactionSyncResult.Failure -> {
-                    transactionsSyncError = AppStrings.get(
+                    AppStrings.get(
                         LocaleController.currentLanguageCode,
                         syncResult.message
                     )
