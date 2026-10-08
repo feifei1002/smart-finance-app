@@ -1,4 +1,4 @@
-package com.smart_finance_app.server
+package com.smart_finance_app.server.support
 
 import jakarta.mail.Authenticator
 import jakarta.mail.Message

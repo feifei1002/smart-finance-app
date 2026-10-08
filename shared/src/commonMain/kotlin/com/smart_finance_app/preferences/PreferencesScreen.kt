@@ -191,7 +191,6 @@ fun PreferencesScreen(
                                     },
                                     onClick = {
                                         selectedLanguageCode = language.code
-                                        LocaleController.setLanguage(language.code)
                                         languageExpanded = false
                                     }
                                 )
@@ -351,6 +350,7 @@ fun PreferencesScreen(
                                     },
                                     onClick = {
                                         selectedTheme = theme
+                                        ThemeController.setTheme(theme)
                                         themeExpanded = false
                                     }
                                 )
@@ -390,6 +390,9 @@ fun PreferencesScreen(
                                         }
 
                                         is UpdatePreferencesResult.Failure -> {
+                                            selectedTheme = initialTheme
+                                            ThemeController.setTheme(initialTheme)
+
                                             errorMessage = AppStrings.get(
                                                 selectedLanguageCode,
                                                 result.message
