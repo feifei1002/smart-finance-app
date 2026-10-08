@@ -15,6 +15,7 @@ local.properties
 **/.env
 **/.env.*
 *.pem
+**/*.env
 
 # Not needed to build the server
 androidApp
