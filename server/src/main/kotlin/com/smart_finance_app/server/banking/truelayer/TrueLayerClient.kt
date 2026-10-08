@@ -39,9 +39,6 @@ object TrueLayerConfig {
             TrueLayerEnvironment.Production ->
                 System.getenv("TRUELAYER_PROD_CLIENT_ID")
         } ?: error("Missing TrueLayer client ID for $environment")
-//    val clientId: String
-//        get() = System.getenv("TRUELAYER_CLIENT_ID")
-//            ?: error("Missing environment variable: TRUELAYER_CLIENT_ID")
 
     val clientSecret: String
         get() = when (environment) {

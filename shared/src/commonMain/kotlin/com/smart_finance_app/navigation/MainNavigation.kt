@@ -570,15 +570,7 @@ private fun NavigationContent(
                                 }
                             }
                         }
-
-//                        is BankConnectionStatusResult.Failure -> {
-//                            pendingConnectionState = null
-//                            error = AppStrings.get(
-//                                LocaleController.currentLanguageCode,
-//                                result.message
-//                            )
-//                            finished = true
-//                        }
+                        
                         is BankConnectionStatusResult.Failure -> Unit
                     }
                 }
