@@ -17,7 +17,7 @@ import java.time.Instant
 import java.time.LocalDate
 
 internal enum class TrueLayerEnvironment {
-    Mock, Sandbox, Production
+    Sandbox, Production
 }
 
 // ── TrueLayer config ─────────────────────────────────────────────────────────
@@ -26,14 +26,11 @@ object TrueLayerConfig {
         get() = when (System.getenv("TRUELAYER_ENVIRONMENT")?.lowercase()) {
             "production", "prod" -> TrueLayerEnvironment.Production
             "sandbox" -> TrueLayerEnvironment.Sandbox
-            "mock" -> TrueLayerEnvironment.Mock
-            else -> TrueLayerEnvironment.Mock
+            else -> TrueLayerEnvironment.Sandbox
         }
 
     val clientId: String
         get() = when (environment) {
-            TrueLayerEnvironment.Mock ->
-                System.getenv("TRUELAYER_MOCK_CLIENT_ID")
             TrueLayerEnvironment.Sandbox ->
                 System.getenv("TRUELAYER_SANDBOX_CLIENT_ID")
             TrueLayerEnvironment.Production ->
@@ -42,8 +39,6 @@ object TrueLayerConfig {
 
     val clientSecret: String
         get() = when (environment) {
-            TrueLayerEnvironment.Mock ->
-                System.getenv("TRUELAYER_MOCK_CLIENT_SECRET")
             TrueLayerEnvironment.Sandbox ->
                 System.getenv("TRUELAYER_SANDBOX_CLIENT_SECRET")
             TrueLayerEnvironment.Production ->
@@ -52,8 +47,6 @@ object TrueLayerConfig {
 
     val redirectUri: String
         get() = when (environment) {
-            TrueLayerEnvironment.Mock ->
-                System.getenv("TRUELAYER_MOCK_REDIRECT_URI")
             TrueLayerEnvironment.Sandbox ->
                 System.getenv("TRUELAYER_SANDBOX_REDIRECT_URI")
             TrueLayerEnvironment.Production ->
@@ -61,7 +54,7 @@ object TrueLayerConfig {
         } ?: error("Missing TrueLayer redirect URI for $environment")
 
     val isMock: Boolean
-        get() = environment == TrueLayerEnvironment.Mock
+        get() = environment == TrueLayerEnvironment.Sandbox
 
     val isProduction: Boolean
         get() = environment == TrueLayerEnvironment.Production
@@ -75,7 +68,6 @@ object TrueLayerConfig {
 
     val API_BASE_URL: String
         get() = when (environment) {
-            TrueLayerEnvironment.Mock,
             TrueLayerEnvironment.Sandbox -> "https://api.truelayer-sandbox.com"
 
             TrueLayerEnvironment.Production -> "https://api.truelayer.com"

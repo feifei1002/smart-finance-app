@@ -21,6 +21,7 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
 
     var importedCount = 0
     var duplicateCount = 0
+    var succeededAccounts = 0
 
     return try {
         val failedAccounts = mutableListOf<String>()
@@ -29,6 +30,8 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
             runCatching {
                 val token = ensureFreshToken(account)
                 val transactions = fetchTransactions(token, account.accountId)
+
+                succeededAccounts++
 
                 transactions.forEach { transaction ->
                     val inserted = saveImportedTransaction(userId, account, transaction)
@@ -44,7 +47,7 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
             }
         }
 
-        if (importedCount == 0 && duplicateCount == 0 && failedAccounts.isNotEmpty()) {
+        if (succeededAccounts == 0 && failedAccounts.isNotEmpty()) {
             error("All account syncs failed: ${failedAccounts.joinToString("; ")}")
         }
 
