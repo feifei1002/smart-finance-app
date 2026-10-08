@@ -19,7 +19,7 @@ internal fun getConnectedAccountsForUser(userId: UUID): List<AccountResponse> =
             SELECT account_id, bank_name, provider, account_number
             FROM connected_accounts
             WHERE user_id = ? AND connection_status = 'connected'
-            ORDER BY created_at ASC
+            ORDER BY created_at DESC
             """.trimIndent()
         ).use { statement ->
             statement.setObject(1, userId)
@@ -56,7 +56,7 @@ internal fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
             SELECT id, account_id, bank_name, access_token, refresh_token, token_expiry
             FROM connected_accounts
             WHERE user_id = ? AND connection_status = 'connected'
-            ORDER BY created_at ASC
+            ORDER BY created_at DESC
             """.trimIndent()
         ).use { statement ->
             statement.setObject(1, userId)
