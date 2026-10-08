@@ -36,9 +36,8 @@ COPY app.py .
 RUN useradd --system --uid 10001 --no-create-home app
 USER app
 
-# Bind to "::" so the service is reachable over Railway's private network
-# (IPv6, and IPv4 too on dual-stack). Override with HOST=0.0.0.0 if ever needed.
-# One worker only: every worker would load its own copy of the model.
+# Binds 0.0.0.0 by default. If Railway's private network can't reach it,
+# set the service variable HOST=:: (IPv6) on Railway.
 ENV PORT=8000
 EXPOSE 8000
-CMD ["sh", "-c", "exec uvicorn app:app --host ${HOST:-::} --port ${PORT} --workers 1"]
+CMD ["sh", "-c", "exec uvicorn app:app --host ${HOST:-0.0.0.0} --port ${PORT} --workers 1"]
