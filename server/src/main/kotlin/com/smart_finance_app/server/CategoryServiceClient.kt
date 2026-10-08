@@ -8,6 +8,7 @@ import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
+import org.slf4j.LoggerFactory
 
 @Serializable
 private data class MLRequest(val description: String)
@@ -15,6 +16,7 @@ private data class MLRequest(val description: String)
 @Serializable
 private data class MLResponse(val category: String)
 
+private val logger = LoggerFactory.getLogger(CategoryServiceClient::class.java)
 object CategoryServiceClient {
 
     // =====================================================================
@@ -55,8 +57,7 @@ object CategoryServiceClient {
             response.category
         } catch (e: Exception) {
             // STOP SILENTLY FAILING: Print the exact reason to your backend terminal
-            println("❌ ML Service Error for description '$description': ${e.message}")
-            e.printStackTrace()
+            logger.warn("ML category service failed: {}", e.message)
 
             "Others" // Fallback category on failure
         }
