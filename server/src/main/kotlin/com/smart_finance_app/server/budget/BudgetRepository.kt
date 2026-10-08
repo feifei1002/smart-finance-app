@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 import kotlin.use
 
-private val budgetLogger = LoggerFactory.getLogger("BankProviderService")
+private val budgetLogger = LoggerFactory.getLogger("BudgetRepository")
 internal fun getBudgetsForUser(userId: UUID): List<BudgetResponse> =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(

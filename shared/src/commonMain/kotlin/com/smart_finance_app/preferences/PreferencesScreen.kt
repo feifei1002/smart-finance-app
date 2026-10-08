@@ -390,6 +390,7 @@ fun PreferencesScreen(
                                         }
 
                                         is UpdatePreferencesResult.Failure -> {
+                                            selectedTheme = initialTheme
                                             ThemeController.setTheme(initialTheme)
 
                                             errorMessage = AppStrings.get(
