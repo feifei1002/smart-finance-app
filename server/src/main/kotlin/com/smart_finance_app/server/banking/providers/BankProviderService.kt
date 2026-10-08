@@ -5,6 +5,7 @@ import com.smart_finance_app.server.Database
 import com.smart_finance_app.server.banking.config.bankingGson
 import com.smart_finance_app.server.banking.models.BankProviderResponse
 import com.smart_finance_app.server.banking.models.BankProviderVariantResponse
+import com.smart_finance_app.server.banking.truelayer.TrueLayerConfig
 import com.smart_finance_app.server.banking.truelayer.TrueLayerProvider
 import com.smart_finance_app.server.banking.truelayer.fetchTrueLayerProviders
 import org.slf4j.LoggerFactory
@@ -15,11 +16,25 @@ private const val PROVIDER_CACHE_TTL_DAYS = 7L
 
 private val trueLayerProviderListType = object : TypeToken<List<TrueLayerProvider>>() {}.type
 
-private const val PROVIDER_CACHE_KEY = "truelayer-providers:all"
+private val PROVIDER_CACHE_KEY: String
+    get() = if (TrueLayerConfig.isProduction) {
+        "truelayer-providers:production"
+    } else {
+        "truelayer-providers:sandbox"
+    }
 
 private val bankProviderLogger = LoggerFactory.getLogger("BankProviderService")
 
 internal fun fetchTrueLayerProvidersFromDB(): List<TrueLayerProvider> {
+    if (TrueLayerConfig.isMock) {
+        return listOf(
+            TrueLayerProvider(
+                providerId = "uk-cs-mock",
+                displayName = "Mock Bank",
+                logoUrl = null
+            )
+        )
+    }
 
     val cachedProviders = getCachedTrueLayerProviders(
         cacheKey = PROVIDER_CACHE_KEY,

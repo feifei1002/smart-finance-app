@@ -79,7 +79,7 @@ internal fun ChartCardContent(
                         p.size == 3 &&
                                 p[0].toIntOrNull() == targetDate.year &&
                                 p[1].toIntOrNull() == targetDate.month.number &&
-                                p[2].toIntOrNull() == targetDate.dayOfMonth &&
+                                p[2].toIntOrNull() == targetDate.day &&
                                 tx.amount < 0
                     }
                     .sumOf { convertedAbsAmount(it.amount, it.currency, displayCurrency, rates) }.toFloat()

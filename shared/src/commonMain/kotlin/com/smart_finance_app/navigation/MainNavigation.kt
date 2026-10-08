@@ -177,6 +177,7 @@ private fun NavigationContent(
     var transactionsLoadedOnce by remember { mutableStateOf(false) }
     var loadingTransactionsPage by remember { mutableStateOf<Int?>(null) }
     var transactionsSyncing by remember { mutableStateOf(false) }
+    var transactionsSyncError by remember { mutableStateOf<String?>(null) }
     var transactionsFilter by remember { mutableStateOf("All") }
     var dashboardRecentTransactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var lastSyncedToken by remember { mutableStateOf<String?>(null) }
@@ -288,11 +289,13 @@ private fun NavigationContent(
         transactionsSyncing = true
 
         try {
-            when (val syncResult = transactionsApi.syncTransactions(authToken)) {
-                is TransactionSyncResult.Success -> Unit
+            transactionsSyncError = when (val syncResult = transactionsApi.syncTransactions(authToken)) {
+                is TransactionSyncResult.Success -> {
+                    null
+                }
 
                 is TransactionSyncResult.Failure -> {
-                    transactionsError = AppStrings.get(
+                    AppStrings.get(
                         LocaleController.currentLanguageCode,
                         syncResult.message
                     )
@@ -373,13 +376,15 @@ private fun NavigationContent(
 
     suspend fun syncAndReloadTransactions() {
         transactionsSyncing = true
-        transactionsError = null
+        transactionsSyncError = null
 
         try {
             when (val syncResult = transactionsApi.syncTransactions(authToken)) {
-                is TransactionSyncResult.Success -> Unit
+                is TransactionSyncResult.Success -> {
+                    transactionsSyncError = null
+                }
                 is TransactionSyncResult.Failure -> {
-                    transactionsError = AppStrings.get(
+                    transactionsSyncError  = AppStrings.get(
                         LocaleController.currentLanguageCode,
                         syncResult.message
                     )
@@ -421,7 +426,7 @@ private fun NavigationContent(
                 transactions  = transactions,
                 isLoading     = transactionsLoading,
                 isSyncing     = transactionsSyncing,
-                errorMessage  = transactionsError,
+                errorMessage  = transactionsSyncError ?: transactionsError,
                 currentPage   = transactionsPage,
                 totalCount    = transactionsTotalCount,
                 pageSize      = transactionsPageSize,
@@ -535,14 +540,20 @@ private fun NavigationContent(
                             when (result.status) {
                                 "completed" -> {
                                     pendingConnectionState = null
+                                    error = null
+                                    banksError = null
+                                    showConnectBank = false
                                     accountsRefreshRequest++
                                     bankConnectionRefreshRequest++
+                                    onNavigateToTransactions()
                                     finished = true
                                 }
 
                                 "awaiting_account_selection" -> {
                                     pendingConnectionState = null
                                     showConnectBank = false
+                                    error = null
+                                    banksError = null
                                     accountSelectionState = state
                                     selectedAccountIds = emptySet()
                                     accountSelectionError = null
@@ -559,15 +570,8 @@ private fun NavigationContent(
                                 }
                             }
                         }
-
-                        is BankConnectionStatusResult.Failure -> {
-                            pendingConnectionState = null
-                            error = AppStrings.get(
-                                LocaleController.currentLanguageCode,
-                                result.message
-                            )
-                            finished = true
-                        }
+                        
+                        is BankConnectionStatusResult.Failure -> Unit
                     }
                 }
 
@@ -722,6 +726,7 @@ private fun NavigationContent(
                         scope.launch {
                             loading = true
                             error = null
+                            banksError = null
 
                             when (val result = bankingApi.createConnectionSession(
                                 token = authToken,
