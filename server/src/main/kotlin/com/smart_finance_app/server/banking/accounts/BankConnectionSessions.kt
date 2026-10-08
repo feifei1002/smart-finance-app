@@ -149,8 +149,13 @@ internal fun expireOldBankConnectionSelections() {
                     available_accounts = NULL,
                     status = 'expired',
                     updated_at = NOW()
-                WHERE status = 'awaiting_account_selection'
-                  AND expires_at <= NOW()
+                WHERE (
+                    status = 'awaiting_account_selection' AND expires_at <= NOW()
+                )
+                OR (
+                    status IN ('pending', 'processing')
+                    AND created_at <= NOW() - INTERVAL '15 minutes'
+                )
                 """.trimIndent()
             ).use { statement ->
                 statement.executeUpdate()

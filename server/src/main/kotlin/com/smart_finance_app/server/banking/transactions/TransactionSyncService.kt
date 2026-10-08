@@ -49,12 +49,21 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
         }
 
         val syncedAt = Instant.now()
-        recordTransactionSyncSuccess(userId, syncedAt)
+
+        if (failedAccounts.isEmpty()) {
+            recordTransactionSyncSuccess(userId, syncedAt)
+        } else {
+            recordTransactionSyncPartialFailure(
+                userId = userId,
+                attemptedAt = syncedAt,
+                "Some account syncs failed: ${failedAccounts.joinToString("; ")}"
+            )
+        }
 
         TransactionSyncResponse(
             importedCount = importedCount,
             duplicateCount = duplicateCount,
-            lastSuccessfulSyncAt = syncedAt.toString()
+            lastSuccessfulSyncAt = if (failedAccounts.isEmpty()) syncedAt.toString() else getLastSuccessfulTransactionSync(userId)
         )
     } catch (exception: Exception) {
         recordTransactionSyncFailure(userId, exception.message ?: "Unknown sync error")
@@ -250,6 +259,37 @@ private fun recordTransactionSyncFailure(userId: UUID, error: String) {
             ).use { statement ->
                 statement.setObject(1, userId)
                 statement.setString(2, error)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private fun recordTransactionSyncPartialFailure(
+    userId: UUID,
+    attemptedAt: Instant,
+    error: String
+) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                INSERT INTO transaction_sync_status
+                    (user_id, last_attempted_sync_at, last_error)
+                VALUES (?, ?, ?) ON CONFLICT (user_id)
+                DO UPDATE SET
+                    last_attempted_sync_at = EXCLUDED.last_attempted_sync_at,
+                    last_error = EXCLUDED.last_error
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, userId)
+                statement.setTimestamp(2, Timestamp.from(attemptedAt))
+                statement.setString(3, error)
                 statement.executeUpdate()
             }
 

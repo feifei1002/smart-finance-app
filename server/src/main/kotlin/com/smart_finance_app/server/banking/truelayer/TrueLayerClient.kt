@@ -63,12 +63,6 @@ object TrueLayerConfig {
                 System.getenv("TRUELAYER_PROD_REDIRECT_URI")
         } ?: error("Missing TrueLayer redirect URI for $environment")
 
-    // Sandbox URLs — switch to truelayer.com (without -sandbox) for production
-//    const val AUTH_BASE_URL = "https://auth.truelayer-sandbox.com"
-//    const val API_BASE_URL  = "https://api.truelayer-sandbox.com"
-//
-//    const val PROVIDERS_BASE_URL = "https://auth.truelayer.com"
-
     val isMock: Boolean
         get() = environment == TrueLayerEnvironment.Mock
 
@@ -234,7 +228,7 @@ internal fun fetchBalances(accessToken: String, accountId: String): List<Balance
 
 internal fun fetchTransactions(accessToken: String, accountId: String): List<TransactionResponse> {
     // Fetch last 6 months of transactions
-    val from = LocalDate.now().minusMonths(6).toString()
+    val from = LocalDate.now().minusMonths(3).toString()
     val to   = LocalDate.now().toString()
 
     val request = Request.Builder()

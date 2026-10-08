@@ -177,6 +177,7 @@ private fun NavigationContent(
     var transactionsLoadedOnce by remember { mutableStateOf(false) }
     var loadingTransactionsPage by remember { mutableStateOf<Int?>(null) }
     var transactionsSyncing by remember { mutableStateOf(false) }
+    var transactionsSyncError by remember { mutableStateOf<String?>(null) }
     var transactionsFilter by remember { mutableStateOf("All") }
     var dashboardRecentTransactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var lastSyncedToken by remember { mutableStateOf<String?>(null) }
@@ -292,7 +293,7 @@ private fun NavigationContent(
                 is TransactionSyncResult.Success -> Unit
 
                 is TransactionSyncResult.Failure -> {
-                    transactionsError = AppStrings.get(
+                    transactionsSyncError = AppStrings.get(
                         LocaleController.currentLanguageCode,
                         syncResult.message
                     )
@@ -373,13 +374,15 @@ private fun NavigationContent(
 
     suspend fun syncAndReloadTransactions() {
         transactionsSyncing = true
-        transactionsError = null
+        transactionsSyncError = null
 
         try {
             when (val syncResult = transactionsApi.syncTransactions(authToken)) {
-                is TransactionSyncResult.Success -> Unit
+                is TransactionSyncResult.Success -> {
+                    transactionsSyncError = null
+                }
                 is TransactionSyncResult.Failure -> {
-                    transactionsError = AppStrings.get(
+                    transactionsSyncError  = AppStrings.get(
                         LocaleController.currentLanguageCode,
                         syncResult.message
                     )
@@ -421,7 +424,7 @@ private fun NavigationContent(
                 transactions  = transactions,
                 isLoading     = transactionsLoading,
                 isSyncing     = transactionsSyncing,
-                errorMessage  = transactionsError,
+                errorMessage  = transactionsSyncError ?: transactionsError,
                 currentPage   = transactionsPage,
                 totalCount    = transactionsTotalCount,
                 pageSize      = transactionsPageSize,
