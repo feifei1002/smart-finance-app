@@ -69,12 +69,6 @@ internal fun Route.bankTransactionRoutes() {
         }
 
         val transactions = mutableListOf<TransactionResponse>()
-//        storedAccounts.forEach { stored ->
-//            val token = ensureFreshToken(stored)
-//            val tlTransactions = fetchTransactions(token, stored.accountId)
-//                .map { it.copy(accountId = stored.accountId) }   // tag with owning account
-//            transactions.addAll(tlTransactions)
-//        }
         val failedAccounts = mutableListOf<String>()
 
         storedAccounts.forEach { stored ->
