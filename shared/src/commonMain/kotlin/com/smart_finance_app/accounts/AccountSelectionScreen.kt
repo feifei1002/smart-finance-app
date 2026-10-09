@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.smart_finance_app.AppPageHeader
 import com.smart_finance_app.StringKey
@@ -75,6 +76,14 @@ fun AccountSelectionScreen(
                 ) {
                     CircularProgressIndicator()
                 }
+            } else if (accounts.isEmpty()) {
+                Text(
+                    text = appStringResource(StringKey.CONNECT_BANK_ACCOUNT_NO_SELECTABLE_ACCOUNTS),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     accounts.forEach { account ->

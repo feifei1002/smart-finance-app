@@ -69,11 +69,44 @@ internal fun Route.bankTransactionRoutes() {
         }
 
         val transactions = mutableListOf<TransactionResponse>()
+//        storedAccounts.forEach { stored ->
+//            val token = ensureFreshToken(stored)
+//            val tlTransactions = fetchTransactions(token, stored.accountId)
+//                .map { it.copy(accountId = stored.accountId) }   // tag with owning account
+//            transactions.addAll(tlTransactions)
+//        }
+        val failedAccounts = mutableListOf<String>()
+
         storedAccounts.forEach { stored ->
-            val token = ensureFreshToken(stored)
-            val tlTransactions = fetchTransactions(token, stored.accountId)
-                .map { it.copy(accountId = stored.accountId) }   // tag with owning account
-            transactions.addAll(tlTransactions)
+            runCatching {
+                val token = ensureFreshToken(stored)
+                val tlTransactions = fetchTransactions(token, stored.accountId)
+                    .map { it.copy(accountId = stored.accountId) }
+
+                transactions.addAll(tlTransactions)
+            }.onFailure { exception ->
+                failedAccounts.add("${stored.accountName}: ${exception.message ?: "Unknown error"}")
+            }
+        }
+
+        if (transactions.isEmpty() && failedAccounts.isNotEmpty()) {
+            call.application.environment.log.warn(
+                "Raw TrueLayer transaction fetch failed for all accounts: {}",
+                failedAccounts.joinToString("; ")
+            )
+
+            call.respond(
+                HttpStatusCode.BadGateway,
+                ErrorResponse("Could not fetch transactions from TrueLayer")
+            )
+            return@get
+        }
+
+        if (failedAccounts.isNotEmpty()) {
+            call.application.environment.log.warn(
+                "Raw TrueLayer transaction fetch partially failed: {}",
+                failedAccounts.joinToString("; ")
+            )
         }
 
         // Sort all transactions newest first across all accounts

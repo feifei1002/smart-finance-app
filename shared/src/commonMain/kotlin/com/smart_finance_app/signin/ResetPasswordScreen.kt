@@ -64,7 +64,7 @@ fun ResetPasswordScreen(
     val successDescription = appStringResource(StringKey.RESET_PASSWORD_SUCCESS_DESCRIPTION)
     val successMsg         = appStringResource(StringKey.RESET_PASSWORD_SUCCESS_MESSAGE)
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().imePadding()) {
         val compact = maxWidth < 700.dp
 
         Box(
