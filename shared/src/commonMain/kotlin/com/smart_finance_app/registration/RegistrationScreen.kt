@@ -1,16 +1,20 @@
 package com.smart_finance_app.registration
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,6 +30,7 @@ import smart_finance_app.shared.generated.resources.visibility
 import smart_finance_app.shared.generated.resources.visibility_off
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
+import smart_finance_app.shared.generated.resources.app_logo_blue
 
 data class RegistrationForm(
     val fullName: String,
@@ -103,9 +108,22 @@ fun RegistrationScreen(
                 .widthIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            Image(
+                painter = painterResource(Res.drawable.app_logo_blue),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(96.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+                contentScale = ContentScale.Fit
+            )
+
+            Spacer(Modifier.height(8.dp))
+
             AppPageHeader(
                 title = appStringResource(StringKey.REGISTER_TITLE),
-                subtitle = null
+                subtitle = null,
+                centerAligned = true
             )
 
             OutlinedTextField(
