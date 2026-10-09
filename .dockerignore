@@ -1,0 +1,26 @@
+# Used by the backend image (server/Dockerfile), whose build context is the repo root.
+# Keeps the upload small and keeps secrets out of the image.
+
+.git
+.github
+.idea
+**/*.iml
+.gradle
+**/.gradle
+.kotlin
+**/build
+local.properties
+
+# Secrets — never copy into an image
+**/.env
+**/.env.*
+*.pem
+**/*.env
+
+# Not needed to build the server
+androidApp
+iosApp
+desktopApp
+webApp
+shared
+ml-service

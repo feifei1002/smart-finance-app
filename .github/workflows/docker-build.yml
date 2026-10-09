@@ -1,0 +1,52 @@
+name: Docker build check
+
+# Proves both Dockerfiles still build. Images are built only, never pushed.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the previous, now-outdated run.
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }} image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      # Report both results even if one image fails.
+      fail-fast: false
+      matrix:
+        include:
+          - name: server
+            context: .
+            dockerfile: server/Dockerfile
+            tag: smart-finance-server:ci
+          - name: ml-service
+            context: ml-service
+            dockerfile: ml-service/Dockerfile
+            tag: smart-finance-ml:ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.name }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          tags: ${{ matrix.tag }}
+          push: false
