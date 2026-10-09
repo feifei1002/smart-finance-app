@@ -137,8 +137,6 @@ fun computeSpendingCategories(
         if (parts.size != 3) return@filter false
         val txYear  = parts[0].toIntOrNull() ?: return@filter false
         val txMonth = parts[1].toIntOrNull() ?: return@filter false
-        @Suppress("UNUSED_VARIABLE")
-        val txDay   = parts[2].toIntOrNull() ?: return@filter false
         when (period) {
             SpendingPeriod.THIS_MONTH -> txYear == now.year && txMonth == now.month.number
             SpendingPeriod.LAST_MONTH -> {
@@ -294,7 +292,12 @@ fun computeDashboardState(
 
     // ── Monthly trend (last 6 months, converted) ──────────────────────────────
     val monthLabels  = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-    val monthlyTrend = (6 downTo 1).map { monthsAgo ->
+    val monthlyTrendMonths = if (thisMonthTx.isNotEmpty()) {
+        5 downTo 0      // include current month
+    } else {
+        6 downTo 1      // previous completed 6 months only
+    }
+    val monthlyTrend = monthlyTrendMonths.map { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
         val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year
@@ -355,7 +358,12 @@ fun computeDashboardState(
     }
 
     // ── Monthly top spending category (last 6 months, converted) ─────────────
-    val monthlyTopCategories = (6 downTo 1).map { monthsAgo ->
+    val monthlyTopCategoryMonths = if (debitTx.isNotEmpty()) {
+        5 downTo 0      // include current month when there is spending
+    } else {
+        6 downTo 1      // previous completed 6 months only
+    }
+    val monthlyTopCategories = monthlyTopCategoryMonths.map { monthsAgo ->
         val targetDate  = now.date.minus(DatePeriod(months = monthsAgo))
         val targetMonth = targetDate.month.number
         val targetYear  = targetDate.year
