@@ -17,13 +17,13 @@ import java.util.UUID
 import kotlin.use
 
 suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
-    val storedAccounts = getStoredAccountsWithTokens(userId)
 
     var importedCount = 0
     var duplicateCount = 0
     var succeededAccounts = 0
 
     return try {
+        val storedAccounts = getStoredAccountsWithTokens(userId)
         val failedAccounts = mutableListOf<String>()
 
         storedAccounts.forEach { account ->

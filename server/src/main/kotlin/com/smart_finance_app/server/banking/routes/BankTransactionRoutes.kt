@@ -62,7 +62,18 @@ internal fun Route.bankTransactionRoutes() {
         val userId = principal?.payload?.getClaim("userId")?.asString()
             ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-        val storedAccounts = getStoredAccountsWithTokens(UUID.fromString(userId))
+        val storedAccounts = runCatching {
+            getStoredAccountsWithTokens(UUID.fromString(userId))
+        }.getOrElse { exception ->
+            call.application.environment.log.error("Could not load connected account tokens", exception)
+
+            call.respond(
+                HttpStatusCode.BadGateway,
+                ErrorResponse("Could not load connected accounts")
+            )
+            return@get
+        }
+        
         if (storedAccounts.isEmpty()) {
             call.respond(emptyList<TransactionResponse>())
             return@get
