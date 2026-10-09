@@ -4,8 +4,12 @@
 # On Railway: leave Root Directory empty and set the service variable
 #   RAILWAY_DOCKERFILE_PATH=server/Dockerfile
 
+# Base images are pinned by digest so rebuilds use exactly the image we tested.
+# The tag is kept for readability; the digest is what Docker actually uses.
+# To update: pull the new tag, copy its digest from the build log, test, commit.
+
 # ---------- Build stage ----------
-FROM eclipse-temurin:17-jdk AS build
+FROM eclipse-temurin:17-jdk@sha256:5d6042fb8cdc14d614e4e421f52e3211fc5aeadddce44cbf9de8ed37c791f824 AS build
 WORKDIR /app
 
 # Gradle wrapper and build config first, so the Gradle download is cached
@@ -31,7 +35,7 @@ RUN ./gradlew :server:installDist --no-daemon \
       -Pkotlin.compiler.execution.strategy=in-process
 
 # ---------- Runtime stage ----------
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:17-jre@sha256:207ecae0b2b104dfc6dfa763d1e9cd2041cb344800a180e24cb1a28ed533ff90
 WORKDIR /app
 
 RUN useradd --system --uid 10001 --no-create-home app
