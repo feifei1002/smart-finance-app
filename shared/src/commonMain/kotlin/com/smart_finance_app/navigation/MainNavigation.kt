@@ -171,6 +171,7 @@ private fun NavigationContent(
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var transactionsLoading by remember { mutableStateOf(false) }
     var transactionsError by remember { mutableStateOf<String?>(null) }
+    var dashboardTransactionsLoaded by remember { mutableStateOf(false) }
     var transactionsPage by remember { mutableStateOf(0) }
     var transactionsHasMore by remember { mutableStateOf(false) }
     var transactionsTotalCount by remember { mutableStateOf(0) }
@@ -313,43 +314,48 @@ private fun NavigationContent(
     }
 
     suspend fun loadDashboardTransactions() {
-        val pageSize = 500
-        val allTransactions = mutableListOf<TransactionUI>()
-        var page = 0
+        dashboardTransactionsLoaded = false
+        try {
+            val pageSize = 500
+            val allTransactions = mutableListOf<TransactionUI>()
+            var page = 0
 
-        while (true) {
-            when (
-                val result = transactionsApi.getTransactions(
-                    token = authToken,
-                    page = page,
-                    pageSize = pageSize,
-                    type = "All"
-                )
-            ) {
-                is TransactionsResult.Success -> {
-                    allTransactions += result.page.transactions.map { transaction ->
-                        TransactionUI(
-                            id = transaction.id,
-                            dateLabel = transaction.date,
-                            merchantName = transaction.merchantName,
-                            category = transaction.category,
-                            accountName = transaction.accountName,
-                            amount = transaction.amount,
-                            currency = transaction.currency,
-                            merchantLogoUrl = transaction.merchantLogoUrl,
-                            accountId = transaction.accountId
-                        )
+            while (true) {
+                when (
+                    val result = transactionsApi.getTransactions(
+                        token = authToken,
+                        page = page,
+                        pageSize = pageSize,
+                        type = "All"
+                    )
+                ) {
+                    is TransactionsResult.Success -> {
+                        allTransactions += result.page.transactions.map { transaction ->
+                            TransactionUI(
+                                id = transaction.id,
+                                dateLabel = transaction.date,
+                                merchantName = transaction.merchantName,
+                                category = transaction.category,
+                                accountName = transaction.accountName,
+                                amount = transaction.amount,
+                                currency = transaction.currency,
+                                merchantLogoUrl = transaction.merchantLogoUrl,
+                                accountId = transaction.accountId
+                            )
+                        }
+
+                        if (!result.page.hasMore) break
+                        page++
                     }
 
-                    if (!result.page.hasMore) break
-                    page++
+                    is TransactionsResult.Failure -> break
                 }
-
-                is TransactionsResult.Failure -> break
             }
-        }
 
-        dashboardRecentTransactions = allTransactions
+            dashboardRecentTransactions = allTransactions
+        } finally {
+            dashboardTransactionsLoaded = true
+        }
     }
 
     LaunchedEffect(authToken) {
@@ -415,6 +421,7 @@ private fun NavigationContent(
             userId                       = userEmail,
             apiBaseUrl                   = apiBaseUrl,
             transactions                 = mappedTransactions,
+            transactionsLoaded           = dashboardTransactionsLoaded,
             onConnectAccountClicked      = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,
             api                          = dashboardApi,
