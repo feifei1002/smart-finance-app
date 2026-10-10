@@ -81,6 +81,7 @@ internal fun Route.bankTransactionRoutes() {
 
         val transactions = mutableListOf<TransactionResponse>()
         val failedAccounts = mutableListOf<String>()
+        var succeededAccounts = 0
 
         storedAccounts.forEach { stored ->
             runCatching {
@@ -88,13 +89,14 @@ internal fun Route.bankTransactionRoutes() {
                 val tlTransactions = fetchTransactions(token, stored.accountId)
                     .map { it.copy(accountId = stored.accountId) }
 
+                succeededAccounts++
                 transactions.addAll(tlTransactions)
             }.onFailure { exception ->
                 failedAccounts.add("${stored.accountName}: ${exception.message ?: "Unknown error"}")
             }
         }
 
-        if (transactions.isEmpty() && failedAccounts.isNotEmpty()) {
+        if (succeededAccounts == 0 && failedAccounts.isNotEmpty()) {
             call.application.environment.log.warn(
                 "Raw TrueLayer transaction fetch failed for all accounts: {}",
                 failedAccounts.joinToString("; ")
