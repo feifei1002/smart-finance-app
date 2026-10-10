@@ -1,8 +1,16 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import os
 import torch
 import re
 from transformers import pipeline
+
+# Model to load. The Dockerfile sets both via ENV (single source of truth);
+# the defaults keep running app.py outside Docker on the same pinned version.
+# The revision must be pinned here as well as in the Dockerfile: when HF downloads
+# by commit hash it doesn't record it as "main", so an offline load by name alone fails.
+MODEL_ID = os.getenv("MODEL_ID", "MoritzLaurer/deberta-v3-large-zeroshot-v2.0")
+MODEL_REVISION = os.getenv("MODEL_REVISION", "cf44676c28ba7312e5c5f8f8d2c22b3e0c9cdae2")
 
 # Initialize the FastAPI app
 app = FastAPI(title="Transaction Classifier API")
@@ -41,7 +49,8 @@ print(f"Loading DeBERTa-v3 Large on device index: {device}...")
 
 classifier = pipeline(
     "zero-shot-classification",
-    model="MoritzLaurer/deberta-v3-large-zeroshot-v2.0",
+    model=MODEL_ID,
+    revision=MODEL_REVISION,
     device=device,
     torch_dtype=torch.float16 if device == 0 else torch.float32,
 )
