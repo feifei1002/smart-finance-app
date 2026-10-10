@@ -117,7 +117,7 @@ fun App(
             )
         }
 
-        var launchSplashVisible by remember { mutableStateOf(true) }
+        var launchSplashVisible by remember { mutableStateOf(!isPasswordResetRoute) }
         var session by remember { mutableStateOf<AuthSession?>(null) }
         var checkingSavedSession by remember { mutableStateOf(true) }
         var registrationLoading by remember { mutableStateOf(false) }
@@ -213,9 +213,11 @@ fun App(
 
             onDispose {}
         }
-        LaunchedEffect(Unit) {
-            delay(1_500.milliseconds)
-            launchSplashVisible = false
+        LaunchedEffect(isPasswordResetRoute) {
+            if (!isPasswordResetRoute) {
+                delay(1_500.milliseconds)
+                launchSplashVisible = false
+            }
         }
 
         LaunchedEffect(Unit) {

@@ -37,7 +37,7 @@ dependencies {
 }
 
 android {
-    namespace = "com.smart_finance_app"
+    namespace = "com.arcasmartfinance"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     buildFeatures {
@@ -46,7 +46,7 @@ android {
 
 
     defaultConfig {
-        applicationId = "com.smart_finance_app"
+        applicationId = "com.arcasmartfinance"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

@@ -217,7 +217,7 @@ internal fun fetchBalances(accessToken: String, accountId: String): List<Balance
 
 internal fun fetchTransactions(accessToken: String, accountId: String): List<TransactionResponse> {
     // Fetch last 3 months of transactions
-    val from = LocalDate.now().minusMonths(3).toString()
+    val from = LocalDate.now().minusMonths(6).toString()
     val to   = LocalDate.now().toString()
 
     val request = Request.Builder()

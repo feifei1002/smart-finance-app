@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.arcasmartfinance.R
 import com.smart_finance_app.auth.AndroidTokenStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -18,6 +19,13 @@ class MainActivity : ComponentActivity() {
 
         val tokenStorage = AndroidTokenStorage(this)
 
+        val resetToken = intent?.data
+            ?.takeIf { it.host == "arcasmartfinance.com" && it.path == "/reset-password" }
+            ?.getQueryParameter("token")
+
+        val isPasswordResetRoute = !resetToken.isNullOrBlank()
+
+
         val httpClient = HttpClient {
             expectSuccess = false
 
@@ -30,7 +38,9 @@ class MainActivity : ComponentActivity() {
             App(
                 apiBaseUrl = apiBaseUrl,
                 tokenStorage = tokenStorage,
-                httpClient = httpClient
+                httpClient = httpClient,
+                isPasswordResetRoute = isPasswordResetRoute,
+                passwordResetToken = resetToken
             )
         }
     }
