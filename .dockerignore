@@ -18,8 +18,4 @@ local.properties
 **/*.env
 
 # Not needed to build the server
-androidApp
-iosApp
-desktopApp
-shared
 ml-service
