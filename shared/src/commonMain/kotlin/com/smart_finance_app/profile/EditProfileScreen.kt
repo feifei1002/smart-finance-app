@@ -283,41 +283,79 @@ fun EditProfileScreen(
                         onBack = onBack,
                         compact = compact
                     )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = fullName,
+                            onValueChange = {
+                                fullName = it
+                                errorMessage = null
+                                successMessage = null
+                            },
+                            label = { Text(appStringResource(StringKey.EDIT_PROFILE_FULL_NAME)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                    OutlinedTextField(
-                        value = fullName,
-                        onValueChange = {
-                            fullName = it
-                            errorMessage = null
-                            successMessage = null
-                        },
-                        label = { Text(appStringResource(StringKey.EDIT_PROFILE_FULL_NAME)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = {
+                                email = it
+                                errorMessage = null
+                                successMessage = null
+                            },
+                            label = { Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL)) },
+                            singleLine = true,
+                            isError = email.isNotBlank() && !emailIsValid,
+                            supportingText = {
+                                if (email.isNotBlank() && !emailIsValid) {
+                                    Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL_INVALID))
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = {
-                            email = it
-                            errorMessage = null
-                            successMessage = null
-                        },
-                        label = { Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL)) },
-                        singleLine = true,
-                        isError = email.isNotBlank() && !emailIsValid,
-                        supportingText = {
-                            if (email.isNotBlank() && !emailIsValid) {
-                                Text(appStringResource(StringKey.EDIT_PROFILE_EMAIL_INVALID))
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        errorMessage?.let { AppErrorMessage(it) }
 
-                    Button(
+                        successMessage?.let { AppSuccessMessage(it) }
+
+                        Button(
+                            enabled = canSave,
+                            onClick = {
+                                if (emailChanged) showEmailPasswordDialog = true
+                                else saveProfile(currentPassword = null)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isSaving) appStringResource(StringKey.EDIT_PROFILE_SAVING)
+                                else appStringResource(StringKey.EDIT_PROFILE_SAVE),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onBack,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = appStringResource(StringKey.EDIT_PROFILE_CANCEL),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
                         onClick = onUpdatePassword,
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
                     ) {
                         Icon(
                             painter = painterResource(Res.drawable.lock),
@@ -327,37 +365,6 @@ fun EditProfileScreen(
                         Spacer(Modifier.width(10.dp))
                         Text(
                             text = appStringResource(StringKey.EDIT_PROFILE_UPDATE_PASSWORD),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    errorMessage?.let { AppErrorMessage(it) }
-
-                    successMessage?.let { AppSuccessMessage(it) }
-
-                    Button(
-                        enabled = canSave,
-                        onClick = {
-                            if (emailChanged) showEmailPasswordDialog = true
-                            else saveProfile(currentPassword = null)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = if (isSaving) appStringResource(StringKey.EDIT_PROFILE_SAVING)
-                            else appStringResource(StringKey.EDIT_PROFILE_SAVE),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    OutlinedButton(
-                        onClick = onBack,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = appStringResource(StringKey.EDIT_PROFILE_CANCEL),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -382,18 +389,20 @@ fun EditProfileScreen(
                         showDeleteAccountDialog = true
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
                 ) {
                     Icon(
                         painter = painterResource(Res.drawable.delete),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
                         text = appStringResource(StringKey.SETTINGS_DELETE_ACCOUNT),
-                        color = MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

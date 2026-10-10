@@ -5,6 +5,7 @@ import com.smart_finance_app.server.Encryption
 import com.smart_finance_app.server.banking.models.AccountResponse
 import com.smart_finance_app.server.banking.models.StoredAccount
 import com.smart_finance_app.server.banking.truelayer.TrueLayerAccount
+import org.slf4j.LoggerFactory
 import java.sql.Connection
 import java.sql.Timestamp
 import java.time.Instant
@@ -12,6 +13,7 @@ import java.util.UUID
 import kotlin.text.takeLast
 import kotlin.use
 
+private val connectedAccountsLogger = LoggerFactory.getLogger("ConnectedAccountsRepository")
 internal fun getConnectedAccountsForUser(userId: UUID): List<AccountResponse> =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
@@ -63,16 +65,31 @@ internal fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
             statement.executeQuery().use { result ->
                 val accounts = mutableListOf<StoredAccount>()
                 while (result.next()) {
-                    accounts.add(
+                    val dbId = result.getObject("id", UUID::class.java)
+                    val accountName = result.getString("bank_name")
+                    val accountId = result.getString("account_id")
+
+                    runCatching {
                         StoredAccount(
-                            dbId = result.getObject("id", UUID::class.java),
-                            accountName = result.getString("bank_name"),
-                            accountId = result.getString("account_id"),
+                            dbId = dbId,
+                            accountName = accountName,
+                            accountId = accountId,
                             accessToken = Encryption.decrypt(result.getString("access_token")),
                             refreshToken = Encryption.decrypt(result.getString("refresh_token")),
                             tokenExpiry = result.getTimestamp("token_expiry").toInstant()
                         )
-                    )
+                    }.onSuccess { account ->
+                        accounts.add(account)
+                    }.onFailure { exception ->
+                        connectedAccountsLogger.warn(
+                            "Skipping connected account with unreadable tokens: userId={}, accountDbId={}, accountId={}",
+                            userId,
+                            dbId,
+                            accountId,
+                            exception
+                        )
+                        markConnectedAccountTokenInvalid(dbId)
+                    }
                 }
                 accounts
             }
@@ -148,6 +165,37 @@ internal fun saveConnectedAccounts(
             statement.setString(7, providerId)
             statement.setString(8, account.accountNumber?.number)
             statement.executeUpdate()
+        }
+    }
+}
+
+private fun markConnectedAccountTokenInvalid(accountDbId: UUID) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                UPDATE connected_accounts
+                SET connection_status = 'disconnected',
+                    access_token = NULL,
+                    refresh_token = NULL,
+                    token_expiry = NULL,
+                    updated_at = NOW()
+                WHERE id = ?
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, accountDbId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+
+            connectedAccountsLogger.warn(
+                "Could not mark connected account token invalid: accountDbId={}",
+                accountDbId,
+                exception
+            )
         }
     }
 }

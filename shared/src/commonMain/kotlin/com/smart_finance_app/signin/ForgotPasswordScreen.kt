@@ -53,7 +53,7 @@ fun ForgotPasswordScreen(
         onSubmit(emailTrimmed)
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().imePadding()) {
         val compact = maxWidth < 700.dp
 
         Box(

@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
@@ -76,7 +77,8 @@ fun AppPageHeader(
     title: String,
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
-    compact: Boolean = false
+    compact: Boolean = false,
+    centerAligned: Boolean = false
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (onBack != null) {
@@ -90,18 +92,22 @@ fun AppPageHeader(
         }
         Text(
             text = title,
+            modifier = Modifier.fillMaxWidth(),
             style = if (compact) {
                 MaterialTheme.typography.headlineSmall
             } else {
                 MaterialTheme.typography.headlineMedium
             },
+            textAlign = if (centerAligned) TextAlign.Center else TextAlign.Start,
             fontWeight = FontWeight.Bold
         )
         subtitle?.let {
             Text(
                 text = it,
+                modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = if (centerAligned) TextAlign.Center else TextAlign.Start
             )
         }
     }

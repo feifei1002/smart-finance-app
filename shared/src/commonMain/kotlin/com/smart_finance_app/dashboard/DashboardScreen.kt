@@ -61,6 +61,7 @@ fun DashboardScreen(
     userName: String,
     apiBaseUrl: String,
     transactions: List<TransactionData>,
+    transactionsLoaded: Boolean,
     onConnectAccountClicked: () -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
     api: DashboardApi,
@@ -125,9 +126,22 @@ fun DashboardScreen(
         )
         isLoading = false
     }
+    
+    // Wait until MainNavigation has loaded dashboard transactions before loading dashboard data.
+    LaunchedEffect(
+        authToken,
+        transactions,
+        transactionsLoaded,
+        CurrencyController.currentCurrency
+    ) {
+        if (!transactionsLoaded) {
+            isLoading = true
+            errorMsg = null
+            return@LaunchedEffect
+        }
 
-// Also recompute when currency changes
-    LaunchedEffect(authToken, transactions, CurrencyController.currentCurrency) { load() }
+        load()
+    }
 
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {

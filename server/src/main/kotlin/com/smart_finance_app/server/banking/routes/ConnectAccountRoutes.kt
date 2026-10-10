@@ -66,17 +66,52 @@ internal fun Route.connectedAccountRoutes() {
         val userId = principal?.payload?.getClaim("userId")?.asString()
             ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-        val storedAccounts = getStoredAccountsWithTokens(UUID.fromString(userId))
+        val storedAccounts = runCatching {
+            getStoredAccountsWithTokens(UUID.fromString(userId))
+        }.getOrElse { exception ->
+            call.application.environment.log.error("Could not load connected account tokens", exception)
+
+            call.respond(
+                HttpStatusCode.BadGateway,
+                ErrorResponse("Could not load connected accounts")
+            )
+            return@get
+        }
         if (storedAccounts.isEmpty()) {
             call.respond(emptyList<BalanceResponse>())
             return@get
         }
 
         val balances = mutableListOf<BalanceResponse>()
+        val failedAccounts = mutableListOf<String>()
         storedAccounts.forEach { stored ->
-            val token = ensureFreshToken(stored)
-            val tlBalances = fetchBalances(token, stored.accountId)
-            balances.addAll(tlBalances)
+            runCatching {
+                val token = ensureFreshToken(stored)
+                val tlBalances = fetchBalances(token, stored.accountId)
+                balances.addAll(tlBalances)
+            }.onFailure { exception ->
+                failedAccounts.add("${stored.accountName}: ${exception.message ?: "Unknown error"}")
+            }
+        }
+
+        if (balances.isEmpty() && failedAccounts.isNotEmpty()) {
+            call.application.environment.log.warn(
+                "TrueLayer balance fetch failed for all accounts: {}",
+                failedAccounts.joinToString("; ")
+            )
+
+            call.respond(
+                HttpStatusCode.BadGateway,
+                ErrorResponse("Could not fetch balances from TrueLayer")
+            )
+            return@get
+        }
+
+        if (failedAccounts.isNotEmpty()) {
+            call.application.environment.log.warn(
+                "TrueLayer balance fetch partially failed: {}",
+                failedAccounts.joinToString("; ")
+            )
         }
 
         call.respond(balances)

@@ -1,8 +1,11 @@
 package com.smart_finance_app
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,10 +44,17 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 import com.smart_finance_app.settings.UserPreferencesApi
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.preferences.PreferencesScreen
 import com.smart_finance_app.theme.ThemeController
+import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.painterResource
+import smart_finance_app.shared.generated.resources.Res
+import smart_finance_app.shared.generated.resources.horizontal_app_logo_blue
+import kotlin.time.Duration.Companion.milliseconds
 
 val LocalAppLanguage = compositionLocalOf { "en" }
 
@@ -107,6 +117,7 @@ fun App(
             )
         }
 
+        var launchSplashVisible by remember { mutableStateOf(true) }
         var session by remember { mutableStateOf<AuthSession?>(null) }
         var checkingSavedSession by remember { mutableStateOf(true) }
         var registrationLoading by remember { mutableStateOf(false) }
@@ -202,6 +213,10 @@ fun App(
 
             onDispose {}
         }
+        LaunchedEffect(Unit) {
+            delay(1_500.milliseconds)
+            launchSplashVisible = false
+        }
 
         LaunchedEffect(Unit) {
             if (isPasswordResetRoute) {
@@ -239,17 +254,10 @@ fun App(
             }
         }
 
-        if (checkingSavedSession) {
-            SmartFinanceTheme {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+            if (launchSplashVisible || checkingSavedSession) {
+                LaunchSplashScreen()
+                return@SmartFinanceTheme
             }
-            return@SmartFinanceTheme
-        }
 
         when (screen) {
             Screen.Registration -> {
@@ -495,6 +503,25 @@ fun App(
         }
     }
 }}
+
+@Composable
+private fun LaunchSplashScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.horizontal_app_logo_blue),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxWidth(0.72f)
+                .heightIn(max = 120.dp),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
 
 @Preview
 @Composable

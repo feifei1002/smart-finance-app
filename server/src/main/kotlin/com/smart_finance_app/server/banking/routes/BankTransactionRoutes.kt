@@ -62,18 +62,58 @@ internal fun Route.bankTransactionRoutes() {
         val userId = principal?.payload?.getClaim("userId")?.asString()
             ?: return@get call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
-        val storedAccounts = getStoredAccountsWithTokens(UUID.fromString(userId))
+        val storedAccounts = runCatching {
+            getStoredAccountsWithTokens(UUID.fromString(userId))
+        }.getOrElse { exception ->
+            call.application.environment.log.error("Could not load connected account tokens", exception)
+
+            call.respond(
+                HttpStatusCode.BadGateway,
+                ErrorResponse("Could not load connected accounts")
+            )
+            return@get
+        }
+        
         if (storedAccounts.isEmpty()) {
             call.respond(emptyList<TransactionResponse>())
             return@get
         }
 
         val transactions = mutableListOf<TransactionResponse>()
+        val failedAccounts = mutableListOf<String>()
+        var succeededAccounts = 0
+
         storedAccounts.forEach { stored ->
-            val token = ensureFreshToken(stored)
-            val tlTransactions = fetchTransactions(token, stored.accountId)
-                .map { it.copy(accountId = stored.accountId) }   // tag with owning account
-            transactions.addAll(tlTransactions)
+            runCatching {
+                val token = ensureFreshToken(stored)
+                val tlTransactions = fetchTransactions(token, stored.accountId)
+                    .map { it.copy(accountId = stored.accountId) }
+
+                succeededAccounts++
+                transactions.addAll(tlTransactions)
+            }.onFailure { exception ->
+                failedAccounts.add("${stored.accountName}: ${exception.message ?: "Unknown error"}")
+            }
+        }
+
+        if (succeededAccounts == 0 && failedAccounts.isNotEmpty()) {
+            call.application.environment.log.warn(
+                "Raw TrueLayer transaction fetch failed for all accounts: {}",
+                failedAccounts.joinToString("; ")
+            )
+
+            call.respond(
+                HttpStatusCode.BadGateway,
+                ErrorResponse("Could not fetch transactions from TrueLayer")
+            )
+            return@get
+        }
+
+        if (failedAccounts.isNotEmpty()) {
+            call.application.environment.log.warn(
+                "Raw TrueLayer transaction fetch partially failed: {}",
+                failedAccounts.joinToString("; ")
+            )
         }
 
         // Sort all transactions newest first across all accounts

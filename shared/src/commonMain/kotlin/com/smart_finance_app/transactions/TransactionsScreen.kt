@@ -253,10 +253,15 @@ private fun MobileTransactionsList(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AppPageHeader(
-                title = appStringResource(StringKey.TRANSACTIONS_TITLE),
-                compact = true
-            )
+            Box(
+                modifier = Modifier.weight(1f)
+            ) {
+                AppPageHeader(
+                    title = appStringResource(StringKey.TRANSACTIONS_TITLE),
+                    compact = true
+                )
+            }
+
             IconButton(onClick = { showSearch = !showSearch }) {
                 Icon(
                     painter = painterResource(Res.drawable.search),
