@@ -218,45 +218,63 @@ private fun hashToken(token: String): String {
     return Base64.getEncoder().encodeToString(hashedBytes)
 }
 
+//private fun sendPasswordResetEmail(to: String, resetLink: String) {
+//    val properties = Properties().apply {
+//        put("mail.smtp.auth", "true")
+//        put("mail.smtp.starttls.enable", "true")
+//        put("mail.smtp.host", PasswordResetConfig.smtpHost)
+//        put("mail.smtp.port", PasswordResetConfig.smtpPort)
+//    }
+//
+//    val session = Session.getInstance(
+//        properties,
+//        object : jakarta.mail.Authenticator() {
+//            override fun getPasswordAuthentication() =
+//                jakarta.mail.PasswordAuthentication(
+//                    PasswordResetConfig.smtpUsername,
+//                    PasswordResetConfig.smtpPassword
+//                )
+//        }
+//    )
+//
+//    val message = MimeMessage(session).apply {
+//        setFrom(InternetAddress(PasswordResetConfig.smtpFrom))
+//        setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+//        subject = "Reset your Smart Finance password"
+//        setText(
+//            """
+//            You requested a password reset.
+//
+//            Open this link to create a new password:
+//            $resetLink
+//
+//            This link expires in 15 minutes.
+//
+//            If you did not request this, you can ignore this email.
+//            """.trimIndent()
+//        )
+//    }
+//
+//    Transport.send(message)
+//}
+
 private fun sendPasswordResetEmail(to: String, resetLink: String) {
-    val properties = Properties().apply {
-        put("mail.smtp.auth", "true")
-        put("mail.smtp.starttls.enable", "true")
-        put("mail.smtp.host", PasswordResetConfig.smtpHost)
-        put("mail.smtp.port", PasswordResetConfig.smtpPort)
-    }
+    GmailApiMailer.send(
+        to = to,
+        subject = "Reset your Smart Finance password",
+        body = """
+            We received a request to reset your Smart Finance password.
 
-    val session = Session.getInstance(
-        properties,
-        object : jakarta.mail.Authenticator() {
-            override fun getPasswordAuthentication() =
-                jakarta.mail.PasswordAuthentication(
-                    PasswordResetConfig.smtpUsername,
-                    PasswordResetConfig.smtpPassword
-                )
-        }
-    )
-
-    val message = MimeMessage(session).apply {
-        setFrom(InternetAddress(PasswordResetConfig.smtpFrom))
-        setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-        subject = "Reset your Smart Finance password"
-        setText(
-            """
-            You requested a password reset.
-
-            Open this link to create a new password:
+            Reset your password using this link:
             $resetLink
 
             This link expires in 15 minutes.
 
             If you did not request this, you can ignore this email.
-            """.trimIndent()
-        )
-    }
-
-    Transport.send(message)
+        """.trimIndent()
+    )
 }
+
 
 private fun isPasswordResetTokenValid(token: String): Boolean {
     val tokenHash = hashToken(token)
