@@ -131,17 +131,6 @@ internal fun Route.bankTransactionRoutes() {
         val result = runCatching {
             syncTransactionsForUser(userId)
         }.getOrElse { exception ->
-//            val lastSync = getLastSuccessfulTransactionSync(userId)
-//            call.application.environment.log.error("Transaction sync failed", exception)
-//
-//            call.respond(
-//                HttpStatusCode.BadGateway,
-//                ErrorResponse(
-//                    "Transaction sync failed. Last successful sync: ${lastSync ?: "Never"}"
-//                )
-//            )
-//            return@post
-
             val lastSync = getLastSuccessfulTransactionSync(userId)
 
             val message = if (exception.message == "BANK_REAUTH_REQUIRED") {

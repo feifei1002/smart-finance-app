@@ -233,6 +233,14 @@ private fun NavigationContent(
         }
     }
 
+    LaunchedEffect(navigation) {
+        if (navigation != AppNavigation.Transactions) {
+            transactionsSyncError = null
+            transactionsSyncMessage = null
+            transactionsError = null
+        }
+    }
+
     LaunchedEffect(authToken) {
         if (authToken.isNotBlank()) {
             loadDashboardTransactions()
@@ -387,17 +395,6 @@ private fun NavigationContent(
         transactionsSyncError = null
 
         try {
-//            when (val syncResult = transactionsApi.syncTransactions(authToken)) {
-//                is TransactionSyncResult.Success -> {
-//                    transactionsSyncError = null
-//                }
-//                is TransactionSyncResult.Failure -> {
-//                    transactionsSyncError  = AppStrings.get(
-//                        LocaleController.currentLanguageCode,
-//                        syncResult.message
-//                    )
-//                }
-//            }
 
             when (val syncResult = transactionsApi.syncTransactions(authToken)) {
                 is TransactionSyncResult.Success -> {
@@ -405,9 +402,15 @@ private fun NavigationContent(
 
                     transactionsSyncMessage =
                         if (syncResult.result.importedCount > 0) {
-                            "Transactions updated."
+                            AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                StringKey.TRANSACTIONS_SYNC_UPDATED
+                            )
                         } else {
-                            "No new transactions available yet."
+                            AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                StringKey.TRANSACTIONS_SYNC_NO_NEW
+                            )
                         }
                 }
 

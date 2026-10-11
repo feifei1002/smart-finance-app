@@ -359,6 +359,10 @@ private fun MobileTransactionsList(
             TransactionsSyncMessage(it)
         }
 
+        errorMessage?.let {
+            AppErrorMessage(it)
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -367,9 +371,6 @@ private fun MobileTransactionsList(
             when {
                 isSyncing && transactions.isEmpty() -> item { LoadingTransactionsState(loadingLabel) }
                 isLoading && transactions.isEmpty()  -> item { LoadingTransactionsState(loadingLabel) }
-                errorMessage != null && searchTransactions.isEmpty() -> item {
-                    TransactionsInlineMessage(message = errorMessage, isError = true)
-                }
                 searchTransactions.isEmpty() -> item {
                     TransactionsInlineMessage(message = emptyLabel)
                 }
@@ -550,10 +551,6 @@ private fun DesktopTransactionsTable(
             )
         }
 
-        syncMessage?.let {
-            TransactionsSyncMessage(it)
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -576,6 +573,10 @@ private fun DesktopTransactionsTable(
                 colors = themedFilterChipColors(),
                 label = { Text(filterExpensesLabel) }
             )
+        }
+
+        syncMessage?.let {
+            TransactionsSyncMessage(it)
         }
 
         errorMessage?.let { AppErrorMessage(it) }

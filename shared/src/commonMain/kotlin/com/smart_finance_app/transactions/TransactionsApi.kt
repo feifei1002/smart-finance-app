@@ -78,8 +78,6 @@ class TransactionsApi(baseUrl: String, private val client: HttpClient) {
             when (response.status) {
                 HttpStatusCode.OK -> TransactionSyncResult.Success(response.body<TransactionSyncResponse>())
                 HttpStatusCode.Unauthorized -> TransactionSyncResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
-//                else -> TransactionSyncResult.Failure(StringKey.TRANSACTIONS_ERROR_SYNC_FAILED)
-
                 else -> {
                     val error = runCatching {
                         response.body<ErrorResponse>()

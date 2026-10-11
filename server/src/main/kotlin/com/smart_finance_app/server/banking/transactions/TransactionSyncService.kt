@@ -30,7 +30,6 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
         storedAccounts.forEach { account ->
             runCatching {
                 val token = ensureFreshToken(account)
-//                val transactions = fetchTransactions(token, account.accountId)
 
                 val settledTransactions = fetchTransactions(token, account.accountId)
 
