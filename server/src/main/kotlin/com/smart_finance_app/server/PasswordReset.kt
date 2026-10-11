@@ -198,7 +198,7 @@ private fun sendPasswordResetEmail(to: String, resetLink: String) {
         to = to,
         subject = "Reset your Smart Finance password",
         body = """
-            We received a request to reset your Smart Finance password.
+            We received a request to reset your ARCA's account password.
 
             Reset your password using this link:
             $resetLink
