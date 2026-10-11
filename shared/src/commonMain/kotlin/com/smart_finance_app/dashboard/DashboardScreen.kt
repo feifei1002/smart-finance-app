@@ -135,11 +135,16 @@ fun DashboardScreen(
         authToken,
         transactions,
         transactionsLoaded,
-        transactionsLoaded,
         transactionsLoadError,
         refreshRequest,
         CurrencyController.currentCurrency
     ) {
+        if (transactionsLoadError != null) {
+            errorMsg = transactionsLoadError
+            isLoading = false
+            return@LaunchedEffect
+        }
+
         if (!transactionsLoaded) {
             isLoading = true
             errorMsg = null

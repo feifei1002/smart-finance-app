@@ -191,6 +191,7 @@ private fun NavigationContent(
 
     suspend fun loadDashboardTransactions() {
         dashboardTransactionsLoaded = false
+        dashboardTransactionsError = null
         try {
             val pageSize = 500
             val allTransactions = mutableListOf<TransactionUI>()

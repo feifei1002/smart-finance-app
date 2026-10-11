@@ -143,6 +143,19 @@ suspend fun saveImportedTransaction(
                             WHEN transactions.category_source = 'manual' THEN transactions.category
                             ELSE EXCLUDED.category
                         END
+                    WHERE transactions.transaction_status IS DISTINCT FROM EXCLUDED.transaction_status
+                       OR transactions.merchant_name IS DISTINCT FROM EXCLUDED.merchant_name
+                       OR transactions.description IS DISTINCT FROM EXCLUDED.description
+                       OR transactions.account_name IS DISTINCT FROM EXCLUDED.account_name
+                       OR transactions.amount IS DISTINCT FROM EXCLUDED.amount
+                       OR transactions.currency IS DISTINCT FROM EXCLUDED.currency
+                       OR transactions.transaction_type IS DISTINCT FROM EXCLUDED.transaction_type
+                       OR transactions.transaction_timestamp IS DISTINCT FROM EXCLUDED.transaction_timestamp
+                       OR transactions.merchant_logo_url IS DISTINCT FROM EXCLUDED.merchant_logo_url
+                       OR (
+                           transactions.category_source <> 'manual'
+                           AND transactions.category IS DISTINCT FROM EXCLUDED.category
+                       )
                 """.trimIndent()
             ).use { statement ->
                 statement.setObject(1, userId)

@@ -523,6 +523,21 @@ private fun DesktopTransactionsTable(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it; onPageSelected(0) },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                leadingIcon = {
+                    Icon(
+                        painter = painterResource(Res.drawable.search),
+                        contentDescription = null
+                    )
+                },
+                placeholder = { Text(searchPlaceholder) }
+            )
+
             IconButton(
                 enabled = !isSyncing,
                 onClick = onSyncTransactions
@@ -540,20 +555,6 @@ private fun DesktopTransactionsTable(
                     )
                 }
             }
-
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it; onPageSelected(0) },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                leadingIcon = {
-                    Icon(
-                        painter = painterResource(Res.drawable.search),
-                        contentDescription = null
-                    )
-                },
-                placeholder = { Text(searchPlaceholder) }
-            )
         }
 
         Row(
@@ -708,6 +709,7 @@ private fun TransactionTableRow(
             modifier = Modifier.weight(0.8f),
             contentAlignment = Alignment.Center
         ) {
+
             IconButton(
                 onClick = { onEditCategory(transaction) },
                 modifier = Modifier.size(32.dp)
