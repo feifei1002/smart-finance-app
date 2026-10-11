@@ -74,7 +74,8 @@ data class TransactionUI(
     val amount: Double,
     val currency: String,
     val merchantLogoUrl: String? = null,
-    val accountId: String? = null
+    val accountId: String? = null,
+    val transactionStatus: String = "settled"
 )
 
 @Composable
@@ -425,6 +426,10 @@ private fun MobileTransactionRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (transaction.transactionStatus == "pending") {
+                PendingChip()
+            }
         }
         Text(
             text = formatAmount(transaction.amount, transaction.currency),
@@ -935,6 +940,21 @@ private fun EditTransactionCategoryDialog(
             }
         }
     )
+}
+
+@Composable
+private fun PendingChip() {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(30)
+    ) {
+        Text(
+            text = appStringResource(StringKey.TRANSACTIONS_PENDING),
+            modifier = Modifier.padding(horizontal = 8.dp),
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
 }
 
 private fun selectableCategories(transaction: TransactionUI): List<String> {

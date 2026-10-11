@@ -62,6 +62,8 @@ fun DashboardScreen(
     apiBaseUrl: String,
     transactions: List<TransactionData>,
     transactionsLoaded: Boolean,
+    transactionsLoadError: String? = null,
+    onRetryTransactions: () -> Unit = {},
     refreshRequest: Int,
     onConnectAccountClicked: () -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
@@ -133,6 +135,8 @@ fun DashboardScreen(
         authToken,
         transactions,
         transactionsLoaded,
+        transactionsLoaded,
+        transactionsLoadError,
         refreshRequest,
         CurrencyController.currentCurrency
     ) {
@@ -172,7 +176,15 @@ fun DashboardScreen(
                         errorMsg?.let {
                             AppErrorMessage(it)
                         }
-                        Button(onClick = { scope.launch { load() } }) {
+                        Button(
+                            onClick = {
+                                if (transactionsLoadError != null) {
+                                    onRetryTransactions()
+                                } else {
+                                    scope.launch { load() }
+                                }
+                            }
+                        ) {
                             Text(
                                 text = appStringResource(StringKey.DASHBOARD_RETRY),
                                 maxLines = 1,

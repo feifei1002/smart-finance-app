@@ -172,6 +172,7 @@ private fun NavigationContent(
     var transactionsLoading by remember { mutableStateOf(false) }
     var transactionsError by remember { mutableStateOf<String?>(null) }
     var dashboardTransactionsLoaded by remember { mutableStateOf(false) }
+    var dashboardTransactionsError by remember { mutableStateOf<String?>(null) }
     var transactionsPage by remember { mutableStateOf(0) }
     var transactionsHasMore by remember { mutableStateOf(false) }
     var transactionsTotalCount by remember { mutableStateOf(0) }
@@ -215,7 +216,8 @@ private fun NavigationContent(
                                 amount = transaction.amount,
                                 currency = transaction.currency,
                                 merchantLogoUrl = transaction.merchantLogoUrl,
-                                accountId = transaction.accountId
+                                accountId = transaction.accountId,
+                                transactionStatus = transaction.transactionStatus
                             )
                         }
 
@@ -223,7 +225,14 @@ private fun NavigationContent(
                         page++
                     }
 
-                    is TransactionsResult.Failure -> break
+                    is TransactionsResult.Failure -> {
+                        dashboardTransactionsError = AppStrings.get(
+                            LocaleController.currentLanguageCode,
+                            result.message
+                        )
+                        dashboardRecentTransactions = emptyList()
+                        return
+                    }
                 }
             }
 
@@ -316,7 +325,8 @@ private fun NavigationContent(
                             amount = transaction.amount,
                             currency = transaction.currency,
                             merchantLogoUrl = transaction.merchantLogoUrl,
-                            accountId = transaction.accountId
+                            accountId = transaction.accountId,
+                            transactionStatus = transaction.transactionStatus
                         )
                     }
 
@@ -448,6 +458,8 @@ private fun NavigationContent(
             apiBaseUrl                   = apiBaseUrl,
             transactions                 = mappedTransactions,
             transactionsLoaded           = dashboardTransactionsLoaded,
+            transactionsLoadError        = dashboardTransactionsError,
+            onRetryTransactions          = { scope.launch { loadDashboardTransactions() } },
             refreshRequest               = bankConnectionRefreshRequest,
             onConnectAccountClicked      = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,

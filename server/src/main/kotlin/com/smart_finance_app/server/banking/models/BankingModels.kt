@@ -72,7 +72,8 @@ data class ImportedTransactionResponse(
     val accountId: String? = null,
     val amount: Double,
     val currency: String,
-    val merchantLogoUrl: String? = null
+    val merchantLogoUrl: String? = null,
+    val transactionStatus: String = "settled"
 )
 
 @Serializable

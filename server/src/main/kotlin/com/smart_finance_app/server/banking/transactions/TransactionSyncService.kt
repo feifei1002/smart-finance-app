@@ -129,7 +129,20 @@ suspend fun saveImportedTransaction(
                           AND connection_status = 'connected'
                     )
                     ON CONFLICT (user_id, provider_account_id, provider_transaction_id)
-                    DO NOTHING
+                    DO UPDATE SET
+                        merchant_name = EXCLUDED.merchant_name,
+                        description = EXCLUDED.description,
+                        account_name = EXCLUDED.account_name,
+                        amount = EXCLUDED.amount,
+                        currency = EXCLUDED.currency,
+                        transaction_type = EXCLUDED.transaction_type,
+                        transaction_timestamp = EXCLUDED.transaction_timestamp,
+                        merchant_logo_url = EXCLUDED.merchant_logo_url,
+                        transaction_status = EXCLUDED.transaction_status,
+                        category = CASE
+                            WHEN transactions.category_source = 'manual' THEN transactions.category
+                            ELSE EXCLUDED.category
+                        END
                 """.trimIndent()
             ).use { statement ->
                 statement.setObject(1, userId)
@@ -192,7 +205,8 @@ internal fun getImportedTransactionsForUser(
                     SELECT id, transaction_timestamp, merchant_name, 
                         COALESCE(NULLIF(category, ''), 'Others') AS category, 
                         account_name, provider_account_id AS account_id,
-                        amount, currency, merchant_logo_url
+                        amount, currency, merchant_logo_url,
+                        COALESCE(transaction_status, 'settled') AS transaction_status
                     FROM transactions WHERE user_id = ?
                     $typeCondition
                     ORDER BY transaction_timestamp DESC, id DESC LIMIT ? OFFSET ?
@@ -217,7 +231,8 @@ internal fun getImportedTransactionsForUser(
                             accountName = result.getString("account_name"),
                             amount = result.getDouble("amount"),
                             currency = result.getString("currency"),
-                            merchantLogoUrl = result.getString("merchant_logo_url")
+                            merchantLogoUrl = result.getString("merchant_logo_url"),
+                            transactionStatus = result.getString("transaction_status")
                         )
                     )
                 }

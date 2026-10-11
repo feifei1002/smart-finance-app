@@ -194,11 +194,19 @@ fun computeDashboardState(
     val currentYear  = now.year
 
     fun TransactionData.isIncomeTx(): Boolean {
-        return type.equals("CREDIT", ignoreCase = true) || amount > 0
+        return when (type.uppercase()) {
+            "CREDIT" -> true
+            "DEBIT" -> false
+            else -> amount > 0
+        }
     }
 
     fun TransactionData.isExpenseTx(): Boolean {
-        return type.equals("DEBIT", ignoreCase = true) || amount < 0
+        return when (type.uppercase()) {
+            "DEBIT" -> true
+            "CREDIT" -> false
+            else -> amount < 0
+        }
     }
 
     // ── Balance — skip unconvertible accounts rather than misrepresenting them ─
