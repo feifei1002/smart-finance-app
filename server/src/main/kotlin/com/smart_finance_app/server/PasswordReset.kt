@@ -6,17 +6,11 @@ import io.ktor.server.request.receive
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
 import io.ktor.server.response.respond
-import jakarta.mail.Message
-import jakarta.mail.Session
-import jakarta.mail.Transport
-import jakarta.mail.internet.InternetAddress
-import jakarta.mail.internet.MimeMessage
 import kotlinx.serialization.Serializable
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.sql.Timestamp
 import java.time.Instant
-import java.util.Properties
 import java.util.UUID
 import java.util.Base64
 
@@ -138,25 +132,6 @@ private object PasswordResetConfig {
     val resetBaseUrl: String
         get() = System.getenv("PASSWORD_RESET_BASE_URL")
             ?: error("Missing environment variable: PASSWORD_RESET_BASE_URL")
-
-    val smtpHost: String
-        get() = System.getenv("SMTP_HOST")
-            ?: error("Missing environment variable: SMTP_HOST")
-
-    val smtpPort: String
-        get() = System.getenv("SMTP_PORT") ?: "587"
-
-    val smtpUsername: String
-        get() = System.getenv("SMTP_USERNAME")
-            ?: error("Missing environment variable: SMTP_USERNAME")
-
-    val smtpPassword: String
-        get() = System.getenv("SMTP_PASSWORD")
-            ?: error("Missing environment variable: SMTP_PASSWORD")
-
-    val smtpFrom: String
-        get() = System.getenv("SMTP_FROM")
-            ?: smtpUsername
 }
 
 private fun findUserByEmail(email: String): PasswordResetUser? =
@@ -217,46 +192,6 @@ private fun hashToken(token: String): String {
     val hashedBytes = digest.digest(token.encodeToByteArray())
     return Base64.getEncoder().encodeToString(hashedBytes)
 }
-
-//private fun sendPasswordResetEmail(to: String, resetLink: String) {
-//    val properties = Properties().apply {
-//        put("mail.smtp.auth", "true")
-//        put("mail.smtp.starttls.enable", "true")
-//        put("mail.smtp.host", PasswordResetConfig.smtpHost)
-//        put("mail.smtp.port", PasswordResetConfig.smtpPort)
-//    }
-//
-//    val session = Session.getInstance(
-//        properties,
-//        object : jakarta.mail.Authenticator() {
-//            override fun getPasswordAuthentication() =
-//                jakarta.mail.PasswordAuthentication(
-//                    PasswordResetConfig.smtpUsername,
-//                    PasswordResetConfig.smtpPassword
-//                )
-//        }
-//    )
-//
-//    val message = MimeMessage(session).apply {
-//        setFrom(InternetAddress(PasswordResetConfig.smtpFrom))
-//        setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-//        subject = "Reset your Smart Finance password"
-//        setText(
-//            """
-//            You requested a password reset.
-//
-//            Open this link to create a new password:
-//            $resetLink
-//
-//            This link expires in 15 minutes.
-//
-//            If you did not request this, you can ignore this email.
-//            """.trimIndent()
-//        )
-//    }
-//
-//    Transport.send(message)
-//}
 
 private fun sendPasswordResetEmail(to: String, resetLink: String) {
     GmailApiMailer.send(

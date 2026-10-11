@@ -58,7 +58,8 @@ data class TransactionResponse(
     val currency: String,
     val type: String,       // CREDIT or DEBIT
     val merchantName: String?,
-    val accountId: String? = null   // which connected account this transaction belongs to
+    val accountId: String? = null,   // which connected account this transaction belongs to
+    val status: String = "settled"
 )
 
 @Serializable

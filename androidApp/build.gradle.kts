@@ -14,10 +14,6 @@ val localProperties = Properties().apply {
     }
 }
 
-val apiBaseUrl =
-    localProperties.getProperty("API_BASE_URL")
-        ?: "http://10.0.2.2:8080"
-
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_11
@@ -37,25 +33,54 @@ dependencies {
 }
 
 android {
-    namespace = "com.smart_finance_app"
+    namespace = "com.arcasmartfinance"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     buildFeatures {
         resValues = true
     }
 
+    flavorDimensions += "environment"
+
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+
+            val devApiBaseUrl =
+                localProperties.getProperty("DEV_API_BASE_URL")
+                    ?: "http://10.0.2.2:8080"
+
+            resValue("string", "api_base_url", devApiBaseUrl)
+        }
+
+        create("staging") {
+            dimension = "environment"
+
+            resValue(
+                "string",
+                "api_base_url",
+                "https://staging-api.arcasmartfinance.com"
+            )
+        }
+
+        create("prod") {
+            dimension = "environment"
+
+            resValue(
+                "string",
+                "api_base_url",
+                "https://api.arcasmartfinance.com"
+            )
+        }
+    }
+
 
     defaultConfig {
-        applicationId = "com.smart_finance_app"
+        applicationId = "com.arcasmartfinance"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
-        resValue(
-            "string",
-            "api_base_url",
-            apiBaseUrl
-        )
     }
     packaging {
         resources {

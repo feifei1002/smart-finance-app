@@ -62,6 +62,7 @@ fun DashboardScreen(
     apiBaseUrl: String,
     transactions: List<TransactionData>,
     transactionsLoaded: Boolean,
+    refreshRequest: Int,
     onConnectAccountClicked: () -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
     api: DashboardApi,
@@ -132,6 +133,7 @@ fun DashboardScreen(
         authToken,
         transactions,
         transactionsLoaded,
+        refreshRequest,
         CurrencyController.currentCurrency
     ) {
         if (!transactionsLoaded) {
@@ -1126,7 +1128,6 @@ private fun DesktopDashboard(
     val keyCardOrder = remember(userId) { "${userId}_${KEY_CARD_ORDER}" }
     val keyDeletedCards = remember(userId) { "${userId}_${KEY_DELETED_CARDS}" }
     val keyChartCards = remember(userId) { "${userId}_${KEY_CHART_CARDS}" }
-    val keyMigrated = remember(userId) { "${userId}_${KEY_MIGRATED}" }
     val keyHalfPositions = remember(userId) { "${userId}_${KEY_HALF_POSITIONS}" }
 
     var deletedCards by remember(userId) {

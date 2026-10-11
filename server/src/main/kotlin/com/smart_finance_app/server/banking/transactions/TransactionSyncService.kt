@@ -10,6 +10,7 @@ import com.smart_finance_app.server.banking.models.TransactionResponse
 import com.smart_finance_app.server.banking.models.TransactionSyncResponse
 import com.smart_finance_app.server.banking.merchants.resolveMerchantLogoUrl
 import com.smart_finance_app.server.banking.truelayer.ensureFreshToken
+import com.smart_finance_app.server.banking.truelayer.fetchPendingTransactions
 import com.smart_finance_app.server.banking.truelayer.fetchTransactions
 import java.sql.Timestamp
 import java.time.Instant
@@ -29,7 +30,17 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
         storedAccounts.forEach { account ->
             runCatching {
                 val token = ensureFreshToken(account)
-                val transactions = fetchTransactions(token, account.accountId)
+//                val transactions = fetchTransactions(token, account.accountId)
+
+                val settledTransactions = fetchTransactions(token, account.accountId)
+
+                val pendingTransactions = runCatching {
+                    fetchPendingTransactions(token, account.accountId)
+                }.getOrElse {
+                    emptyList()
+                }
+
+                val transactions = settledTransactions + pendingTransactions
 
                 succeededAccounts++
 
@@ -48,7 +59,13 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
         }
 
         if (succeededAccounts == 0 && failedAccounts.isNotEmpty()) {
-            error("All account syncs failed: ${failedAccounts.joinToString("; ")}")
+            val combinedError = failedAccounts.joinToString("; ")
+
+            if (combinedError.contains("sca_exceeded", ignoreCase = true)) {
+                error("BANK_REAUTH_REQUIRED")
+            }
+
+            error("All account syncs failed: $combinedError")
         }
 
         val syncedAt = Instant.now()
@@ -102,9 +119,9 @@ suspend fun saveImportedTransaction(
                     INSERT INTO transactions (
                         user_id, connected_account_id, provider_account_id, provider_transaction_id,
                         merchant_name, description, category, account_name, amount, currency,
-                        transaction_type, transaction_timestamp, merchant_logo_url
+                        transaction_type, transaction_timestamp, merchant_logo_url, transaction_status
                     )
-                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                     WHERE EXISTS (
                         SELECT 1
                         FROM connected_accounts
@@ -129,8 +146,9 @@ suspend fun saveImportedTransaction(
                 statement.setString(11, transaction.type)
                 statement.setTimestamp(12, Timestamp.from(Instant.parse(transaction.timestamp)))
                 statement.setString(13, merchantLogoUrl)
-                statement.setObject(14, account.dbId)
-                statement.setObject(15, userId)
+                statement.setString(14, transaction.status)
+                statement.setObject(15, account.dbId)
+                statement.setObject(16, userId)
                 statement.executeUpdate() == 1
             }
 

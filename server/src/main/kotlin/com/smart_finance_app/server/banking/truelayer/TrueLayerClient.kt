@@ -217,7 +217,7 @@ internal fun fetchBalances(accessToken: String, accountId: String): List<Balance
 
 internal fun fetchTransactions(accessToken: String, accountId: String): List<TransactionResponse> {
     // Fetch last 3 months of transactions
-    val from = LocalDate.now().minusMonths(3).toString()
+    val from = LocalDate.now().minusMonths(6).toString()
     val to   = LocalDate.now().toString()
 
     val request = Request.Builder()
@@ -241,7 +241,43 @@ internal fun fetchTransactions(accessToken: String, accountId: String): List<Tra
             amount = it.amount,
             currency = it.currency,
             type = it.transactionType,
-            merchantName = it.merchantName
+            merchantName = it.merchantName,
+            status = "settled"
+        )
+    }
+}
+
+internal fun fetchPendingTransactions(
+    accessToken: String,
+    accountId: String
+): List<TransactionResponse> {
+    val request = Request.Builder()
+        .url("${TrueLayerConfig.API_BASE_URL}/data/v1/accounts/$accountId/transactions/pending")
+        .header("Authorization", "Bearer $accessToken")
+        .get()
+        .build()
+
+    val responseBody = bankingHttpClient.newCall(request).execute().use { response ->
+        val body = response.body?.string()
+            ?: error("Empty response from TrueLayer pending transactions endpoint")
+
+        if (!response.isSuccessful) {
+            error("TrueLayer pending transactions fetch failed (${response.code}): $body")
+        }
+
+        body
+    }
+
+    return bankingGson.fromJson(responseBody, TrueLayerTransactionsResponse::class.java).results.map {
+        TransactionResponse(
+            transactionId = it.transactionId,
+            timestamp     = it.timestamp,
+            description   = it.description,
+            amount        = it.amount,
+            currency      = it.currency,
+            type          = it.transactionType,
+            merchantName  = it.merchantName,
+            status        = "pending"
         )
     }
 }
