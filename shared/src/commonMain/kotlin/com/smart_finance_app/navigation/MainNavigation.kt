@@ -423,6 +423,7 @@ private fun NavigationContent(
             apiBaseUrl                   = apiBaseUrl,
             transactions                 = mappedTransactions,
             transactionsLoaded           = dashboardTransactionsLoaded,
+            refreshRequest               = bankConnectionRefreshRequest,
             onConnectAccountClicked      = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,
             api                          = dashboardApi,
@@ -552,6 +553,7 @@ private fun NavigationContent(
                                     banksError = null
                                     showConnectBank = false
                                     accountsRefreshRequest++
+                                    dashboardTransactionsLoaded = false
                                     bankConnectionRefreshRequest++
                                     onNavigateToTransactions()
                                     finished = true
@@ -810,6 +812,7 @@ private fun NavigationContent(
                                         selectableAccounts = emptyList()
                                         selectedAccountIds = emptySet()
                                         accountsRefreshRequest++
+                                        dashboardTransactionsLoaded = false
                                         bankConnectionRefreshRequest++
                                     }
 
