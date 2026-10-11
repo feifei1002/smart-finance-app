@@ -193,6 +193,14 @@ fun computeDashboardState(
     val currentMonth = now.month.number
     val currentYear  = now.year
 
+    fun TransactionData.isIncomeTx(): Boolean {
+        return type.equals("CREDIT", ignoreCase = true) || amount > 0
+    }
+
+    fun TransactionData.isExpenseTx(): Boolean {
+        return type.equals("DEBIT", ignoreCase = true) || amount < 0
+    }
+
     // ── Balance — skip unconvertible accounts rather than misrepresenting them ─
     val currentBalance = balances.sumOf { balance ->
         convertBalance(balance.current, balance.currency, displayCurrency, rates) ?: 0.0
@@ -312,12 +320,12 @@ fun computeDashboardState(
 
         MonthlyPoint(
             month    = monthName,
-            income   = monthTx.filter { it.amount > 0 }
+            income   = monthTx.filter { it.isIncomeTx() }
                 .sumOf { tx ->
                     val converted = tx.convertedAmount(displayCurrency, rates)
                     if (converted != null) kotlin.math.abs(converted) else 0.0
                 }.toFloat(),
-            expenses = monthTx.filter { it.amount < 0 }
+            expenses = monthTx.filter { it.isExpenseTx() }
                 .sumOf { tx ->
                     val converted = tx.convertedAmount(displayCurrency, rates)
                     if (converted != null) kotlin.math.abs(converted) else 0.0
