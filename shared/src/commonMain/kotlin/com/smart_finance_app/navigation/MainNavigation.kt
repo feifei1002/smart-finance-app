@@ -179,6 +179,7 @@ private fun NavigationContent(
     var loadingTransactionsPage by remember { mutableStateOf<Int?>(null) }
     var transactionsSyncing by remember { mutableStateOf(false) }
     var transactionsSyncError by remember { mutableStateOf<String?>(null) }
+    var transactionsSyncMessage by remember { mutableStateOf<String?>(null) }
     var transactionsFilter by remember { mutableStateOf("All") }
     var dashboardRecentTransactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var lastSyncedToken by remember { mutableStateOf<String?>(null) }
@@ -386,12 +387,33 @@ private fun NavigationContent(
         transactionsSyncError = null
 
         try {
+//            when (val syncResult = transactionsApi.syncTransactions(authToken)) {
+//                is TransactionSyncResult.Success -> {
+//                    transactionsSyncError = null
+//                }
+//                is TransactionSyncResult.Failure -> {
+//                    transactionsSyncError  = AppStrings.get(
+//                        LocaleController.currentLanguageCode,
+//                        syncResult.message
+//                    )
+//                }
+//            }
+
             when (val syncResult = transactionsApi.syncTransactions(authToken)) {
                 is TransactionSyncResult.Success -> {
                     transactionsSyncError = null
+
+                    transactionsSyncMessage =
+                        if (syncResult.result.importedCount > 0) {
+                            "Transactions updated."
+                        } else {
+                            "No new transactions available yet."
+                        }
                 }
+
                 is TransactionSyncResult.Failure -> {
-                    transactionsSyncError  = AppStrings.get(
+                    transactionsSyncMessage = null
+                    transactionsSyncError = AppStrings.get(
                         LocaleController.currentLanguageCode,
                         syncResult.message
                     )
@@ -436,6 +458,12 @@ private fun NavigationContent(
                 isLoading     = transactionsLoading,
                 isSyncing     = transactionsSyncing,
                 errorMessage  = transactionsSyncError ?: transactionsError,
+                syncMessage = transactionsSyncMessage,
+                onSyncTransactions = {
+                    scope.launch {
+                        syncAndReloadTransactions()
+                    }
+                },
                 currentPage   = transactionsPage,
                 totalCount    = transactionsTotalCount,
                 pageSize      = transactionsPageSize,

@@ -63,6 +63,7 @@ import com.smart_finance_app.appStringResource
 import kotlin.math.ceil
 import com.smart_finance_app.localiseCategory
 import kotlinx.coroutines.launch
+import smart_finance_app.shared.generated.resources.sync
 
 data class TransactionUI(
     val id: String,
@@ -92,6 +93,8 @@ fun TransactionsScreen(
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
     errorMessage: String? = null,
+    syncMessage: String? = null,
+    onSyncTransactions: () -> Unit = {},
     currentPage: Int = 0,
     totalCount: Int = 0,
     pageSize: Int = 25,
@@ -120,6 +123,8 @@ fun TransactionsScreen(
                     isLoading = isLoading,
                     isSyncing = isSyncing,
                     errorMessage = errorMessage,
+                    syncMessage = syncMessage,
+                    onSyncTransactions = onSyncTransactions,
                     hasMore = hasMore,
                     selectedFilter = selectedFilter,
                     onFilterSelected = onFilterSelected,
@@ -136,6 +141,8 @@ fun TransactionsScreen(
                     isLoading = isLoading,
                     isSyncing = isSyncing,
                     errorMessage = errorMessage,
+                    syncMessage = syncMessage,
+                    onSyncTransactions = onSyncTransactions,
                     currentPage = currentPage,
                     totalCount = totalCount,
                     pageSize = pageSize,
@@ -178,6 +185,8 @@ private fun MobileTransactionsList(
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
     errorMessage: String? = null,
+    syncMessage: String? = null,
+    onSyncTransactions: () -> Unit = {},
     hasMore: Boolean = false,
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
@@ -262,6 +271,24 @@ private fun MobileTransactionsList(
                 )
             }
 
+            IconButton(
+                enabled = !isSyncing,
+                onClick = onSyncTransactions
+            ) {
+                if (isSyncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(Res.drawable.sync),
+                        contentDescription = "Sync transactions",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
             IconButton(onClick = { showSearch = !showSearch }) {
                 Icon(
                     painter = painterResource(Res.drawable.search),
@@ -326,6 +353,10 @@ private fun MobileTransactionsList(
                     )
                 }
             )
+        }
+
+        syncMessage?.let {
+            TransactionsSyncMessage(it)
         }
 
         LazyColumn(
@@ -422,6 +453,8 @@ private fun DesktopTransactionsTable(
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
     errorMessage: String? = null,
+    syncMessage: String? = null,
+    onSyncTransactions: () -> Unit = {},
     currentPage: Int = 0,
     totalCount: Int = 0,
     pageSize: Int = 6,
@@ -484,6 +517,24 @@ private fun DesktopTransactionsTable(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(
+                enabled = !isSyncing,
+                onClick = onSyncTransactions
+            ) {
+                if (isSyncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(Res.drawable.sync),
+                        contentDescription = "Sync transactions",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it; onPageSelected(0) },
@@ -497,6 +548,10 @@ private fun DesktopTransactionsTable(
                 },
                 placeholder = { Text(searchPlaceholder) }
             )
+        }
+
+        syncMessage?.let {
+            TransactionsSyncMessage(it)
         }
 
         Row(
@@ -730,6 +785,22 @@ private fun TransactionsInlineMessage(message: String, isError: Boolean = false)
                 textAlign = TextAlign.Center
             )
         }
+    }
+}
+
+@Composable
+private fun TransactionsSyncMessage(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
