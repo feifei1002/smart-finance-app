@@ -25,9 +25,15 @@ object GmailApiMailer {
     private val refreshToken = env("GMAIL_REFRESH_TOKEN")
     private val senderEmail = env("GMAIL_SENDER_EMAIL")
 
-    fun send(to: String, subject: String, body: String) {
+    fun send(
+        to: String,
+        subject: String,
+        body: String,
+        replyTo: String? = null,
+        fromName: String? = null
+    ) {
         val accessToken = fetchAccessToken()
-        val rawMessage = createRawMessage(to, subject, body)
+        val rawMessage = createRawMessage(to, subject, body, replyTo, fromName)
 
         val payload = JsonObject().apply {
             addProperty("raw", rawMessage)
@@ -71,13 +77,23 @@ object GmailApiMailer {
         }
     }
 
-    private fun createRawMessage(to: String, subject: String, body: String): String {
+    private fun createRawMessage(
+        to: String,
+        subject: String,
+        body: String,
+        replyTo: String?,
+        fromName: String?
+    ): String {
         val session = Session.getDefaultInstance(Properties())
         val message = MimeMessage(session).apply {
-            setFrom(InternetAddress(senderEmail))
+            setFrom(InternetAddress(senderEmail, fromName ?: "ARCA", "UTF-8"))
             setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-            setSubject(subject)
-            setText(body)
+            setSubject(subject, "UTF-8")
+            setText(body, "UTF-8")
+
+            if (!replyTo.isNullOrBlank()) {
+                setReplyTo(arrayOf(InternetAddress(replyTo, true)))
+            }
         }
 
         val buffer = ByteArrayOutputStream()
