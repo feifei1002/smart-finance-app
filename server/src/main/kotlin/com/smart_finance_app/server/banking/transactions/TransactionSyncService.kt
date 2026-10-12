@@ -15,11 +15,22 @@ import com.smart_finance_app.server.banking.truelayer.fetchTransactions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.sql.Connection
+import java.sql.PreparedStatement
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.use
+
+private data class SaveTransactionsResult(
+    val importedCount: Int,
+    val duplicateCount: Int
+)
+private data class ExistingImportedTransaction(
+    val category: String?,
+    val merchantLogoUrl: String?
+)
 
 suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = withContext(Dispatchers.IO) {
 
@@ -47,27 +58,18 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = wit
 
                 val transactions = settledTransactions + pendingTransactions
 
+                val saveResult = saveImportedTransactionsForAccount(
+                    userId = userId,
+                    account = account,
+                    transactions = transactions,
+                    latestPendingTransactionIds = pendingFetchResult.getOrNull()
+                        ?.map { it.transactionId }
+                        ?.toSet()
+                )
+
+                importedCount += saveResult.importedCount
+                duplicateCount += saveResult.duplicateCount
                 succeededAccounts++
-
-                transactions.forEach { transaction ->
-                    val inserted = saveImportedTransaction(userId, account, transaction)
-
-                    if (inserted) {
-                        importedCount++
-                    } else {
-                        duplicateCount++
-                    }
-                }
-
-                pendingFetchResult.onSuccess { latestPendingTransactions ->
-                    deleteStalePendingTransactions(
-                        userId = userId,
-                        account = account,
-                        latestPendingTransactionIds = latestPendingTransactions
-                            .map { it.transactionId }
-                            .toSet()
-                    )
-                }
             }.onFailure { exception ->
                 failedAccounts.add("${account.accountName}: ${exception.message ?: "Unknown error"}")
             }
@@ -106,10 +108,111 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = wit
     }
 }
 
-suspend fun saveImportedTransaction(
+private suspend fun saveImportedTransactionsForAccount(
     userId: UUID,
     account: StoredAccount,
-    transaction: TransactionResponse
+    transactions: List<TransactionResponse>,
+    latestPendingTransactionIds: Set<String>?
+): SaveTransactionsResult {
+    var importedCount = 0
+    var duplicateCount = 0
+
+    return Database.dataSource.connection.use { connection ->
+        try {
+            val existingTransactions = loadExistingTransactionsForAccount(
+                connection = connection,
+                userId = userId,
+                account = account,
+                transactionIds = transactions.map { it.transactionId }.toSet()
+            )
+
+            connection.prepareStatement(
+                """
+                INSERT INTO transactions (
+                    user_id, connected_account_id, provider_account_id, provider_transaction_id,
+                    merchant_name, description, category, account_name, amount, currency,
+                    transaction_type, transaction_timestamp, merchant_logo_url, transaction_status
+                )
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM connected_accounts
+                    WHERE id = ?
+                      AND user_id = ?
+                      AND connection_status = 'connected'
+                )
+                ON CONFLICT (user_id, provider_account_id, provider_transaction_id)
+                DO UPDATE SET
+                    merchant_name = EXCLUDED.merchant_name,
+                    description = EXCLUDED.description,
+                    account_name = EXCLUDED.account_name,
+                    amount = EXCLUDED.amount,
+                    currency = EXCLUDED.currency,
+                    transaction_type = EXCLUDED.transaction_type,
+                    transaction_timestamp = EXCLUDED.transaction_timestamp,
+                    merchant_logo_url = COALESCE(transactions.merchant_logo_url, EXCLUDED.merchant_logo_url),
+                    transaction_status = EXCLUDED.transaction_status,
+                    category = CASE
+                        WHEN transactions.category_source = 'manual' THEN transactions.category
+                        ELSE EXCLUDED.category
+                    END
+                WHERE transactions.transaction_status IS DISTINCT FROM EXCLUDED.transaction_status
+                   OR transactions.merchant_name IS DISTINCT FROM EXCLUDED.merchant_name
+                   OR transactions.description IS DISTINCT FROM EXCLUDED.description
+                   OR transactions.account_name IS DISTINCT FROM EXCLUDED.account_name
+                   OR transactions.amount IS DISTINCT FROM EXCLUDED.amount
+                   OR transactions.currency IS DISTINCT FROM EXCLUDED.currency
+                   OR transactions.transaction_type IS DISTINCT FROM EXCLUDED.transaction_type
+                   OR transactions.transaction_timestamp IS DISTINCT FROM EXCLUDED.transaction_timestamp
+                   OR (
+                       transactions.merchant_logo_url IS NULL
+                       AND EXCLUDED.merchant_logo_url IS NOT NULL
+                   )
+                   OR (
+                       transactions.category_source <> 'manual'
+                       AND transactions.category IS DISTINCT FROM EXCLUDED.category
+                   )
+                RETURNING (xmax = 0) AS inserted
+                """.trimIndent()
+            ).use { statement ->
+                transactions.forEach { transaction ->
+                    val inserted = upsertImportedTransaction(
+                        statement = statement,
+                        userId = userId,
+                        account = account,
+                        transaction = transaction,
+                        existing = existingTransactions[transaction.transactionId]
+                    )
+
+                    if (inserted) importedCount++ else duplicateCount++
+                }
+            }
+
+            if (latestPendingTransactionIds != null) {
+                deleteStalePendingTransactions(
+                    connection = connection,
+                    userId = userId,
+                    account = account,
+                    latestPendingTransactionIds = latestPendingTransactionIds
+                )
+            }
+
+            connection.commit()
+
+            SaveTransactionsResult(importedCount, duplicateCount)
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private suspend fun upsertImportedTransaction(
+    statement: PreparedStatement,
+    userId: UUID,
+    account: StoredAccount,
+    transaction: TransactionResponse,
+    existing: ExistingImportedTransaction?
 ): Boolean {
     val displayMerchantName =
         transaction.merchantName
@@ -119,12 +222,6 @@ suspend fun saveImportedTransaction(
                 .trim()
                 .takeIf { it.isNotBlank() }
             ?: "Unknown merchant"
-
-    val existing = findExistingImportedTransaction(
-        userId = userId,
-        providerAccountId = account.accountId,
-        providerTransactionId = transaction.transactionId
-    )
 
     val isNewTransaction = existing == null
 
@@ -142,173 +239,69 @@ suspend fun saveImportedTransaction(
         existing.category ?: "Others"
     }
 
-    return Database.dataSource.connection.use { connection ->
-        try {
-            val wasInserted = connection.prepareStatement(
-                """
-                    INSERT INTO transactions (
-                        user_id, connected_account_id, provider_account_id, provider_transaction_id,
-                        merchant_name, description, category, account_name, amount, currency,
-                        transaction_type, transaction_timestamp, merchant_logo_url, transaction_status
-                    )
-                    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                    WHERE EXISTS (
-                        SELECT 1
-                        FROM connected_accounts
-                        WHERE id = ?
-                          AND user_id = ?
-                          AND connection_status = 'connected'
-                    )
-                    ON CONFLICT (user_id, provider_account_id, provider_transaction_id)
-                    DO UPDATE SET
-                        merchant_name = EXCLUDED.merchant_name,
-                        description = EXCLUDED.description,
-                        account_name = EXCLUDED.account_name,
-                        amount = EXCLUDED.amount,
-                        currency = EXCLUDED.currency,
-                        transaction_type = EXCLUDED.transaction_type,
-                        transaction_timestamp = EXCLUDED.transaction_timestamp,
-                        merchant_logo_url = COALESCE(transactions.merchant_logo_url, EXCLUDED.merchant_logo_url),
-                        transaction_status = EXCLUDED.transaction_status,
-                        category = CASE
-                            WHEN transactions.category_source = 'manual' THEN transactions.category
-                            ELSE EXCLUDED.category
-                        END
-                    WHERE transactions.transaction_status IS DISTINCT FROM EXCLUDED.transaction_status
-                       OR transactions.merchant_name IS DISTINCT FROM EXCLUDED.merchant_name
-                       OR transactions.description IS DISTINCT FROM EXCLUDED.description
-                       OR transactions.account_name IS DISTINCT FROM EXCLUDED.account_name
-                       OR transactions.amount IS DISTINCT FROM EXCLUDED.amount
-                       OR transactions.currency IS DISTINCT FROM EXCLUDED.currency
-                       OR transactions.transaction_type IS DISTINCT FROM EXCLUDED.transaction_type
-                       OR transactions.transaction_timestamp IS DISTINCT FROM EXCLUDED.transaction_timestamp
-                       OR (
-                           transactions.merchant_logo_url IS NULL
-                           AND EXCLUDED.merchant_logo_url IS NOT NULL
-                       )
-                       OR (
-                           transactions.category_source <> 'manual'
-                           AND transactions.category IS DISTINCT FROM EXCLUDED.category
-                       )
-                    RETURNING (xmax = 0) AS inserted
-                """.trimIndent()
-            ).use { statement ->
-                statement.setObject(1, userId)
-                statement.setObject(2, account.dbId)
-                statement.setString(3, account.accountId)
-                statement.setString(4, transaction.transactionId)
-                statement.setString(5, displayMerchantName)
-                statement.setString(6, transaction.description)
-                statement.setString(7, category)
-                statement.setString(8, account.accountName)
-                statement.setDouble(9, transaction.amount)
-                statement.setString(10, transaction.currency)
-                statement.setString(11, transaction.type)
-                statement.setTimestamp(12, Timestamp.from(Instant.parse(transaction.timestamp)))
-                statement.setString(13, merchantLogoUrl)
-                statement.setString(14, transaction.status)
-                statement.setObject(15, account.dbId)
-                statement.setObject(16, userId)
+    statement.clearParameters()
 
-                statement.executeQuery().use { result ->
-                    result.next() && result.getBoolean("inserted")
-                }
-            }
+    statement.setObject(1, userId)
+    statement.setObject(2, account.dbId)
+    statement.setString(3, account.accountId)
+    statement.setString(4, transaction.transactionId)
+    statement.setString(5, displayMerchantName)
+    statement.setString(6, transaction.description)
+    statement.setString(7, category)
+    statement.setString(8, account.accountName)
+    statement.setDouble(9, transaction.amount)
+    statement.setString(10, transaction.currency)
+    statement.setString(11, transaction.type)
+    statement.setTimestamp(12, Timestamp.from(Instant.parse(transaction.timestamp)))
+    statement.setString(13, merchantLogoUrl)
+    statement.setString(14, transaction.status)
+    statement.setObject(15, account.dbId)
+    statement.setObject(16, userId)
 
-            connection.commit()
-            wasInserted
-        } catch (exception: Exception) {
-            connection.rollback()
-            throw exception
-        }
-    }
-}
-private data class ExistingImportedTransaction(
-    val category: String?,
-    val merchantLogoUrl: String?
-)
-
-private fun findExistingImportedTransaction(
-    userId: UUID,
-    providerAccountId: String,
-    providerTransactionId: String
-): ExistingImportedTransaction? {
-    return Database.dataSource.connection.use { connection ->
-        connection.prepareStatement(
-            """
-            SELECT category, merchant_logo_url
-            FROM transactions
-            WHERE user_id = ?
-              AND provider_account_id = ?
-              AND provider_transaction_id = ?
-            LIMIT 1
-            """.trimIndent()
-        ).use { statement ->
-            statement.setObject(1, userId)
-            statement.setString(2, providerAccountId)
-            statement.setString(3, providerTransactionId)
-
-            statement.executeQuery().use { result ->
-                if (result.next()) {
-                    ExistingImportedTransaction(
-                        category = result.getString("category")?.takeIf { it.isNotBlank() },
-                        merchantLogoUrl = result.getString("merchant_logo_url")?.takeIf { it.isNotBlank() }
-                    )
-                } else {
-                    null
-                }
-            }
-        }
+    return statement.executeQuery().use { result ->
+        result.next() && result.getBoolean("inserted")
     }
 }
 
 
 private fun deleteStalePendingTransactions(
+    connection: Connection,
     userId: UUID,
     account: StoredAccount,
     latestPendingTransactionIds: Set<String>
 ) {
-    Database.dataSource.connection.use { connection ->
-        try {
-            val sql = if (latestPendingTransactionIds.isEmpty()) {
-                """
-                    DELETE FROM transactions
-                    WHERE user_id = ?
-                      AND provider_account_id = ?
-                      AND transaction_status = 'pending'
-                """.trimIndent()
-            } else {
-                """
-                    DELETE FROM transactions
-                    WHERE user_id = ?
-                      AND provider_account_id = ?
-                      AND transaction_status = 'pending'
-                      AND provider_transaction_id <> ALL (?::text[])
-                """.trimIndent()
-            }
+    val sql = if (latestPendingTransactionIds.isEmpty()) {
+        """
+        DELETE FROM transactions
+        WHERE user_id = ?
+          AND provider_account_id = ?
+          AND transaction_status = 'pending'
+        """.trimIndent()
+    } else {
+        """
+        DELETE FROM transactions
+        WHERE user_id = ?
+          AND provider_account_id = ?
+          AND transaction_status = 'pending'
+          AND provider_transaction_id <> ALL (?::text[])
+        """.trimIndent()
+    }
 
-            connection.prepareStatement(sql).use { statement ->
-                statement.setObject(1, userId)
-                statement.setString(2, account.accountId)
+    connection.prepareStatement(sql).use { statement ->
+        statement.setObject(1, userId)
+        statement.setString(2, account.accountId)
 
-                if (latestPendingTransactionIds.isNotEmpty()) {
-                    statement.setArray(
-                        3,
-                        connection.createArrayOf(
-                            "text",
-                            latestPendingTransactionIds.toTypedArray()
-                        )
-                    )
-                }
-
-                statement.executeUpdate()
-            }
-
-            connection.commit()
-        } catch (exception: Exception) {
-            connection.rollback()
-            throw exception
+        if (latestPendingTransactionIds.isNotEmpty()) {
+            statement.setArray(
+                3,
+                connection.createArrayOf(
+                    "text",
+                    latestPendingTransactionIds.toTypedArray()
+                )
+            )
         }
+
+        statement.executeUpdate()
     }
 }
 
@@ -387,6 +380,48 @@ internal fun getImportedTransactionsForUser(
             totalCount = totalCount,
             hasMore = offset + transactions.size < totalCount
         )
+    }
+}
+
+private fun loadExistingTransactionsForAccount(
+    connection: Connection,
+    userId: UUID,
+    account: StoredAccount,
+    transactionIds: Set<String>
+): Map<String, ExistingImportedTransaction> {
+    if (transactionIds.isEmpty()) {
+        return emptyMap()
+    }
+
+    return connection.prepareStatement(
+        """
+        SELECT provider_transaction_id, category, merchant_logo_url
+        FROM transactions
+        WHERE user_id = ?
+          AND provider_account_id = ?
+          AND provider_transaction_id = ANY (?::text[])
+        """.trimIndent()
+    ).use { statement ->
+        statement.setObject(1, userId)
+        statement.setString(2, account.accountId)
+        statement.setArray(
+            3,
+            connection.createArrayOf("text", transactionIds.toTypedArray())
+        )
+
+        statement.executeQuery().use { result ->
+            val existing = mutableMapOf<String, ExistingImportedTransaction>()
+
+            while (result.next()) {
+                existing[result.getString("provider_transaction_id")] =
+                    ExistingImportedTransaction(
+                        category = result.getString("category")?.takeIf { it.isNotBlank() },
+                        merchantLogoUrl = result.getString("merchant_logo_url")?.takeIf { it.isNotBlank() }
+                    )
+            }
+
+            existing
+        }
     }
 }
 

@@ -5,8 +5,6 @@ import okhttp3.OkHttpClient
 import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
-//internal val bankingHttpClient = OkHttpClient()
-
 internal val bankingHttpClient = OkHttpClient.Builder()
     .connectTimeout(5, TimeUnit.SECONDS)
     .readTimeout(15, TimeUnit.SECONDS)
