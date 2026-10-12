@@ -218,7 +218,7 @@ internal fun fetchBalances(accessToken: String, accountId: String): List<Balance
 internal fun fetchTransactions(accessToken: String, accountId: String): List<TransactionResponse> {
     // Fetch last 3 months of transactions
     val from = LocalDate.now().minusMonths(6).toString()
-    val to   = LocalDate.now().toString()
+    val to   = LocalDate.now().minusDays(1).toString()
 
     val request = Request.Builder()
         .url("${TrueLayerConfig.API_BASE_URL}/data/v1/accounts/$accountId/transactions?from=$from&to=$to")

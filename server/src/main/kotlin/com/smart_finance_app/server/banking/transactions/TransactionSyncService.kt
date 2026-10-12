@@ -12,18 +12,22 @@ import com.smart_finance_app.server.banking.merchants.resolveMerchantLogoUrl
 import com.smart_finance_app.server.banking.truelayer.ensureFreshToken
 import com.smart_finance_app.server.banking.truelayer.fetchPendingTransactions
 import com.smart_finance_app.server.banking.truelayer.fetchTransactions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.use
 
-suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
+suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = withContext(Dispatchers.IO) {
 
     var importedCount = 0
     var duplicateCount = 0
     var succeededAccounts = 0
 
-    return try {
+    try {
         val storedAccounts = getStoredAccountsWithTokens(userId)
         val failedAccounts = mutableListOf<String>()
 
@@ -116,12 +120,27 @@ suspend fun saveImportedTransaction(
                 .takeIf { it.isNotBlank() }
             ?: "Unknown merchant"
 
-    val logoLookupMerchantName = merchantNameForLogoLookup(transaction)
+    val existing = findExistingImportedTransaction(
+        userId = userId,
+        providerAccountId = account.accountId,
+        providerTransactionId = transaction.transactionId
+    )
 
-    val merchantLogoUrl = logoLookupMerchantName?.let {
-        resolveMerchantLogoUrl(it)
+    val isNewTransaction = existing == null
+
+    val merchantLogoUrl = if (isNewTransaction) {
+        merchantNameForLogoLookup(transaction)?.let {
+            resolveMerchantLogoUrl(it)
+        }
+    } else {
+        existing.merchantLogoUrl
     }
-    val category = inferTransactionCategory(transaction)
+
+    val category = if (isNewTransaction) {
+        inferTransactionCategoryWithShortMlTimeout(transaction)
+    } else {
+        existing.category ?: "Others"
+    }
 
     return Database.dataSource.connection.use { connection ->
         try {
@@ -149,7 +168,7 @@ suspend fun saveImportedTransaction(
                         currency = EXCLUDED.currency,
                         transaction_type = EXCLUDED.transaction_type,
                         transaction_timestamp = EXCLUDED.transaction_timestamp,
-                        merchant_logo_url = EXCLUDED.merchant_logo_url,
+                        merchant_logo_url = COALESCE(transactions.merchant_logo_url, EXCLUDED.merchant_logo_url),
                         transaction_status = EXCLUDED.transaction_status,
                         category = CASE
                             WHEN transactions.category_source = 'manual' THEN transactions.category
@@ -163,7 +182,10 @@ suspend fun saveImportedTransaction(
                        OR transactions.currency IS DISTINCT FROM EXCLUDED.currency
                        OR transactions.transaction_type IS DISTINCT FROM EXCLUDED.transaction_type
                        OR transactions.transaction_timestamp IS DISTINCT FROM EXCLUDED.transaction_timestamp
-                       OR transactions.merchant_logo_url IS DISTINCT FROM EXCLUDED.merchant_logo_url
+                       OR (
+                           transactions.merchant_logo_url IS NULL
+                           AND EXCLUDED.merchant_logo_url IS NOT NULL
+                       )
                        OR (
                            transactions.category_source <> 'manual'
                            AND transactions.category IS DISTINCT FROM EXCLUDED.category
@@ -187,6 +209,7 @@ suspend fun saveImportedTransaction(
                 statement.setString(14, transaction.status)
                 statement.setObject(15, account.dbId)
                 statement.setObject(16, userId)
+
                 statement.executeQuery().use { result ->
                     result.next() && result.getBoolean("inserted")
                 }
@@ -200,6 +223,45 @@ suspend fun saveImportedTransaction(
         }
     }
 }
+private data class ExistingImportedTransaction(
+    val category: String?,
+    val merchantLogoUrl: String?
+)
+
+private fun findExistingImportedTransaction(
+    userId: UUID,
+    providerAccountId: String,
+    providerTransactionId: String
+): ExistingImportedTransaction? {
+    return Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT category, merchant_logo_url
+            FROM transactions
+            WHERE user_id = ?
+              AND provider_account_id = ?
+              AND provider_transaction_id = ?
+            LIMIT 1
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, userId)
+            statement.setString(2, providerAccountId)
+            statement.setString(3, providerTransactionId)
+
+            statement.executeQuery().use { result ->
+                if (result.next()) {
+                    ExistingImportedTransaction(
+                        category = result.getString("category")?.takeIf { it.isNotBlank() },
+                        merchantLogoUrl = result.getString("merchant_logo_url")?.takeIf { it.isNotBlank() }
+                    )
+                } else {
+                    null
+                }
+            }
+        }
+    }
+}
+
 
 private fun deleteStalePendingTransactions(
     userId: UUID,
@@ -431,4 +493,12 @@ internal fun getLastSuccessfulTransactionSync(userId: UUID): String? {
             }
         }
     }
+}
+
+private suspend fun inferTransactionCategoryWithShortMlTimeout(
+    transaction: TransactionResponse
+): String {
+    return withTimeoutOrNull(2_000.milliseconds) {
+        inferTransactionCategory(transaction)
+    } ?: inferTransactionCategoryFast(transaction)
 }

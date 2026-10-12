@@ -25,8 +25,10 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
+import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import kotlin.text.toIntOrNull
+import kotlin.time.Duration.Companion.milliseconds
 
 internal fun Route.bankTransactionRoutes() {
     get("/api/banking/transactions/imported") {
@@ -148,7 +150,9 @@ internal fun Route.bankTransactionRoutes() {
             )
 
         val result = runCatching {
-            syncTransactionsForUser(userId)
+            withTimeout(60_000.milliseconds) {
+                syncTransactionsForUser(userId)
+            }
         }.getOrElse { exception ->
             val lastSync = getLastSuccessfulTransactionSync(userId)
 

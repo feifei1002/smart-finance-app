@@ -44,6 +44,29 @@ suspend fun inferTransactionCategory(transaction: TransactionResponse): String {
     return CategoryServiceClient.classify(cleanDesc)
 }
 
+fun inferTransactionCategoryFast(transaction: TransactionResponse): String {
+    val rawDescription = "${transaction.merchantName.orEmpty()} ${transaction.description}".trim()
+    val cleanDesc = rawDescription.split(Regex("[#\\-(]")).first().trim()
+
+    if (cleanDesc.isEmpty()) return "Others"
+
+    val isPersonTransfer =
+        cleanDesc.contains(Regex("\\b(MR|MS|MRS|MISS|DR)\\s+[A-Z]", RegexOption.IGNORE_CASE)) ||
+                cleanDesc.contains("FASTER PAYMENT", ignoreCase = true) ||
+                cleanDesc.contains("BANK TRANSFER", ignoreCase = true) ||
+                cleanDesc.contains("TRANSFER", ignoreCase = true)
+
+    if (isPersonTransfer) {
+        return "Transfers"
+    }
+
+    if (transaction.amount > 0 || transaction.type.equals("CREDIT", ignoreCase = true)) {
+        return "Income"
+    }
+
+    return CategoryServiceClient.classifyByRulesOnly(cleanDesc) ?: "Others"
+}
+
 internal fun updateTransactionCategoryForUser(
     userId: UUID,
     transactionId: UUID,
