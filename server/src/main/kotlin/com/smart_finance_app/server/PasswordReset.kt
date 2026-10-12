@@ -2,6 +2,8 @@ package com.smart_finance_app.server
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.plugins.origin
 import io.ktor.server.request.receive
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
@@ -71,6 +73,29 @@ fun Route.passwordResetRoutes() {
             "If an account exists for this email, a password reset link has been sent."
         )
 
+        val emailRateLimitIdentifier = "password-reset-email:$email"
+        val ipRateLimitIdentifier = "password-reset-ip:${call.clientIpForRateLimit()}"
+        val rateLimitAction = "password-reset"
+        
+        val emailRateLimited = isRateLimited(emailRateLimitIdentifier, rateLimitAction)
+        val ipRateLimited = isRateLimited(ipRateLimitIdentifier, rateLimitAction)
+
+        if (emailRateLimited || ipRateLimited) {
+            call.application.environment.log.warn(
+                "Password reset request rate limited: emailLimited={}, ipLimited={}, email={}, ip={}",
+                emailRateLimited,
+                ipRateLimited,
+                email,
+                call.clientIpForRateLimit()
+            )
+
+            call.respond(HttpStatusCode.OK, genericMessage)
+            return@post
+        }
+
+        recordFailedAttempt(emailRateLimitIdentifier, rateLimitAction)
+        recordFailedAttempt(ipRateLimitIdentifier, rateLimitAction)
+
         val user = findUserByEmail(email)
 
         if (user == null) {
@@ -86,11 +111,9 @@ fun Route.passwordResetRoutes() {
         runCatching {
             savePasswordResetToken(userId = user.id, tokenHash = tokenHash, expiresAt = expiresAt)
             sendPasswordResetEmail(to = user.email, resetLink = resetLink)
-        }.getOrElse {
-            call.respond(
-                HttpStatusCode.ServiceUnavailable,
-                ErrorResponse("Password reset email could not be sent. Please try again later.")
-            )
+        }.getOrElse { exception ->
+            call.application.environment.log.error("Password reset email could not be sent", exception)
+            call.respond(HttpStatusCode.OK, genericMessage)
             return@post
         }
 
@@ -284,4 +307,12 @@ private fun resetPassword(token: String, newPassword: String) {
             throw exception
         }
     }
+}
+
+private fun ApplicationCall.clientIpForRateLimit(): String {
+    return request.headers["X-Forwarded-For"]
+        ?.substringBefore(",")
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?: request.origin.remoteHost
 }

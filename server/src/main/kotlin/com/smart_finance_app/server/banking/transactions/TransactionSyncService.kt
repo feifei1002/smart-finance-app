@@ -33,9 +33,11 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
 
                 val settledTransactions = fetchTransactions(token, account.accountId)
 
-                val pendingTransactions = runCatching {
+                val pendingFetchResult = runCatching {
                     fetchPendingTransactions(token, account.accountId)
-                }.getOrElse {
+                }
+
+                val pendingTransactions = pendingFetchResult.getOrElse {
                     emptyList()
                 }
 
@@ -51,6 +53,16 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
                     } else {
                         duplicateCount++
                     }
+                }
+
+                pendingFetchResult.onSuccess { latestPendingTransactions ->
+                    deleteStalePendingTransactions(
+                        userId = userId,
+                        account = account,
+                        latestPendingTransactionIds = latestPendingTransactions
+                            .map { it.transactionId }
+                            .toSet()
+                    )
                 }
             }.onFailure { exception ->
                 failedAccounts.add("${account.accountName}: ${exception.message ?: "Unknown error"}")
@@ -75,7 +87,7 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse {
             recordTransactionSyncPartialFailure(
                 userId = userId,
                 attemptedAt = syncedAt,
-                "Some account syncs failed: ${failedAccounts.joinToString("; ")}"
+                error = "Some account syncs failed: ${failedAccounts.joinToString("; ")}"
             )
         }
 
@@ -113,7 +125,7 @@ suspend fun saveImportedTransaction(
 
     return Database.dataSource.connection.use { connection ->
         try {
-            val inserted = connection.prepareStatement(
+            val wasInserted = connection.prepareStatement(
                 """
                     INSERT INTO transactions (
                         user_id, connected_account_id, provider_account_id, provider_transaction_id,
@@ -156,6 +168,7 @@ suspend fun saveImportedTransaction(
                            transactions.category_source <> 'manual'
                            AND transactions.category IS DISTINCT FROM EXCLUDED.category
                        )
+                    RETURNING (xmax = 0) AS inserted
                 """.trimIndent()
             ).use { statement ->
                 statement.setObject(1, userId)
@@ -174,11 +187,62 @@ suspend fun saveImportedTransaction(
                 statement.setString(14, transaction.status)
                 statement.setObject(15, account.dbId)
                 statement.setObject(16, userId)
-                statement.executeUpdate() == 1
+                statement.executeQuery().use { result ->
+                    result.next() && result.getBoolean("inserted")
+                }
             }
 
             connection.commit()
-            inserted
+            wasInserted
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
+private fun deleteStalePendingTransactions(
+    userId: UUID,
+    account: StoredAccount,
+    latestPendingTransactionIds: Set<String>
+) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            val sql = if (latestPendingTransactionIds.isEmpty()) {
+                """
+                    DELETE FROM transactions
+                    WHERE user_id = ?
+                      AND provider_account_id = ?
+                      AND transaction_status = 'pending'
+                """.trimIndent()
+            } else {
+                """
+                    DELETE FROM transactions
+                    WHERE user_id = ?
+                      AND provider_account_id = ?
+                      AND transaction_status = 'pending'
+                      AND provider_transaction_id <> ALL (?::text[])
+                """.trimIndent()
+            }
+
+            connection.prepareStatement(sql).use { statement ->
+                statement.setObject(1, userId)
+                statement.setString(2, account.accountId)
+
+                if (latestPendingTransactionIds.isNotEmpty()) {
+                    statement.setArray(
+                        3,
+                        connection.createArrayOf(
+                            "text",
+                            latestPendingTransactionIds.toTypedArray()
+                        )
+                    )
+                }
+
+                statement.executeUpdate()
+            }
+
+            connection.commit()
         } catch (exception: Exception) {
             connection.rollback()
             throw exception
