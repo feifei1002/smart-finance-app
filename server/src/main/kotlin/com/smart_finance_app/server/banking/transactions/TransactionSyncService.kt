@@ -13,13 +13,15 @@ import com.smart_finance_app.server.banking.truelayer.ensureFreshToken
 import com.smart_finance_app.server.banking.truelayer.fetchPendingTransactions
 import com.smart_finance_app.server.banking.truelayer.fetchTransactions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.use
 
@@ -533,7 +535,15 @@ internal fun getLastSuccessfulTransactionSync(userId: UUID): String? {
 private suspend fun inferTransactionCategoryWithShortMlTimeout(
     transaction: TransactionResponse
 ): String {
-    return withTimeoutOrNull(2_000.milliseconds) {
-        inferTransactionCategory(transaction)
-    } ?: inferTransactionCategoryFast(transaction)
+    return try {
+        withTimeout(2_000.milliseconds) {
+            inferTransactionCategory(transaction)
+        }
+    } catch (_: TimeoutCancellationException) {
+        inferTransactionCategoryFast(transaction)
+    } catch (exception: CancellationException) {
+        throw exception
+    } catch (_: Exception) {
+        inferTransactionCategoryFast(transaction)
+    }
 }
