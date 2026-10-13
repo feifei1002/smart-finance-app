@@ -17,6 +17,8 @@ private val httpClient = HttpClient(CIO) {
     expectSuccess = false
 }
 
+private val exchangeLogger = org.slf4j.LoggerFactory.getLogger("ExchangeRates")
+
 fun Route.exchangeRatesRoutes() {
     get("/api/exchange-rates") {
         try {
@@ -29,6 +31,8 @@ fun Route.exchangeRatesRoutes() {
             val combined = ecbRates.toMutableMap()
             combined["EUR"] = 1.0
             if (twdRate != null) combined["TWD"] = twdRate
+
+            exchangeLogger.info("Exchange rates loaded: count={}", combined.size)
 
             if (combined.isEmpty()) {
                 call.respond(
@@ -52,14 +56,19 @@ private suspend fun fetchECBRates(): Map<String, Double> {
         val response = httpClient.get(
             "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
         )
+
+        val body = response.bodyAsText()
         if (response.status == HttpStatusCode.OK) {
-            parseECBXml(response.bodyAsText())
-        } else emptyMap()
-    } catch (_: Exception) {
+            val parsed = parseECBXml(body)
+            parsed
+        } else {
+            emptyMap()
+        }
+    } catch (exception: Exception) {
+        exchangeLogger.warn("Exchange rates unavailable", exception)
         emptyMap()
     }
 }
-
 private suspend fun fetchTWDRate(): Double? {
     return try {
         val response = httpClient.get("https://open.er-api.com/v6/latest/EUR")

@@ -7,11 +7,9 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
-import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
-import kotlin.time.Duration.Companion.milliseconds
 
 @Serializable
 private data class MLRequest(val description: String)
@@ -54,16 +52,13 @@ object CategoryServiceClient {
         // TIER 2: DEBERTA ML MICROSERVICE FALLBACK
         // =====================================================================
         return try {
-            val response: MLResponse = withTimeout(2_000.milliseconds) {
-                client.post(url) {
-                    contentType(ContentType.Application.Json)
-                    setBody(MLRequest(description))
-                }.body()
-            }
+            val response: MLResponse = client.post(url) {
+                contentType(ContentType.Application.Json)
+                setBody(MLRequest(description))
+            }.body()
 
             response.category
         } catch (e: CancellationException) {
-            // STOP SILENTLY FAILING: Print the exact reason to your backend terminal
             throw e
         } catch (e: Exception) {
             logger.warn("ML category service failed: {}", e.message)
