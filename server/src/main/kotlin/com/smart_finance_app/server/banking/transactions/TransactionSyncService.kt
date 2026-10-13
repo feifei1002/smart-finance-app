@@ -153,6 +153,24 @@ private suspend fun saveImportedTransactionsForAccount(
 ): SaveTransactionsResult {
     var importedCount = 0
     var duplicateCount = 0
+    val transactionIds = transactions.map { it.transactionId }.toSet()
+
+    val knownTransactionIds = Database.dataSource.connection.use { connection ->
+        try {
+            loadExistingTransactionsForAccount(
+                connection = connection,
+                userId = userId,
+                account = account,
+                transactionIds = transactionIds
+            ).keys
+        } finally {
+            connection.rollback()
+        }
+    }
+
+    val newCategories = inferCategoriesWithTimeout(
+        transactions.filter { it.transactionId !in knownTransactionIds }
+    )
 
     return Database.dataSource.connection.use { connection ->
         try {
@@ -160,7 +178,7 @@ private suspend fun saveImportedTransactionsForAccount(
                 connection = connection,
                 userId = userId,
                 account = account,
-                transactionIds = transactions.map { it.transactionId }.toSet()
+                transactionIds = transactionIds
             )
 
             connection.prepareStatement(
@@ -218,7 +236,8 @@ private suspend fun saveImportedTransactionsForAccount(
                         userId = userId,
                         account = account,
                         transaction = transaction,
-                        existing = existingTransactions[transaction.transactionId]
+                        existing = existingTransactions[transaction.transactionId],
+                        newCategory = newCategories[transaction.transactionId]
                     )
 
                     if (inserted) importedCount++ else duplicateCount++
@@ -249,7 +268,8 @@ private suspend fun upsertImportedTransaction(
     userId: UUID,
     account: StoredAccount,
     transaction: TransactionResponse,
-    existing: ExistingImportedTransaction?
+    existing: ExistingImportedTransaction?,
+    newCategory: String?
 ): Boolean {
     val displayMerchantName =
         transaction.merchantName
@@ -271,7 +291,7 @@ private suspend fun upsertImportedTransaction(
     }
 
     val category = if (isNewTransaction) {
-        inferTransactionCategoryWithShortMlTimeout(transaction)
+        newCategory ?: inferTransactionCategoryFast(transaction)
     } else {
         existing.category ?: "Others"
     }
@@ -597,18 +617,24 @@ internal fun getLastSuccessfulTransactionSync(userId: UUID): String? {
     }
 }
 
-private suspend fun inferTransactionCategoryWithShortMlTimeout(
-    transaction: TransactionResponse
-): String {
-    return try {
-        withTimeout(2_000.milliseconds) {
-            inferTransactionCategory(transaction)
+private suspend fun inferCategoriesWithTimeout(
+    transactions: List<TransactionResponse>
+): Map<String, String> {
+    if (transactions.isEmpty()) return emptyMap()
+
+    val categories = try {
+        withTimeout(25_000.milliseconds) {
+            inferTransactionCategories(transactions)
         }
     } catch (_: TimeoutCancellationException) {
-        inferTransactionCategoryFast(transaction)
+        transactions.map(::inferTransactionCategoryFast)
     } catch (exception: CancellationException) {
         throw exception
     } catch (_: Exception) {
-        inferTransactionCategoryFast(transaction)
+        transactions.map(::inferTransactionCategoryFast)
+    }
+
+    return transactions.zip(categories).associate { (transaction, category) ->
+        transaction.transactionId to category
     }
 }
