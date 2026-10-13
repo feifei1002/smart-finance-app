@@ -9,7 +9,8 @@
 # To update: pull the new tag, copy its digest from the build log, test, commit.
 
 # ---------- Build stage ----------
-FROM eclipse-temurin:17-jdk@sha256:5d6042fb8cdc14d614e4e421f52e3211fc5aeadddce44cbf9de8ed37c791f824 AS build
+# FROM eclipse-temurin:17-jdk@sha256:5d6042fb8cdc14d614e4e421f52e3211fc5aeadddce44cbf9de8ed37c791f824 AS build
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 
 # Gradle wrapper and build config first, so the Gradle download is cached
