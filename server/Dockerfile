@@ -9,8 +9,7 @@
 # To update: pull the new tag, copy its digest from the build log, test, commit.
 
 # ---------- Build stage ----------
-# FROM eclipse-temurin:17-jdk@sha256:5d6042fb8cdc14d614e4e421f52e3211fc5aeadddce44cbf9de8ed37c791f824 AS build
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:17-jdk@sha256:5d6042fb8cdc14d614e4e421f52e3211fc5aeadddce44cbf9de8ed37c791f824 AS build
 WORKDIR /app
 
 # Gradle wrapper and build config first, so the Gradle download is cached
@@ -38,13 +37,6 @@ RUN ./gradlew :server:installDist --no-daemon \
 # ---------- Runtime stage ----------
 FROM eclipse-temurin:17-jre@sha256:207ecae0b2b104dfc6dfa763d1e9cd2041cb344800a180e24cb1a28ed533ff90
 WORKDIR /app
-
-USER root
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates ca-certificates-java \
-    && update-ca-certificates -f \
-    && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --system --uid 10001 --no-create-home app
 COPY --from=build /app/server/build/install/server ./

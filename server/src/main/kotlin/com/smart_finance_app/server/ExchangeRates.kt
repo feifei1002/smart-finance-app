@@ -8,7 +8,15 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.time.Duration
+import java.time.Instant
 
 @Serializable
 data class ExchangeRatesResponse(val rates: Map<String, Double>)
@@ -19,102 +27,100 @@ private val httpClient = HttpClient(CIO) {
 
 private val exchangeLogger = org.slf4j.LoggerFactory.getLogger("ExchangeRates")
 
+private val exchangeRateJson = Json {
+    ignoreUnknownKeys = true
+}
+
+private val requiredCurrencies = setOf("EUR", "GBP", "USD", "PLN", "TWD")
+
+private val exchangeRateCacheMutex = Mutex()
+private var cachedExchangeRates: Map<String, Double> = emptyMap()
+private var cachedExchangeRatesAt: Instant? = null
+
+private val exchangeRateCacheTtl: Duration = Duration.ofHours(6)
+
 fun Route.exchangeRatesRoutes() {
     get("/api/exchange-rates") {
-        try {
-            // Fetch from ECB
-            val ecbRates = fetchECBRates()
-            val fallbackRates = fetchFallbackRates()
+        val rates = getExchangeRatesWithCache()
 
-            // Fetch TWD separately from open.er-api.com
-//            val twdRate = fetchTWDRate()
+        if (!rates.keys.containsAll(requiredCurrencies)) {
+            exchangeLogger.warn(
+                "Exchange rates unavailable. Missing currencies: {}",
+                requiredCurrencies - rates.keys
+            )
 
-//            val combined = ecbRates.toMutableMap()
-//            combined["EUR"] = 1.0
-//            if (twdRate != null) combined["TWD"] = twdRate
-
-            val combined = fallbackRates.toMutableMap()
-            combined.putAll(ecbRates)
-            combined["EUR"] = 1.0
-
-            exchangeLogger.info("Exchange rates loaded: count={}", combined.size)
-
-            if (combined.isEmpty()) {
-                call.respond(
-                    HttpStatusCode.ServiceUnavailable,
-                    ErrorResponse("Exchange rates unavailable")
-                )
-            } else {
-                call.respond(HttpStatusCode.OK, ExchangeRatesResponse(combined))
-            }
-        } catch (_: Exception) {
             call.respond(
                 HttpStatusCode.ServiceUnavailable,
                 ErrorResponse("Exchange rates unavailable")
             )
+            return@get
         }
+
+        call.respond(HttpStatusCode.OK, ExchangeRatesResponse(rates))
     }
 }
 
-private suspend fun fetchECBRates(): Map<String, Double> {
-    return try {
-        val response = httpClient.get(
-            "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
-        )
 
-        val body = response.bodyAsText()
-        if (response.status == HttpStatusCode.OK) {
-            val parsed = parseECBXml(body)
-            parsed
-        } else {
-            emptyMap()
+private suspend fun getExchangeRatesWithCache(): Map<String, Double> {
+    return exchangeRateCacheMutex.withLock {
+        val now = Instant.now()
+        val cachedAt = cachedExchangeRatesAt
+
+        val cacheIsFresh =
+            cachedExchangeRates.isNotEmpty() &&
+                    cachedAt != null &&
+                    Duration.between(cachedAt, now) < exchangeRateCacheTtl
+
+        if (cacheIsFresh) {
+            return@withLock cachedExchangeRates
         }
-    } catch (exception: Exception) {
-        exchangeLogger.warn("Exchange rates unavailable", exception)
+
+        val freshRates = fetchExchangeRateApiRates()
+
+        if (freshRates.keys.containsAll(requiredCurrencies)) {
+            cachedExchangeRates = freshRates
+            cachedExchangeRatesAt = now
+
+            exchangeLogger.info("Exchange rates loaded: count={}", freshRates.size)
+            return@withLock freshRates
+        }
+
+        if (cachedExchangeRates.isNotEmpty()) {
+            exchangeLogger.warn("Using stale cached exchange rates")
+            return@withLock cachedExchangeRates
+        }
+
         emptyMap()
     }
 }
-private suspend fun fetchTWDRate(): Double? {
+
+private suspend fun fetchExchangeRateApiRates(): Map<String, Double> {
     return try {
         val response = httpClient.get("https://open.er-api.com/v6/latest/EUR")
-        if (response.status != HttpStatusCode.OK) return null
-        val body = response.bodyAsText()
-        Regex(""""TWD"\s*:\s*([0-9.]+)""").find(body)
-            ?.groupValues?.get(1)?.toDoubleOrNull()
-    } catch (_: Exception) {
-        null
-    }
-}
 
-private fun parseECBXml(xml: String): Map<String, Double> {
-    val result = mutableMapOf<String, Double>()
-    val regex = Regex("""currency=["']([A-Z]+)["']\s+rate=["']([0-9.]+)["']""")
-    regex.findAll(xml).forEach { match ->
-        val currency = match.groupValues[1]
-        val rate     = match.groupValues[2].toDoubleOrNull()
-        if (rate != null) result[currency] = rate
-    }
-    return result
-}
-
-private suspend fun fetchFallbackRates(): Map<String, Double> {
-    return try {
-        val response = httpClient.get("https://open.er-api.com/v6/latest/EUR")
-        if (response.status != HttpStatusCode.OK) return emptyMap()
+        if (response.status != HttpStatusCode.OK) {
+            exchangeLogger.warn("ExchangeRate API returned status={}", response.status)
+            return emptyMap()
+        }
 
         val body = response.bodyAsText()
-        val wanted = setOf("GBP", "USD", "PLN", "TWD")
+        val json = exchangeRateJson.parseToJsonElement(body).jsonObject
+        val ratesJson = json["rates"]?.jsonObject ?: return emptyMap()
 
-        wanted.mapNotNull { currency ->
-            val rate = Regex(""""$currency"\s*:\s*([0-9.]+)""")
-                .find(body)
-                ?.groupValues
-                ?.get(1)
-                ?.toDoubleOrNull()
-
-            rate?.let { currency to it }
+        val rates = requiredCurrencies.mapNotNull { currency ->
+            if (currency == "EUR") {
+                currency to 1.0
+            } else {
+                ratesJson[currency]
+                    ?.jsonPrimitive
+                    ?.doubleOrNull
+                    ?.let { currency to it }
+            }
         }.toMap()
-    } catch (_: Exception) {
+
+        rates
+    } catch (exception: Exception) {
+        exchangeLogger.warn("ExchangeRate API fetch failed", exception)
         emptyMap()
     }
 }
