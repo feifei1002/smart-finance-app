@@ -2,6 +2,7 @@ package com.smart_finance_app.server
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -23,6 +24,12 @@ data class ExchangeRatesResponse(val rates: Map<String, Double>)
 
 private val httpClient = HttpClient(CIO) {
     expectSuccess = false
+
+    install(HttpTimeout) {
+        requestTimeoutMillis = 10_000
+        connectTimeoutMillis = 5_000
+        socketTimeoutMillis = 10_000
+    }
 }
 
 private val exchangeLogger = org.slf4j.LoggerFactory.getLogger("ExchangeRates")

@@ -10,12 +10,9 @@ import com.smart_finance_app.server.banking.accounts.cancelPendingBankAccountSel
 import com.smart_finance_app.server.banking.accounts.createBankConnectionSession
 import com.smart_finance_app.server.banking.accounts.expireOldBankConnectionSelections
 import com.smart_finance_app.server.banking.accounts.getBankConnectionSessionStatus
-import com.smart_finance_app.server.banking.accounts.getConnectedAccountsForUser
 import com.smart_finance_app.server.banking.accounts.getPendingSelectableAccounts
-import com.smart_finance_app.server.banking.config.maxAccountsForSubscription
 import com.smart_finance_app.server.banking.accounts.saveSelectedBankAccounts
 import com.smart_finance_app.server.common.userIdOrNull
-import com.smart_finance_app.server.subscriptions.getSubscriptionStatus
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
@@ -33,16 +30,16 @@ internal fun Route.bankConnectionRoutes() {
         return@post call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid token"))
 
         // Derive limit from subscription plan
-        val subscriptionStatus = getSubscriptionStatus(userId)
-        val maxAccounts = maxAccountsForSubscription(subscriptionStatus)
-
-        val existingAccounts = getConnectedAccountsForUser(userId)
-        if (existingAccounts.size >= maxAccounts) {
-            return@post call.respond(
-                HttpStatusCode.Forbidden,
-                ErrorResponse("Account limit reached. Your plan allows up to $maxAccounts connected accounts.")
-            )
-        }
+//        val subscriptionStatus = getSubscriptionStatus(userId)
+//        val maxAccounts = maxAccountsForSubscription(subscriptionStatus)
+//
+//        val existingAccounts = getConnectedAccountsForUser(userId)
+//        if (existingAccounts.size >= maxAccounts) {
+//            return@post call.respond(
+//                HttpStatusCode.Forbidden,
+//                ErrorResponse("Account limit reached. Your plan allows up to $maxAccounts connected accounts.")
+//            )
+//        }
 
 
         val request = runCatching { call.receive<CreateBankConnectionRequest>() }

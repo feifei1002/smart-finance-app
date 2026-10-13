@@ -6,7 +6,6 @@ import com.smart_finance_app.server.Database
 import com.smart_finance_app.server.Encryption
 import com.smart_finance_app.server.banking.config.bankingGson
 import com.smart_finance_app.server.banking.config.bankingHttpClient
-import com.smart_finance_app.server.banking.config.bankingLogger
 import com.smart_finance_app.server.banking.models.BalanceResponse
 import com.smart_finance_app.server.banking.models.StoredAccount
 import com.smart_finance_app.server.banking.models.TransactionResponse
@@ -348,14 +347,7 @@ internal fun buildTrueLayerAuthUrl(state: String, providerId: String): String = 
  * If the stored token expires within the next 5 minutes, refresh it first.
  * Returns a valid access token to use for the API call.
  */
-internal fun ensureFreshToken(stored: StoredAccount): String {
-    val expiresIn5Min = Instant.now().plusSeconds(300)
-    if (stored.tokenExpiry.isAfter(expiresIn5Min)) {
-        return stored.accessToken // token still valid
-    }
-
-    // Token expired — use refresh token to get a new one
-    bankingLogger.info("Refreshing TrueLayer access token for account {}", stored.dbId)
+internal fun refreshTrueLayerToken(stored: StoredAccount): String {
 
     // Token expired — use refresh token to get a new one
     val requestBody = FormBody.Builder()
@@ -403,7 +395,6 @@ internal fun ensureFreshToken(stored: StoredAccount): String {
 
             connection.commit()
 
-            bankingLogger.info("TrueLayer access token refreshed for account {}", stored.dbId)
         } catch (e: Exception) {
             connection.rollback()
             throw e
@@ -411,4 +402,13 @@ internal fun ensureFreshToken(stored: StoredAccount): String {
     }
 
     return newTokens.accessToken
+}
+
+internal fun ensureFreshToken(stored: StoredAccount): String {
+    val expiresIn5Min = Instant.now().plusSeconds(300)
+    if (stored.tokenExpiry.isAfter(expiresIn5Min)) {
+        return stored.accessToken
+    }
+
+    return refreshTrueLayerToken(stored)
 }

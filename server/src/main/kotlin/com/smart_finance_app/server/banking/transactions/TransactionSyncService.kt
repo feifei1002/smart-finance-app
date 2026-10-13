@@ -2,6 +2,7 @@ package com.smart_finance_app.server.banking.transactions
 
 import com.smart_finance_app.server.Database
 import com.smart_finance_app.server.banking.accounts.getStoredAccountsWithTokens
+import com.smart_finance_app.server.banking.config.bankingLogger
 import com.smart_finance_app.server.banking.merchants.merchantNameForLogoLookup
 import com.smart_finance_app.server.banking.models.ImportedTransactionResponse
 import com.smart_finance_app.server.banking.models.PaginatedTransactionsResponse
@@ -12,6 +13,7 @@ import com.smart_finance_app.server.banking.merchants.resolveMerchantLogoUrl
 import com.smart_finance_app.server.banking.truelayer.ensureFreshToken
 import com.smart_finance_app.server.banking.truelayer.fetchPendingTransactions
 import com.smart_finance_app.server.banking.truelayer.fetchTransactions
+import com.smart_finance_app.server.banking.truelayer.refreshTrueLayerToken
 import com.smart_finance_app.server.profile.userExists
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -52,34 +54,60 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = wit
 
         storedAccounts.forEach { account ->
             runCatching {
-                val token = ensureFreshToken(account)
+                var token = ensureFreshToken(account)
 
                 // Fetch up to 6 months of transactions for the newly connected account on the first sync
                 val isInitialImport = account.initialTransactionsImportedAt == null
                 val todayUtc = LocalDate.now(ZoneOffset.UTC)
 
-                val settledTransactions = if (isInitialImport) {
 
-                    fetchTransactions(
-                        accessToken = token,
-                        accountId = account.accountId,
-                        from = todayUtc.minusMonths(6),
-                        to = todayUtc
-                    )
-                } else {
+                val settledTransactions = runCatching {
+                    if (isInitialImport) {
 
-                    fetchTransactions(token, account.accountId)
+                        fetchTransactions(
+                            accessToken = token,
+                            accountId = account.accountId,
+                            from = todayUtc.minusMonths(6),
+                            to = todayUtc
+                        )
+                    } else {
+
+                        fetchTransactions(token, account.accountId)
+                    }
+                }.getOrElse { exception ->
+                    if (exception.message?.contains("(401)") == true) {
+                        token = refreshTrueLayerToken(account)
+
+                        if (isInitialImport) {
+                            fetchTransactions(
+                                accessToken = token,
+                                accountId = account.accountId,
+                                from = todayUtc.minusMonths(6),
+                                to = todayUtc
+                            )
+                        } else {
+                            fetchTransactions(token, account.accountId)
+                        }
+                    } else {
+                        throw exception
+                    }
                 }
 
                 val pendingFetchResult = runCatching {
                     fetchPendingTransactions(token, account.accountId)
                 }
 
-                val pendingTransactions = pendingFetchResult.getOrElse {
+                val pendingTransactions = pendingFetchResult.getOrElse { exception ->
+                    bankingLogger.warn(
+                        "Pending transaction fetch failed for account {}",
+                        account.dbId,
+                        exception
+                    )
                     emptyList()
                 }
 
-                val transactions = settledTransactions + pendingTransactions
+                val transactions = (settledTransactions + pendingTransactions)
+                    .distinctBy { it.transactionId }
 
                 val saveResult = saveImportedTransactionsForAccount(
                     userId = userId,
@@ -253,7 +281,7 @@ private suspend fun saveImportedTransactionsForAccount(
     }
 }
 
-private suspend fun upsertImportedTransaction(
+private fun upsertImportedTransaction(
     statement: PreparedStatement,
     userId: UUID,
     account: StoredAccount,
