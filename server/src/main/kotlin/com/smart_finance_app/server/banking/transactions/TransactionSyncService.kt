@@ -128,6 +128,9 @@ private suspend fun saveImportedTransactionsForAccount(
                 transactionIds = transactions.map { it.transactionId }.toSet()
             )
 
+            val newTransactions = transactions.filter { it.transactionId !in existingTransactions }
+            val newCategories = inferCategoriesWithTimeout(newTransactions)
+
             connection.prepareStatement(
                 """
                 INSERT INTO transactions (
@@ -183,7 +186,8 @@ private suspend fun saveImportedTransactionsForAccount(
                         userId = userId,
                         account = account,
                         transaction = transaction,
-                        existing = existingTransactions[transaction.transactionId]
+                        existing = existingTransactions[transaction.transactionId],
+                        newCategory = newCategories[transaction.transactionId]
                     )
 
                     if (inserted) importedCount++ else duplicateCount++
@@ -214,7 +218,8 @@ private suspend fun upsertImportedTransaction(
     userId: UUID,
     account: StoredAccount,
     transaction: TransactionResponse,
-    existing: ExistingImportedTransaction?
+    existing: ExistingImportedTransaction?,
+    newCategory: String?
 ): Boolean {
     val displayMerchantName =
         transaction.merchantName
@@ -236,7 +241,7 @@ private suspend fun upsertImportedTransaction(
     }
 
     val category = if (isNewTransaction) {
-        inferTransactionCategoryWithShortMlTimeout(transaction)
+        newCategory ?: inferTransactionCategoryFast(transaction)
     } else {
         existing.category ?: "Others"
     }
@@ -532,18 +537,24 @@ internal fun getLastSuccessfulTransactionSync(userId: UUID): String? {
     }
 }
 
-private suspend fun inferTransactionCategoryWithShortMlTimeout(
-    transaction: TransactionResponse
-): String {
-    return try {
-        withTimeout(2_000.milliseconds) {
-            inferTransactionCategory(transaction)
+private suspend fun inferCategoriesWithTimeout(
+    transactions: List<TransactionResponse>
+): Map<String, String> {
+    if (transactions.isEmpty()) return emptyMap()
+
+    val categories = try {
+        withTimeout(25_000.milliseconds) {
+            inferTransactionCategories(transactions)
         }
     } catch (_: TimeoutCancellationException) {
-        inferTransactionCategoryFast(transaction)
+        transactions.map(::inferTransactionCategoryFast)
     } catch (exception: CancellationException) {
         throw exception
     } catch (_: Exception) {
-        inferTransactionCategoryFast(transaction)
+        transactions.map(::inferTransactionCategoryFast)
+    }
+
+    return transactions.zip(categories).associate { (transaction, category) ->
+        transaction.transactionId to category
     }
 }
