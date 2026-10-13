@@ -2,7 +2,6 @@ package com.smart_finance_app.server.banking.transactions
 
 import com.smart_finance_app.server.Database
 import com.smart_finance_app.server.banking.accounts.getStoredAccountsWithTokens
-import com.smart_finance_app.server.banking.config.bankingLogger
 import com.smart_finance_app.server.banking.merchants.merchantNameForLogoLookup
 import com.smart_finance_app.server.banking.models.ImportedTransactionResponse
 import com.smart_finance_app.server.banking.models.PaginatedTransactionsResponse
