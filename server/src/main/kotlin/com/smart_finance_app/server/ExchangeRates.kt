@@ -38,7 +38,7 @@ fun Route.exchangeRatesRoutes() {
             } else {
                 call.respond(HttpStatusCode.OK, ExchangeRatesResponse(combined))
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             call.respond(
                 HttpStatusCode.ServiceUnavailable,
                 ErrorResponse("Exchange rates unavailable")
@@ -74,7 +74,7 @@ private suspend fun fetchTWDRate(): Double? {
 
 private fun parseECBXml(xml: String): Map<String, Double> {
     val result = mutableMapOf<String, Double>()
-    val regex  = Regex("""currency='([A-Z]+)'\s+rate='([0-9.]+)'""")
+    val regex = Regex("""currency=["']([A-Z]+)["']\s+rate=["']([0-9.]+)["']""")
     regex.findAll(xml).forEach { match ->
         val currency = match.groupValues[1]
         val rate     = match.groupValues[2].toDoubleOrNull()
