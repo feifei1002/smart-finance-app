@@ -223,11 +223,8 @@ internal fun fetchTransactions(
     from: LocalDate = LocalDate.now(ZoneOffset.UTC).minusDays(89),
     to: LocalDate = LocalDate.now(ZoneOffset.UTC)
 ): List<TransactionResponse> {
-    // Fetch last 6 months of transactions
-//    val todayUtc = LocalDate.now(ZoneOffset.UTC)
-//    val from = todayUtc.minusMonths(6).toString()
-//    val to   = todayUtc.toString()
 
+    // Fetch up to 90 days of transactions for regular sync
     val request = Request.Builder()
         .url("${TrueLayerConfig.API_BASE_URL}/data/v1/accounts/$accountId/transactions?from=$from&to=$to")
         .header("Authorization", "Bearer $accessToken")

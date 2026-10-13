@@ -55,19 +55,11 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = wit
             runCatching {
                 val token = ensureFreshToken(account)
 
-//                val settledTransactions = fetchTransactions(token, account.accountId)
-
+                // Fetch up to 6 months of transactions for the newly connected account on the first sync
                 val isInitialImport = account.initialTransactionsImportedAt == null
                 val todayUtc = LocalDate.now(ZoneOffset.UTC)
 
-                bankingLogger.info(
-                    "Syncing account {} initialImport={}",
-                    account.accountName,
-                    isInitialImport
-                )
-
                 val settledTransactions = if (isInitialImport) {
-                    bankingLogger.info("Fetching initial 6-month import for account {}", account.dbId)
 
                     fetchTransactions(
                         accessToken = token,
@@ -76,7 +68,6 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = wit
                         to = todayUtc
                     )
                 } else {
-                    bankingLogger.info("Fetching regular 89-day sync for account {}", account.dbId)
 
                     fetchTransactions(token, account.accountId)
                 }
