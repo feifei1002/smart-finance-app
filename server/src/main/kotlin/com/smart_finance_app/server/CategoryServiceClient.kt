@@ -23,6 +23,8 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 private val logger = LoggerFactory.getLogger(CategoryServiceClient::class.java)
 
@@ -39,6 +41,8 @@ object CategoryServiceClient {
     private const val ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
     private const val ANTHROPIC_VERSION = "2023-06-01"
     private const val BATCH_SIZE = 50
+    private const val MAX_CONCURRENT_AI_REQUESTS = 3
+    private val aiRequestLimit = Semaphore(MAX_CONCURRENT_AI_REQUESTS)
 
     // Categories the AI may return. Transfers and Income are decided by the
     // rules in TransactionCategoryService before anything reaches the AI.
@@ -89,6 +93,16 @@ object CategoryServiceClient {
     private val model: String =
         System.getenv("CATEGORY_AI_MODEL")?.takeIf { it.isNotBlank() } ?: "claude-haiku-5-5"
 
+    init {
+        if (apiKey == null) {
+            logger.warn(
+                "ANTHROPIC_API_KEY is not set: AI categorisation is DISABLED. " +
+                        "Merchants not matched by the regex rules will be categorised as 'Others'."
+            )
+        } else {
+            logger.info("AI categorisation enabled (model: {})", model)
+        }
+    }
     fun classifyByRulesOnly(description: String): String? {
         for ((regex, category) in EXACT_BRAND_LOOKUP) {
             if (regex.containsMatchIn(description)) {
@@ -126,7 +140,7 @@ object CategoryServiceClient {
             needsAi.chunked(BATCH_SIZE).map { chunk ->
                 async {
                     val aiResults = try {
-                        classifyWithAi(chunk)
+                        aiRequestLimit.withPermit { classifyWithAi(chunk) }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {

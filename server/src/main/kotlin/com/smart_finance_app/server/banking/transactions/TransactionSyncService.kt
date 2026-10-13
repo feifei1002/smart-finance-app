@@ -118,6 +118,24 @@ private suspend fun saveImportedTransactionsForAccount(
 ): SaveTransactionsResult {
     var importedCount = 0
     var duplicateCount = 0
+    val transactionIds = transactions.map { it.transactionId }.toSet()
+
+    val knownTransactionIds = Database.dataSource.connection.use { connection ->
+        try {
+            loadExistingTransactionsForAccount(
+                connection = connection,
+                userId = userId,
+                account = account,
+                transactionIds = transactionIds
+            ).keys
+        } finally {
+            connection.rollback()
+        }
+    }
+
+    val newCategories = inferCategoriesWithTimeout(
+        transactions.filter { it.transactionId !in knownTransactionIds }
+    )
 
     return Database.dataSource.connection.use { connection ->
         try {
@@ -125,11 +143,8 @@ private suspend fun saveImportedTransactionsForAccount(
                 connection = connection,
                 userId = userId,
                 account = account,
-                transactionIds = transactions.map { it.transactionId }.toSet()
+                transactionIds = transactionIds
             )
-
-            val newTransactions = transactions.filter { it.transactionId !in existingTransactions }
-            val newCategories = inferCategoriesWithTimeout(newTransactions)
 
             connection.prepareStatement(
                 """
