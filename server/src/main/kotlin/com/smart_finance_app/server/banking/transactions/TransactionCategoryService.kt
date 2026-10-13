@@ -17,11 +17,16 @@ internal val allowedTransactionCategories = setOf(
     "Others"
 )
 
-suspend fun inferTransactionCategory(transaction: TransactionResponse): String {
+private sealed interface CategoryDecision {
+    data class Final(val category: String) : CategoryDecision
+    data class NeedsMerchantLookup(val cleanDescription: String) : CategoryDecision
+}
+
+private fun decideCategory(transaction: TransactionResponse): CategoryDecision {
     val rawDescription = "${transaction.merchantName.orEmpty()} ${transaction.description}".trim()
     val cleanDesc = rawDescription.split(Regex("[#\\-(]")).first().trim()
 
-    if (cleanDesc.isEmpty()) return "Others"
+    if (cleanDesc.isEmpty()) return CategoryDecision.Final("Others")
 
     val isPersonTransfer =
         cleanDesc.contains(Regex("\\b(MR|MS|MRS|MISS|DR)\\s+[A-Z]", RegexOption.IGNORE_CASE)) ||
@@ -30,19 +35,44 @@ suspend fun inferTransactionCategory(transaction: TransactionResponse): String {
                 cleanDesc.contains("TRANSFER", ignoreCase = true)
 
     if (isPersonTransfer) {
-        return "Transfers"
+        return CategoryDecision.Final("Transfers")
     }
 
     if (cleanDesc.contains("REFUND", ignoreCase = true)) {
-        return CategoryServiceClient.classify(cleanDesc)
+        return CategoryDecision.NeedsMerchantLookup(cleanDesc)
     }
 
     if (transaction.amount > 0 || transaction.type.equals("CREDIT", ignoreCase = true)) {
-        return "Income"
+        return CategoryDecision.Final("Income")
     }
 
-    return CategoryServiceClient.classify(cleanDesc)
+    return CategoryDecision.NeedsMerchantLookup(cleanDesc)
 }
+
+suspend fun inferTransactionCategories(transactions: List<TransactionResponse>): List<String> {
+    val decisions = transactions.map(::decideCategory)
+
+    val lookups = decisions
+        .filterIsInstance<CategoryDecision.NeedsMerchantLookup>()
+        .map { it.cleanDescription }
+
+    val merchantCategories = if (lookups.isEmpty()) {
+        emptyMap()
+    } else {
+        CategoryServiceClient.classifyBatch(lookups)
+    }
+
+    return decisions.map { decision ->
+        when (decision) {
+            is CategoryDecision.Final -> decision.category
+            is CategoryDecision.NeedsMerchantLookup ->
+                merchantCategories[decision.cleanDescription] ?: "Others"
+        }
+    }
+}
+
+suspend fun inferTransactionCategory(transaction: TransactionResponse): String =
+    inferTransactionCategories(listOf(transaction)).first()
 
 fun inferTransactionCategoryFast(transaction: TransactionResponse): String {
     val rawDescription = "${transaction.merchantName.orEmpty()} ${transaction.description}".trim()
@@ -155,8 +185,11 @@ internal suspend fun recategorizeTransactionsForUser(userId: UUID): Int {
 
     var updatedCount = 0
 
-    transactions.forEach { (id, transaction) ->
-        val category = inferTransactionCategory(transaction)
+    // One batched classification for all transactions instead of one call each.
+    val categories = inferTransactionCategories(transactions.map { it.second })
+
+    transactions.forEachIndexed { index, (id, _) ->
+        val category = categories[index]
 
         Database.dataSource.connection.use { connection ->
             try {

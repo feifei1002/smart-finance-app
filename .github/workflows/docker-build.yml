@@ -31,10 +31,6 @@ jobs:
             context: .
             dockerfile: server/Dockerfile
             tag: smart-finance-server:ci
-          - name: ml-service
-            context: ml-service
-            dockerfile: ml-service/Dockerfile
-            tag: smart-finance-ml:ci
 
     steps:
       - name: Checkout
