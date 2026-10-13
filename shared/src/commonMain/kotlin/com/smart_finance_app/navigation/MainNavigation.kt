@@ -172,6 +172,7 @@ private fun NavigationContent(
     var transactionsLoading by remember { mutableStateOf(false) }
     var transactionsError by remember { mutableStateOf<String?>(null) }
     var dashboardTransactionsLoaded by remember { mutableStateOf(false) }
+    var dashboardTransactionsError by remember { mutableStateOf<String?>(null) }
     var transactionsPage by remember { mutableStateOf(0) }
     var transactionsHasMore by remember { mutableStateOf(false) }
     var transactionsTotalCount by remember { mutableStateOf(0) }
@@ -179,6 +180,7 @@ private fun NavigationContent(
     var loadingTransactionsPage by remember { mutableStateOf<Int?>(null) }
     var transactionsSyncing by remember { mutableStateOf(false) }
     var transactionsSyncError by remember { mutableStateOf<String?>(null) }
+    var transactionsSyncMessage by remember { mutableStateOf<String?>(null) }
     var transactionsFilter by remember { mutableStateOf("All") }
     var dashboardRecentTransactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
     var lastSyncedToken by remember { mutableStateOf<String?>(null) }
@@ -189,6 +191,7 @@ private fun NavigationContent(
 
     suspend fun loadDashboardTransactions() {
         dashboardTransactionsLoaded = false
+        dashboardTransactionsError = null
         try {
             val pageSize = 500
             val allTransactions = mutableListOf<TransactionUI>()
@@ -214,7 +217,8 @@ private fun NavigationContent(
                                 amount = transaction.amount,
                                 currency = transaction.currency,
                                 merchantLogoUrl = transaction.merchantLogoUrl,
-                                accountId = transaction.accountId
+                                accountId = transaction.accountId,
+                                transactionStatus = transaction.transactionStatus
                             )
                         }
 
@@ -222,13 +226,28 @@ private fun NavigationContent(
                         page++
                     }
 
-                    is TransactionsResult.Failure -> break
+                    is TransactionsResult.Failure -> {
+                        dashboardTransactionsError = AppStrings.get(
+                            LocaleController.currentLanguageCode,
+                            result.message
+                        )
+                        dashboardRecentTransactions = emptyList()
+                        return
+                    }
                 }
             }
 
             dashboardRecentTransactions = allTransactions
         } finally {
             dashboardTransactionsLoaded = true
+        }
+    }
+
+    LaunchedEffect(navigation) {
+        if (navigation != AppNavigation.Transactions) {
+            transactionsSyncError = null
+            transactionsSyncMessage = null
+            transactionsError = null
         }
     }
 
@@ -307,7 +326,8 @@ private fun NavigationContent(
                             amount = transaction.amount,
                             currency = transaction.currency,
                             merchantLogoUrl = transaction.merchantLogoUrl,
-                            accountId = transaction.accountId
+                            accountId = transaction.accountId,
+                            transactionStatus = transaction.transactionStatus
                         )
                     }
 
@@ -386,12 +406,28 @@ private fun NavigationContent(
         transactionsSyncError = null
 
         try {
+
             when (val syncResult = transactionsApi.syncTransactions(authToken)) {
                 is TransactionSyncResult.Success -> {
                     transactionsSyncError = null
+
+                    transactionsSyncMessage =
+                        if (syncResult.result.importedCount > 0) {
+                            AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                StringKey.TRANSACTIONS_SYNC_UPDATED
+                            )
+                        } else {
+                            AppStrings.get(
+                                LocaleController.currentLanguageCode,
+                                StringKey.TRANSACTIONS_SYNC_NO_NEW
+                            )
+                        }
                 }
+
                 is TransactionSyncResult.Failure -> {
-                    transactionsSyncError  = AppStrings.get(
+                    transactionsSyncMessage = null
+                    transactionsSyncError = AppStrings.get(
                         LocaleController.currentLanguageCode,
                         syncResult.message
                     )
@@ -423,6 +459,9 @@ private fun NavigationContent(
             apiBaseUrl                   = apiBaseUrl,
             transactions                 = mappedTransactions,
             transactionsLoaded           = dashboardTransactionsLoaded,
+            transactionsLoadError        = dashboardTransactionsError,
+            onRetryTransactions          = { scope.launch { loadDashboardTransactions() } },
+            refreshRequest               = bankConnectionRefreshRequest,
             onConnectAccountClicked      = onNavigateToAccounts,
             onViewAllTransactionsClicked = onNavigateToTransactions,
             api                          = dashboardApi,
@@ -435,6 +474,12 @@ private fun NavigationContent(
                 isLoading     = transactionsLoading,
                 isSyncing     = transactionsSyncing,
                 errorMessage  = transactionsSyncError ?: transactionsError,
+                syncMessage = transactionsSyncMessage,
+                onSyncTransactions = {
+                    scope.launch {
+                        syncAndReloadTransactions()
+                    }
+                },
                 currentPage   = transactionsPage,
                 totalCount    = transactionsTotalCount,
                 pageSize      = transactionsPageSize,
@@ -552,6 +597,7 @@ private fun NavigationContent(
                                     banksError = null
                                     showConnectBank = false
                                     accountsRefreshRequest++
+                                    dashboardTransactionsLoaded = false
                                     bankConnectionRefreshRequest++
                                     onNavigateToTransactions()
                                     finished = true
@@ -810,6 +856,7 @@ private fun NavigationContent(
                                         selectableAccounts = emptyList()
                                         selectedAccountIds = emptySet()
                                         accountsRefreshRequest++
+                                        dashboardTransactionsLoaded = false
                                         bankConnectionRefreshRequest++
                                     }
 

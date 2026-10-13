@@ -59,7 +59,6 @@ internal fun DonutChart(categories: List<SpendingCategory>, modifier: Modifier =
             drawArc(
                 color = cat.color,
                 startAngle = startAngle,
-//                sweepAngle = sweep - 0.8f,
                 sweepAngle = (sweep - 0.8f).coerceAtLeast(0f),
                 useCenter = false,
                 topLeft = Offset(center.x - radius, center.y - radius),
@@ -125,7 +124,7 @@ internal fun LineChart(data: List<MonthlyPoint>, modifier: Modifier = Modifier) 
                 val chartWidth = size.width
                 val chartHeight = size.height
 
-                val stepX = chartWidth / (data.size - 1).toFloat()
+                val stepX = if (data.size > 1) chartWidth / (data.size - 1).toFloat() else 0f
                 fun xFor(i: Int) = i * stepX
                 fun yFor(v: Float) = chartHeight * (1f - v.coerceIn(0f, maxVal) / maxVal)
 

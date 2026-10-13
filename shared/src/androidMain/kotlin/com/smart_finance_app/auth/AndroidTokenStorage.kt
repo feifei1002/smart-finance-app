@@ -10,13 +10,28 @@ class AndroidTokenStorage(context: Context) : TokenStorage {
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
-    private val preferences = EncryptedSharedPreferences.create(
-        context,
-        "smart_finance_auth",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+//    private val preferences = EncryptedSharedPreferences.create(
+//        context,
+//        "smart_finance_auth",
+//        masterKey,
+//        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+//        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+//    )
+    private val preferences = runCatching {
+        createEncryptedPreferences(context)
+    }.getOrElse {
+        context.deleteSharedPreferences("smart_finance_auth")
+        createEncryptedPreferences(context)
+    }
+
+    private fun createEncryptedPreferences(context: Context) =
+        EncryptedSharedPreferences.create(
+            context,
+            "smart_finance_auth",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
 
     override fun getRefreshToken(): String? {
         return preferences.getString("refresh_token", null)

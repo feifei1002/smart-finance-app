@@ -62,6 +62,9 @@ fun DashboardScreen(
     apiBaseUrl: String,
     transactions: List<TransactionData>,
     transactionsLoaded: Boolean,
+    transactionsLoadError: String? = null,
+    onRetryTransactions: () -> Unit = {},
+    refreshRequest: Int,
     onConnectAccountClicked: () -> Unit,
     onViewAllTransactionsClicked: () -> Unit,
     api: DashboardApi,
@@ -132,8 +135,16 @@ fun DashboardScreen(
         authToken,
         transactions,
         transactionsLoaded,
+        transactionsLoadError,
+        refreshRequest,
         CurrencyController.currentCurrency
     ) {
+        if (transactionsLoadError != null) {
+            errorMsg = transactionsLoadError
+            isLoading = false
+            return@LaunchedEffect
+        }
+
         if (!transactionsLoaded) {
             isLoading = true
             errorMsg = null
@@ -170,7 +181,15 @@ fun DashboardScreen(
                         errorMsg?.let {
                             AppErrorMessage(it)
                         }
-                        Button(onClick = { scope.launch { load() } }) {
+                        Button(
+                            onClick = {
+                                if (transactionsLoadError != null) {
+                                    onRetryTransactions()
+                                } else {
+                                    scope.launch { load() }
+                                }
+                            }
+                        ) {
                             Text(
                                 text = appStringResource(StringKey.DASHBOARD_RETRY),
                                 maxLines = 1,
@@ -1126,7 +1145,6 @@ private fun DesktopDashboard(
     val keyCardOrder = remember(userId) { "${userId}_${KEY_CARD_ORDER}" }
     val keyDeletedCards = remember(userId) { "${userId}_${KEY_DELETED_CARDS}" }
     val keyChartCards = remember(userId) { "${userId}_${KEY_CHART_CARDS}" }
-    val keyMigrated = remember(userId) { "${userId}_${KEY_MIGRATED}" }
     val keyHalfPositions = remember(userId) { "${userId}_${KEY_HALF_POSITIONS}" }
 
     var deletedCards by remember(userId) {

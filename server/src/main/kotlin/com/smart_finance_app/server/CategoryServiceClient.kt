@@ -7,6 +7,7 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 
@@ -35,7 +36,7 @@ object CategoryServiceClient {
         install(ContentNegotiation) { json() }
     }
 
-    private val mlServiceUrl = System.getenv("ML_SERVICE_URL") ?: "http://localhost:8000/classify"
+    private val mlServiceUrl = System.getenv("ML_SERVICE_URL")
 
     suspend fun classify(description: String): String {
         // Step 1: Try the fast native Regex match
@@ -45,21 +46,34 @@ object CategoryServiceClient {
             }
         }
 
+        val url = mlServiceUrl?.takeIf { it.isNotBlank() } ?: return "Others"
+
         // =====================================================================
         // TIER 2: DEBERTA ML MICROSERVICE FALLBACK
         // =====================================================================
         return try {
-            val response: MLResponse = client.post(mlServiceUrl) {
+            val response: MLResponse = client.post(url) {
                 contentType(ContentType.Application.Json)
                 setBody(MLRequest(description))
             }.body()
 
             response.category
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            // STOP SILENTLY FAILING: Print the exact reason to your backend terminal
             logger.warn("ML category service failed: {}", e.message)
-
             "Others" // Fallback category on failure
         }
     }
+
+    fun classifyByRulesOnly(description: String): String? {
+        for ((regex, category) in EXACT_BRAND_LOOKUP) {
+            if (regex.containsMatchIn(description)) {
+                return category
+            }
+        }
+
+        return null
+    }
 }
+

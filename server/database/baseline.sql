@@ -645,6 +645,14 @@ ALTER TABLE ONLY public.transactions
     ADD CONSTRAINT transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
+ALTER TABLE ONLY public.transactions
+    ADD COLUMN IF NOT EXISTS transaction_status text NOT NULL DEFAULT 'settled';
+
+
+ALTER TABLE ONLY public.transactions
+    ADD CONSTRAINT transactions_status_check CHECK (transaction_status IN ('settled', 'pending'));
+
+
 --
 -- PostgreSQL database dump complete
 --

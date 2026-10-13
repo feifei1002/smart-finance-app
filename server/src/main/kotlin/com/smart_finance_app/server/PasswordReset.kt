@@ -2,21 +2,17 @@ package com.smart_finance_app.server
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.plugins.origin
 import io.ktor.server.request.receive
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
 import io.ktor.server.response.respond
-import jakarta.mail.Message
-import jakarta.mail.Session
-import jakarta.mail.Transport
-import jakarta.mail.internet.InternetAddress
-import jakarta.mail.internet.MimeMessage
 import kotlinx.serialization.Serializable
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.sql.Timestamp
 import java.time.Instant
-import java.util.Properties
 import java.util.UUID
 import java.util.Base64
 
@@ -77,6 +73,29 @@ fun Route.passwordResetRoutes() {
             "If an account exists for this email, a password reset link has been sent."
         )
 
+        val emailRateLimitIdentifier = "password-reset-email:$email"
+        val ipRateLimitIdentifier = "password-reset-ip:${call.clientIpForRateLimit()}"
+        val rateLimitAction = "password-reset"
+        
+        val emailRateLimited = isRateLimited(emailRateLimitIdentifier, rateLimitAction)
+        val ipRateLimited = isRateLimited(ipRateLimitIdentifier, rateLimitAction)
+
+        if (emailRateLimited || ipRateLimited) {
+            call.application.environment.log.warn(
+                "Password reset request rate limited: emailLimited={}, ipLimited={}, email={}, ip={}",
+                emailRateLimited,
+                ipRateLimited,
+                email,
+                call.clientIpForRateLimit()
+            )
+
+            call.respond(HttpStatusCode.OK, genericMessage)
+            return@post
+        }
+
+        recordFailedAttempt(emailRateLimitIdentifier, rateLimitAction)
+        recordFailedAttempt(ipRateLimitIdentifier, rateLimitAction)
+
         val user = findUserByEmail(email)
 
         if (user == null) {
@@ -92,11 +111,9 @@ fun Route.passwordResetRoutes() {
         runCatching {
             savePasswordResetToken(userId = user.id, tokenHash = tokenHash, expiresAt = expiresAt)
             sendPasswordResetEmail(to = user.email, resetLink = resetLink)
-        }.getOrElse {
-            call.respond(
-                HttpStatusCode.ServiceUnavailable,
-                ErrorResponse("Password reset email could not be sent. Please try again later.")
-            )
+        }.getOrElse { exception ->
+            call.application.environment.log.error("Password reset email could not be sent", exception)
+            call.respond(HttpStatusCode.OK, genericMessage)
             return@post
         }
 
@@ -138,25 +155,6 @@ private object PasswordResetConfig {
     val resetBaseUrl: String
         get() = System.getenv("PASSWORD_RESET_BASE_URL")
             ?: error("Missing environment variable: PASSWORD_RESET_BASE_URL")
-
-    val smtpHost: String
-        get() = System.getenv("SMTP_HOST")
-            ?: error("Missing environment variable: SMTP_HOST")
-
-    val smtpPort: String
-        get() = System.getenv("SMTP_PORT") ?: "587"
-
-    val smtpUsername: String
-        get() = System.getenv("SMTP_USERNAME")
-            ?: error("Missing environment variable: SMTP_USERNAME")
-
-    val smtpPassword: String
-        get() = System.getenv("SMTP_PASSWORD")
-            ?: error("Missing environment variable: SMTP_PASSWORD")
-
-    val smtpFrom: String
-        get() = System.getenv("SMTP_FROM")
-            ?: smtpUsername
 }
 
 private fun findUserByEmail(email: String): PasswordResetUser? =
@@ -218,52 +216,12 @@ private fun hashToken(token: String): String {
     return Base64.getEncoder().encodeToString(hashedBytes)
 }
 
-//private fun sendPasswordResetEmail(to: String, resetLink: String) {
-//    val properties = Properties().apply {
-//        put("mail.smtp.auth", "true")
-//        put("mail.smtp.starttls.enable", "true")
-//        put("mail.smtp.host", PasswordResetConfig.smtpHost)
-//        put("mail.smtp.port", PasswordResetConfig.smtpPort)
-//    }
-//
-//    val session = Session.getInstance(
-//        properties,
-//        object : jakarta.mail.Authenticator() {
-//            override fun getPasswordAuthentication() =
-//                jakarta.mail.PasswordAuthentication(
-//                    PasswordResetConfig.smtpUsername,
-//                    PasswordResetConfig.smtpPassword
-//                )
-//        }
-//    )
-//
-//    val message = MimeMessage(session).apply {
-//        setFrom(InternetAddress(PasswordResetConfig.smtpFrom))
-//        setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-//        subject = "Reset your Smart Finance password"
-//        setText(
-//            """
-//            You requested a password reset.
-//
-//            Open this link to create a new password:
-//            $resetLink
-//
-//            This link expires in 15 minutes.
-//
-//            If you did not request this, you can ignore this email.
-//            """.trimIndent()
-//        )
-//    }
-//
-//    Transport.send(message)
-//}
-
 private fun sendPasswordResetEmail(to: String, resetLink: String) {
     GmailApiMailer.send(
         to = to,
         subject = "Reset your Smart Finance password",
         body = """
-            We received a request to reset your Smart Finance password.
+            We received a request to reset your ARCA's account password.
 
             Reset your password using this link:
             $resetLink
@@ -349,4 +307,12 @@ private fun resetPassword(token: String, newPassword: String) {
             throw exception
         }
     }
+}
+
+private fun ApplicationCall.clientIpForRateLimit(): String {
+    return request.headers["X-Forwarded-For"]
+        ?.substringBefore(",")
+        ?.trim()
+        ?.takeIf { it.isNotBlank() }
+        ?: request.origin.remoteHost
 }

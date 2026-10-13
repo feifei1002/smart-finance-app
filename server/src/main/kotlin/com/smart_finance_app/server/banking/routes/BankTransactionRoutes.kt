@@ -14,6 +14,7 @@ import com.smart_finance_app.server.banking.transactions.getTransactionAmountFor
 import com.smart_finance_app.server.banking.transactions.recategorizeTransactionsForUser
 import com.smart_finance_app.server.banking.transactions.syncTransactionsForUser
 import com.smart_finance_app.server.banking.transactions.updateTransactionCategoryForUser
+import com.smart_finance_app.server.banking.truelayer.fetchPendingTransactions
 import com.smart_finance_app.server.common.userIdOrNull
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -24,8 +25,10 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
+import kotlinx.coroutines.withTimeout
 import java.util.UUID
 import kotlin.text.toIntOrNull
+import kotlin.time.Duration.Companion.milliseconds
 
 internal fun Route.bankTransactionRoutes() {
     get("/api/banking/transactions/imported") {
@@ -86,25 +89,43 @@ internal fun Route.bankTransactionRoutes() {
         storedAccounts.forEach { stored ->
             runCatching {
                 val token = ensureFreshToken(stored)
-                val tlTransactions = fetchTransactions(token, stored.accountId)
-                    .map { it.copy(accountId = stored.accountId) }
+
+                val settledTransactions = fetchTransactions(token, stored.accountId)
+                    .map { it.copy(accountId = stored.accountId, status = "settled") }
+
+                val pendingTransactions = runCatching {
+                    fetchPendingTransactions(token, stored.accountId)
+                        .map { it.copy(accountId = stored.accountId, status = "pending") }
+                }.getOrElse {
+                    emptyList()
+                }
 
                 succeededAccounts++
-                transactions.addAll(tlTransactions)
+
+                transactions.addAll(settledTransactions)
+                transactions.addAll(pendingTransactions)
             }.onFailure { exception ->
                 failedAccounts.add("${stored.accountName}: ${exception.message ?: "Unknown error"}")
             }
         }
 
         if (succeededAccounts == 0 && failedAccounts.isNotEmpty()) {
+            val combinedError = failedAccounts.joinToString("; ")
+
             call.application.environment.log.warn(
                 "Raw TrueLayer transaction fetch failed for all accounts: {}",
-                failedAccounts.joinToString("; ")
+                combinedError
             )
+
+            val message = if (combinedError.contains("sca_exceeded", ignoreCase = true)) {
+                "BANK_REAUTH_REQUIRED"
+            } else {
+                "Could not fetch transactions from TrueLayer"
+            }
 
             call.respond(
                 HttpStatusCode.BadGateway,
-                ErrorResponse("Could not fetch transactions from TrueLayer")
+                ErrorResponse(message)
             )
             return@get
         }
@@ -129,16 +150,23 @@ internal fun Route.bankTransactionRoutes() {
             )
 
         val result = runCatching {
-            syncTransactionsForUser(userId)
+            withTimeout(60_000.milliseconds) {
+                syncTransactionsForUser(userId)
+            }
         }.getOrElse { exception ->
             val lastSync = getLastSuccessfulTransactionSync(userId)
+
             call.application.environment.log.error("Transaction sync failed", exception)
+
+            val message = if (exception.message == "BANK_REAUTH_REQUIRED") {
+                "BANK_REAUTH_REQUIRED"
+            } else {
+                "Transaction sync failed. Last successful sync: ${lastSync ?: "Never"}"
+            }
 
             call.respond(
                 HttpStatusCode.BadGateway,
-                ErrorResponse(
-                    "Transaction sync failed. Last successful sync: ${lastSync ?: "Never"}"
-                )
+                ErrorResponse(message)
             )
             return@post
         }

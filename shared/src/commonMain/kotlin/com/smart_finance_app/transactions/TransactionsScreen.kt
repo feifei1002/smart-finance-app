@@ -63,6 +63,7 @@ import com.smart_finance_app.appStringResource
 import kotlin.math.ceil
 import com.smart_finance_app.localiseCategory
 import kotlinx.coroutines.launch
+import smart_finance_app.shared.generated.resources.sync
 
 data class TransactionUI(
     val id: String,
@@ -73,7 +74,8 @@ data class TransactionUI(
     val amount: Double,
     val currency: String,
     val merchantLogoUrl: String? = null,
-    val accountId: String? = null
+    val accountId: String? = null,
+    val transactionStatus: String = "settled"
 )
 
 @Composable
@@ -92,6 +94,8 @@ fun TransactionsScreen(
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
     errorMessage: String? = null,
+    syncMessage: String? = null,
+    onSyncTransactions: () -> Unit = {},
     currentPage: Int = 0,
     totalCount: Int = 0,
     pageSize: Int = 25,
@@ -120,6 +124,8 @@ fun TransactionsScreen(
                     isLoading = isLoading,
                     isSyncing = isSyncing,
                     errorMessage = errorMessage,
+                    syncMessage = syncMessage,
+                    onSyncTransactions = onSyncTransactions,
                     hasMore = hasMore,
                     selectedFilter = selectedFilter,
                     onFilterSelected = onFilterSelected,
@@ -136,6 +142,8 @@ fun TransactionsScreen(
                     isLoading = isLoading,
                     isSyncing = isSyncing,
                     errorMessage = errorMessage,
+                    syncMessage = syncMessage,
+                    onSyncTransactions = onSyncTransactions,
                     currentPage = currentPage,
                     totalCount = totalCount,
                     pageSize = pageSize,
@@ -178,6 +186,8 @@ private fun MobileTransactionsList(
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
     errorMessage: String? = null,
+    syncMessage: String? = null,
+    onSyncTransactions: () -> Unit = {},
     hasMore: Boolean = false,
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
@@ -262,6 +272,24 @@ private fun MobileTransactionsList(
                 )
             }
 
+            IconButton(
+                enabled = !isSyncing,
+                onClick = onSyncTransactions
+            ) {
+                if (isSyncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(Res.drawable.sync),
+                        contentDescription = "Sync transactions",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
             IconButton(onClick = { showSearch = !showSearch }) {
                 Icon(
                     painter = painterResource(Res.drawable.search),
@@ -328,6 +356,14 @@ private fun MobileTransactionsList(
             )
         }
 
+        syncMessage?.let {
+            TransactionsSyncMessage(it)
+        }
+
+        errorMessage?.let {
+            AppErrorMessage(it)
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -336,9 +372,6 @@ private fun MobileTransactionsList(
             when {
                 isSyncing && transactions.isEmpty() -> item { LoadingTransactionsState(loadingLabel) }
                 isLoading && transactions.isEmpty()  -> item { LoadingTransactionsState(loadingLabel) }
-                errorMessage != null && searchTransactions.isEmpty() -> item {
-                    TransactionsInlineMessage(message = errorMessage, isError = true)
-                }
                 searchTransactions.isEmpty() -> item {
                     TransactionsInlineMessage(message = emptyLabel)
                 }
@@ -393,6 +426,10 @@ private fun MobileTransactionRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (transaction.transactionStatus == "pending") {
+                PendingChip()
+            }
         }
         Text(
             text = formatAmount(transaction.amount, transaction.currency),
@@ -422,6 +459,8 @@ private fun DesktopTransactionsTable(
     isLoading: Boolean = false,
     isSyncing: Boolean = false,
     errorMessage: String? = null,
+    syncMessage: String? = null,
+    onSyncTransactions: () -> Unit = {},
     currentPage: Int = 0,
     totalCount: Int = 0,
     pageSize: Int = 6,
@@ -484,6 +523,7 @@ private fun DesktopTransactionsTable(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it; onPageSelected(0) },
@@ -497,6 +537,24 @@ private fun DesktopTransactionsTable(
                 },
                 placeholder = { Text(searchPlaceholder) }
             )
+
+            IconButton(
+                enabled = !isSyncing,
+                onClick = onSyncTransactions
+            ) {
+                if (isSyncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        painter = painterResource(Res.drawable.sync),
+                        contentDescription = "Sync transactions",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
         }
 
         Row(
@@ -521,6 +579,10 @@ private fun DesktopTransactionsTable(
                 colors = themedFilterChipColors(),
                 label = { Text(filterExpensesLabel) }
             )
+        }
+
+        syncMessage?.let {
+            TransactionsSyncMessage(it)
         }
 
         errorMessage?.let { AppErrorMessage(it) }
@@ -647,6 +709,7 @@ private fun TransactionTableRow(
             modifier = Modifier.weight(0.8f),
             contentAlignment = Alignment.Center
         ) {
+
             IconButton(
                 onClick = { onEditCategory(transaction) },
                 modifier = Modifier.size(32.dp)
@@ -730,6 +793,22 @@ private fun TransactionsInlineMessage(message: String, isError: Boolean = false)
                 textAlign = TextAlign.Center
             )
         }
+    }
+}
+
+@Composable
+private fun TransactionsSyncMessage(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -863,6 +942,21 @@ private fun EditTransactionCategoryDialog(
             }
         }
     )
+}
+
+@Composable
+private fun PendingChip() {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(30)
+    ) {
+        Text(
+            text = appStringResource(StringKey.TRANSACTIONS_PENDING),
+            modifier = Modifier.padding(horizontal = 8.dp),
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
 }
 
 private fun selectableCategories(transaction: TransactionUI): List<String> {

@@ -24,7 +24,8 @@ data class ImportedTransactionResponse(
     val accountId: String? = null,
     val amount: Double,
     val currency: String,
-    val merchantLogoUrl: String? = null
+    val merchantLogoUrl: String? = null,
+    val transactionStatus: String = "settled"
 )
 
 
@@ -46,6 +47,11 @@ data class PaginatedTransactionsResponse(
 
 @Serializable
 data class UpdateTransactionCategoryRequest(val category: String)
+
+@Serializable
+private data class ErrorResponse(
+    val message: String
+)
 
 sealed interface TransactionsResult {
     data class Success(val page: PaginatedTransactionsResponse): TransactionsResult
@@ -73,7 +79,19 @@ class TransactionsApi(baseUrl: String, private val client: HttpClient) {
             when (response.status) {
                 HttpStatusCode.OK -> TransactionSyncResult.Success(response.body<TransactionSyncResponse>())
                 HttpStatusCode.Unauthorized -> TransactionSyncResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
-                else -> TransactionSyncResult.Failure(StringKey.TRANSACTIONS_ERROR_SYNC_FAILED)
+                else -> {
+                    val error = runCatching {
+                        response.body<ErrorResponse>()
+                    }.getOrNull()
+
+                    val messageKey = if (error?.message == "BANK_REAUTH_REQUIRED") {
+                        StringKey.TRANSACTIONS_ERROR_REAUTH_REQUIRED
+                    } else {
+                        StringKey.TRANSACTIONS_ERROR_SYNC_FAILED
+                    }
+
+                    TransactionSyncResult.Failure(messageKey)
+                }
             }
         } catch (_: Exception) {
             TransactionSyncResult.Failure(StringKey.COMMON_ERROR_SERVER)
