@@ -24,13 +24,18 @@ fun Route.exchangeRatesRoutes() {
         try {
             // Fetch from ECB
             val ecbRates = fetchECBRates()
+            val fallbackRates = fetchFallbackRates()
 
             // Fetch TWD separately from open.er-api.com
-            val twdRate = fetchTWDRate()
+//            val twdRate = fetchTWDRate()
 
-            val combined = ecbRates.toMutableMap()
+//            val combined = ecbRates.toMutableMap()
+//            combined["EUR"] = 1.0
+//            if (twdRate != null) combined["TWD"] = twdRate
+
+            val combined = fallbackRates.toMutableMap()
+            combined.putAll(ecbRates)
             combined["EUR"] = 1.0
-            if (twdRate != null) combined["TWD"] = twdRate
 
             exchangeLogger.info("Exchange rates loaded: count={}", combined.size)
 
@@ -90,4 +95,26 @@ private fun parseECBXml(xml: String): Map<String, Double> {
         if (rate != null) result[currency] = rate
     }
     return result
+}
+
+private suspend fun fetchFallbackRates(): Map<String, Double> {
+    return try {
+        val response = httpClient.get("https://open.er-api.com/v6/latest/EUR")
+        if (response.status != HttpStatusCode.OK) return emptyMap()
+
+        val body = response.bodyAsText()
+        val wanted = setOf("GBP", "USD", "PLN", "TWD")
+
+        wanted.mapNotNull { currency ->
+            val rate = Regex(""""$currency"\s*:\s*([0-9.]+)""")
+                .find(body)
+                ?.groupValues
+                ?.get(1)
+                ?.toDoubleOrNull()
+
+            rate?.let { currency to it }
+        }.toMap()
+    } catch (_: Exception) {
+        emptyMap()
+    }
 }
