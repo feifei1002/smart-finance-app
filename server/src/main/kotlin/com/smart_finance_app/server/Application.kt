@@ -17,6 +17,7 @@ fun main() {
 }
 
 fun Application.module() {
+    log.info("ARCA backend build: cert-fix-2026-10-13")
     Database.connect()
 
     monitor.subscribe(ApplicationStopped) {
