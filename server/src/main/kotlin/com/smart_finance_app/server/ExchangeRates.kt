@@ -17,6 +17,8 @@ private val httpClient = HttpClient(CIO) {
     expectSuccess = false
 }
 
+private val exchangeLogger = org.slf4j.LoggerFactory.getLogger("ExchangeRates")
+
 fun Route.exchangeRatesRoutes() {
     get("/api/exchange-rates") {
         try {
@@ -30,6 +32,8 @@ fun Route.exchangeRatesRoutes() {
             combined["EUR"] = 1.0
             if (twdRate != null) combined["TWD"] = twdRate
 
+            exchangeLogger.info("Exchange rates loaded: count={}", combined.size)
+
             if (combined.isEmpty()) {
                 call.respond(
                     HttpStatusCode.ServiceUnavailable,
@@ -38,7 +42,7 @@ fun Route.exchangeRatesRoutes() {
             } else {
                 call.respond(HttpStatusCode.OK, ExchangeRatesResponse(combined))
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             call.respond(
                 HttpStatusCode.ServiceUnavailable,
                 ErrorResponse("Exchange rates unavailable")
@@ -52,14 +56,19 @@ private suspend fun fetchECBRates(): Map<String, Double> {
         val response = httpClient.get(
             "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
         )
+
+        val body = response.bodyAsText()
         if (response.status == HttpStatusCode.OK) {
-            parseECBXml(response.bodyAsText())
-        } else emptyMap()
-    } catch (_: Exception) {
+            val parsed = parseECBXml(body)
+            parsed
+        } else {
+            emptyMap()
+        }
+    } catch (exception: Exception) {
+        exchangeLogger.warn("Exchange rates unavailable", exception)
         emptyMap()
     }
 }
-
 private suspend fun fetchTWDRate(): Double? {
     return try {
         val response = httpClient.get("https://open.er-api.com/v6/latest/EUR")
@@ -74,7 +83,7 @@ private suspend fun fetchTWDRate(): Double? {
 
 private fun parseECBXml(xml: String): Map<String, Double> {
     val result = mutableMapOf<String, Double>()
-    val regex  = Regex("""currency='([A-Z]+)'\s+rate='([0-9.]+)'""")
+    val regex = Regex("""currency=["']([A-Z]+)["']\s+rate=["']([0-9.]+)["']""")
     regex.findAll(xml).forEach { match ->
         val currency = match.groupValues[1]
         val rate     = match.groupValues[2].toDoubleOrNull()
