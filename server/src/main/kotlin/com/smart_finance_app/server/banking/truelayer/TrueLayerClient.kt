@@ -6,6 +6,7 @@ import com.smart_finance_app.server.Database
 import com.smart_finance_app.server.Encryption
 import com.smart_finance_app.server.banking.config.bankingGson
 import com.smart_finance_app.server.banking.config.bankingHttpClient
+import com.smart_finance_app.server.banking.config.bankingLogger
 import com.smart_finance_app.server.banking.models.BalanceResponse
 import com.smart_finance_app.server.banking.models.StoredAccount
 import com.smart_finance_app.server.banking.models.TransactionResponse
@@ -216,11 +217,16 @@ internal fun fetchBalances(accessToken: String, accountId: String): List<Balance
     }
 }
 
-internal fun fetchTransactions(accessToken: String, accountId: String): List<TransactionResponse> {
+internal fun fetchTransactions(
+    accessToken: String,
+    accountId: String,
+    from: LocalDate = LocalDate.now(ZoneOffset.UTC).minusDays(89),
+    to: LocalDate = LocalDate.now(ZoneOffset.UTC)
+): List<TransactionResponse> {
     // Fetch last 6 months of transactions
-    val todayUtc = LocalDate.now(ZoneOffset.UTC)
-    val from = todayUtc.minusMonths(6).toString()
-    val to   = todayUtc.toString()
+//    val todayUtc = LocalDate.now(ZoneOffset.UTC)
+//    val from = todayUtc.minusMonths(6).toString()
+//    val to   = todayUtc.toString()
 
     val request = Request.Builder()
         .url("${TrueLayerConfig.API_BASE_URL}/data/v1/accounts/$accountId/transactions?from=$from&to=$to")
@@ -352,6 +358,9 @@ internal fun ensureFreshToken(stored: StoredAccount): String {
     }
 
     // Token expired — use refresh token to get a new one
+    bankingLogger.info("Refreshing TrueLayer access token for account {}", stored.dbId)
+
+    // Token expired — use refresh token to get a new one
     val requestBody = FormBody.Builder()
         .add("grant_type",    "refresh_token")
         .add("client_id",     TrueLayerConfig.clientId)
@@ -396,6 +405,8 @@ internal fun ensureFreshToken(stored: StoredAccount): String {
             }
 
             connection.commit()
+
+            bankingLogger.info("TrueLayer access token refreshed for account {}", stored.dbId)
         } catch (e: Exception) {
             connection.rollback()
             throw e
