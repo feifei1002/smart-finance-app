@@ -55,7 +55,8 @@ internal fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
-            SELECT id, account_id, bank_name, access_token, refresh_token, token_expiry
+            SELECT id, account_id, bank_name, access_token, refresh_token, token_expiry,
+            initial_transactions_imported_at
             FROM connected_accounts
             WHERE user_id = ? AND connection_status = 'connected'
             ORDER BY created_at DESC
@@ -76,7 +77,9 @@ internal fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
                             accountId = accountId,
                             accessToken = Encryption.decrypt(result.getString("access_token")),
                             refreshToken = Encryption.decrypt(result.getString("refresh_token")),
-                            tokenExpiry = result.getTimestamp("token_expiry").toInstant()
+                            tokenExpiry = result.getTimestamp("token_expiry").toInstant(),
+                            initialTransactionsImportedAt =
+                                result.getTimestamp("initial_transactions_imported_at")?.toInstant()
                         )
                     }.onSuccess { account ->
                         accounts.add(account)
