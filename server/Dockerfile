@@ -38,6 +38,13 @@ RUN ./gradlew :server:installDist --no-daemon \
 FROM eclipse-temurin:17-jre@sha256:207ecae0b2b104dfc6dfa763d1e9cd2041cb344800a180e24cb1a28ed533ff90
 WORKDIR /app
 
+USER root
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd --system --uid 10001 --no-create-home app
 COPY --from=build /app/server/build/install/server ./
 
