@@ -81,6 +81,8 @@ internal fun saveSelectedBankAccounts(
                 return@use false
             }
 
+            val connectionGroupId = UUID.randomUUID()
+
             saveConnectedAccounts(
                 connection = connection,
                 userId = userId,
@@ -89,7 +91,8 @@ internal fun saveSelectedBankAccounts(
                 refreshToken = session.refreshToken,
                 tokenExpiry = session.tokenExpiry,
                 providerId = session.providerId,
-                providerName = session.providerName
+                providerName = session.providerName,
+                connectionGroupId = connectionGroupId
             )
 
             connection.prepareStatement(

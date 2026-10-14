@@ -1,6 +1,7 @@
 package com.smart_finance_app.server.banking.transactions
 
 import com.smart_finance_app.server.Database
+import com.smart_finance_app.server.banking.accounts.getStoredAccountWithTokens
 import com.smart_finance_app.server.banking.accounts.getStoredAccountsWithTokens
 import com.smart_finance_app.server.banking.config.bankingLogger
 import com.smart_finance_app.server.banking.merchants.merchantNameForLogoLookup
@@ -76,7 +77,8 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = wit
                     }
                 }.getOrElse { exception ->
                     if (exception.message?.contains("(401)") == true) {
-                        token = refreshTrueLayerToken(account)
+                        val latestAccount = getStoredAccountWithTokens(account.dbId) ?: account
+                        token = refreshTrueLayerToken(latestAccount)
 
                         if (isInitialImport) {
                             fetchTransactions(

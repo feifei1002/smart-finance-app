@@ -378,18 +378,26 @@ internal fun refreshTrueLayerToken(stored: StoredAccount): String {
                 """
                 UPDATE connected_accounts
                 SET access_token = ?, refresh_token = ?, token_expiry = ?, updated_at = NOW()
-                WHERE id = ?
-                    AND connection_status = 'connected'
+                WHERE connection_status = 'connected'
+                    AND (
+                        id = ?
+                        OR connection_group_id = (
+                            SELECT connection_group_id
+                            FROM connected_accounts
+                            WHERE id = ?
+                        )
+                    )
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, Encryption.encrypt(newTokens.accessToken))
                 statement.setString(2, Encryption.encrypt(newTokens.refreshToken))
                 statement.setTimestamp(3, Timestamp.from(newExpiry))
                 statement.setObject(4, stored.dbId)
+                statement.setObject(5, stored.dbId)
                 statement.executeUpdate()
             }
 
-            if (updatedRows != 1) {
+            if (updatedRows < 1) {
                 error("Account was disconnected before token refresh completed")
             }
 
