@@ -1,7 +1,9 @@
 package com.smart_finance_app.server.banking.transactions
 
 import com.smart_finance_app.server.Database
+import com.smart_finance_app.server.banking.accounts.getStoredAccountWithTokens
 import com.smart_finance_app.server.banking.accounts.getStoredAccountsWithTokens
+import com.smart_finance_app.server.banking.config.bankingLogger
 import com.smart_finance_app.server.banking.merchants.merchantNameForLogoLookup
 import com.smart_finance_app.server.banking.models.ImportedTransactionResponse
 import com.smart_finance_app.server.banking.models.PaginatedTransactionsResponse
@@ -12,6 +14,8 @@ import com.smart_finance_app.server.banking.merchants.resolveMerchantLogoUrl
 import com.smart_finance_app.server.banking.truelayer.ensureFreshToken
 import com.smart_finance_app.server.banking.truelayer.fetchPendingTransactions
 import com.smart_finance_app.server.banking.truelayer.fetchTransactions
+import com.smart_finance_app.server.banking.truelayer.refreshTrueLayerToken
+import com.smart_finance_app.server.profile.userExists
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
@@ -20,6 +24,8 @@ import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.Timestamp
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
@@ -35,6 +41,9 @@ private data class ExistingImportedTransaction(
 )
 
 suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = withContext(Dispatchers.IO) {
+    if (!userExists(userId)) {
+        error("User no longer exists")
+    }
 
     var importedCount = 0
     var duplicateCount = 0
@@ -46,19 +55,61 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = wit
 
         storedAccounts.forEach { account ->
             runCatching {
-                val token = ensureFreshToken(account)
+                var token = ensureFreshToken(account)
 
-                val settledTransactions = fetchTransactions(token, account.accountId)
+                // Fetch up to 6 months of transactions for the newly connected account on the first sync
+                val isInitialImport = account.initialTransactionsImportedAt == null
+                val todayUtc = LocalDate.now(ZoneOffset.UTC)
+
+
+                val settledTransactions = runCatching {
+                    if (isInitialImport) {
+
+                        fetchTransactions(
+                            accessToken = token,
+                            accountId = account.accountId,
+                            from = todayUtc.minusMonths(6),
+                            to = todayUtc
+                        )
+                    } else {
+
+                        fetchTransactions(token, account.accountId)
+                    }
+                }.getOrElse { exception ->
+                    if (exception.message?.contains("(401)") == true) {
+                        val latestAccount = getStoredAccountWithTokens(account.dbId) ?: account
+                        token = refreshTrueLayerToken(latestAccount)
+
+                        if (isInitialImport) {
+                            fetchTransactions(
+                                accessToken = token,
+                                accountId = account.accountId,
+                                from = todayUtc.minusMonths(6),
+                                to = todayUtc
+                            )
+                        } else {
+                            fetchTransactions(token, account.accountId)
+                        }
+                    } else {
+                        throw exception
+                    }
+                }
 
                 val pendingFetchResult = runCatching {
                     fetchPendingTransactions(token, account.accountId)
                 }
 
-                val pendingTransactions = pendingFetchResult.getOrElse {
+                val pendingTransactions = pendingFetchResult.getOrElse { exception ->
+                    bankingLogger.warn(
+                        "Pending transaction fetch failed for account {}",
+                        account.dbId,
+                        exception
+                    )
                     emptyList()
                 }
 
-                val transactions = settledTransactions + pendingTransactions
+                val transactions = (settledTransactions + pendingTransactions)
+                    .distinctBy { it.transactionId }
 
                 val saveResult = saveImportedTransactionsForAccount(
                     userId = userId,
@@ -68,6 +119,10 @@ suspend fun syncTransactionsForUser(userId: UUID): TransactionSyncResponse = wit
                         ?.map { it.transactionId }
                         ?.toSet()
                 )
+
+                if (isInitialImport) {
+                    markInitialTransactionsImported(account.dbId)
+                }
 
                 importedCount += saveResult.importedCount
                 duplicateCount += saveResult.duplicateCount
@@ -228,7 +283,7 @@ private suspend fun saveImportedTransactionsForAccount(
     }
 }
 
-private suspend fun upsertImportedTransaction(
+private fun upsertImportedTransaction(
     statement: PreparedStatement,
     userId: UUID,
     account: StoredAccount,
@@ -405,6 +460,30 @@ internal fun getImportedTransactionsForUser(
     }
 }
 
+private fun markInitialTransactionsImported(accountDbId: UUID) {
+    Database.dataSource.connection.use { connection ->
+        try {
+            connection.prepareStatement(
+                """
+                UPDATE connected_accounts
+                SET initial_transactions_imported_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = ?
+                  AND connection_status = 'connected'
+                """.trimIndent()
+            ).use { statement ->
+                statement.setObject(1, accountDbId)
+                statement.executeUpdate()
+            }
+
+            connection.commit()
+        } catch (exception: Exception) {
+            connection.rollback()
+            throw exception
+        }
+    }
+}
+
 private fun loadExistingTransactionsForAccount(
     connection: Connection,
     userId: UUID,
@@ -454,7 +533,8 @@ private fun recordTransactionSyncSuccess(userId: UUID, syncedAt: Instant) {
                 """
                     INSERT INTO transaction_sync_status
                         (user_id, last_attempted_sync_at, last_successful_sync_at, last_error)
-                    VALUES (?, ?, ?, NULL) ON CONFLICT (user_id)
+                    SELECT ?, ?, ?, NULL WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)
+                    ON CONFLICT (user_id)
                     DO UPDATE SET
                         last_attempted_sync_at = EXCLUDED.last_attempted_sync_at,
                         last_successful_sync_at = EXCLUDED.last_successful_sync_at,
@@ -464,6 +544,7 @@ private fun recordTransactionSyncSuccess(userId: UUID, syncedAt: Instant) {
                 statement.setObject(1, userId)
                 statement.setTimestamp(2, Timestamp.from(syncedAt))
                 statement.setTimestamp(3, Timestamp.from(syncedAt))
+                statement.setObject(4, userId)
                 statement.executeUpdate()
             }
 
@@ -482,7 +563,8 @@ private fun recordTransactionSyncFailure(userId: UUID, error: String) {
                 """
                     INSERT INTO transaction_sync_status
                         (user_id, last_attempted_sync_at, last_error)
-                    VALUES (?, now(), ?) ON CONFLICT (user_id)
+                    SELECT ?, now(), ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)
+                    ON CONFLICT (user_id)
                     DO UPDATE SET
                         last_attempted_sync_at = now(),
                         last_error = EXCLUDED.last_error
@@ -490,6 +572,7 @@ private fun recordTransactionSyncFailure(userId: UUID, error: String) {
             ).use { statement ->
                 statement.setObject(1, userId)
                 statement.setString(2, error)
+                statement.setObject(3, userId)
                 statement.executeUpdate()
             }
 
@@ -512,7 +595,8 @@ private fun recordTransactionSyncPartialFailure(
                 """
                 INSERT INTO transaction_sync_status
                     (user_id, last_attempted_sync_at, last_error)
-                VALUES (?, ?, ?) ON CONFLICT (user_id)
+                SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)
+                ON CONFLICT (user_id)
                 DO UPDATE SET
                     last_attempted_sync_at = EXCLUDED.last_attempted_sync_at,
                     last_error = EXCLUDED.last_error
@@ -521,6 +605,7 @@ private fun recordTransactionSyncPartialFailure(
                 statement.setObject(1, userId)
                 statement.setTimestamp(2, Timestamp.from(attemptedAt))
                 statement.setString(3, error)
+                statement.setObject(4, userId)
                 statement.executeUpdate()
             }
 

@@ -216,12 +216,14 @@ internal fun fetchBalances(accessToken: String, accountId: String): List<Balance
     }
 }
 
-internal fun fetchTransactions(accessToken: String, accountId: String): List<TransactionResponse> {
-    // Fetch last 6 months of transactions
-    val todayUtc = LocalDate.now(ZoneOffset.UTC)
-    val from = todayUtc.minusMonths(6).toString()
-    val to   = todayUtc.toString()
+internal fun fetchTransactions(
+    accessToken: String,
+    accountId: String,
+    from: LocalDate = LocalDate.now(ZoneOffset.UTC).minusDays(89),
+    to: LocalDate = LocalDate.now(ZoneOffset.UTC)
+): List<TransactionResponse> {
 
+    // Fetch up to 90 days of transactions for regular sync
     val request = Request.Builder()
         .url("${TrueLayerConfig.API_BASE_URL}/data/v1/accounts/$accountId/transactions?from=$from&to=$to")
         .header("Authorization", "Bearer $accessToken")
@@ -345,11 +347,7 @@ internal fun buildTrueLayerAuthUrl(state: String, providerId: String): String = 
  * If the stored token expires within the next 5 minutes, refresh it first.
  * Returns a valid access token to use for the API call.
  */
-internal fun ensureFreshToken(stored: StoredAccount): String {
-    val expiresIn5Min = Instant.now().plusSeconds(300)
-    if (stored.tokenExpiry.isAfter(expiresIn5Min)) {
-        return stored.accessToken // token still valid
-    }
+internal fun refreshTrueLayerToken(stored: StoredAccount): String {
 
     // Token expired — use refresh token to get a new one
     val requestBody = FormBody.Builder()
@@ -380,22 +378,31 @@ internal fun ensureFreshToken(stored: StoredAccount): String {
                 """
                 UPDATE connected_accounts
                 SET access_token = ?, refresh_token = ?, token_expiry = ?, updated_at = NOW()
-                WHERE id = ?
-                    AND connection_status = 'connected'
+                WHERE connection_status = 'connected'
+                    AND (
+                        id = ?
+                        OR connection_group_id = (
+                            SELECT connection_group_id
+                            FROM connected_accounts
+                            WHERE id = ?
+                        )
+                    )
                 """.trimIndent()
             ).use { statement ->
                 statement.setString(1, Encryption.encrypt(newTokens.accessToken))
                 statement.setString(2, Encryption.encrypt(newTokens.refreshToken))
                 statement.setTimestamp(3, Timestamp.from(newExpiry))
                 statement.setObject(4, stored.dbId)
+                statement.setObject(5, stored.dbId)
                 statement.executeUpdate()
             }
 
-            if (updatedRows != 1) {
+            if (updatedRows < 1) {
                 error("Account was disconnected before token refresh completed")
             }
 
             connection.commit()
+
         } catch (e: Exception) {
             connection.rollback()
             throw e
@@ -403,4 +410,13 @@ internal fun ensureFreshToken(stored: StoredAccount): String {
     }
 
     return newTokens.accessToken
+}
+
+internal fun ensureFreshToken(stored: StoredAccount): String {
+    val expiresIn5Min = Instant.now().plusSeconds(300)
+    if (stored.tokenExpiry.isAfter(expiresIn5Min)) {
+        return stored.accessToken
+    }
+
+    return refreshTrueLayerToken(stored)
 }

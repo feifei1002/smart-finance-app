@@ -10,7 +10,8 @@ data class StoredAccount(
     val accessToken: String,
     val refreshToken: String,
     val tokenExpiry: Instant,
-    val dbId: UUID
+    val dbId: UUID,
+    val initialTransactionsImportedAt: Instant?
 )
 
 @Serializable

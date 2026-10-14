@@ -55,7 +55,8 @@ internal fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
     Database.dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
-            SELECT id, account_id, bank_name, access_token, refresh_token, token_expiry
+            SELECT id, account_id, bank_name, access_token, refresh_token, token_expiry,
+            initial_transactions_imported_at
             FROM connected_accounts
             WHERE user_id = ? AND connection_status = 'connected'
             ORDER BY created_at DESC
@@ -76,7 +77,9 @@ internal fun getStoredAccountsWithTokens(userId: UUID): List<StoredAccount> =
                             accountId = accountId,
                             accessToken = Encryption.decrypt(result.getString("access_token")),
                             refreshToken = Encryption.decrypt(result.getString("refresh_token")),
-                            tokenExpiry = result.getTimestamp("token_expiry").toInstant()
+                            tokenExpiry = result.getTimestamp("token_expiry").toInstant(),
+                            initialTransactionsImportedAt =
+                                result.getTimestamp("initial_transactions_imported_at")?.toInstant()
                         )
                     }.onSuccess { account ->
                         accounts.add(account)
@@ -138,14 +141,16 @@ internal fun saveConnectedAccounts(
     refreshToken: String,
     tokenExpiry: Instant,
     providerId: String,
-    providerName: String
+    providerName: String,
+    connectionGroupId: UUID
 ) {
     accounts.forEach { account ->
         connection.prepareStatement(
             """
             INSERT INTO connected_accounts
-                (user_id, bank_name, account_id, access_token, refresh_token, token_expiry, provider, account_number, connection_status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'connected')
+                (user_id, bank_name, account_id, access_token, refresh_token, token_expiry, 
+                provider, account_number, connection_status, connection_group_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'connected', ?)
             ON CONFLICT (user_id, account_id)
             DO UPDATE SET
                 access_token = EXCLUDED.access_token,
@@ -153,6 +158,7 @@ internal fun saveConnectedAccounts(
                 token_expiry = EXCLUDED.token_expiry,
                 account_number = EXCLUDED.account_number,
                 connection_status = 'connected',
+                connection_group_id = EXCLUDED.connection_group_id,
                 updated_at = NOW()
             """.trimIndent()
         ).use { statement ->
@@ -164,10 +170,41 @@ internal fun saveConnectedAccounts(
             statement.setTimestamp(6, Timestamp.from(tokenExpiry))
             statement.setString(7, providerId)
             statement.setString(8, account.accountNumber?.number)
+            statement.setObject(9, connectionGroupId)
             statement.executeUpdate()
         }
     }
 }
+
+internal fun getStoredAccountWithTokens(accountDbId: UUID): StoredAccount? =
+    Database.dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT id, account_id, bank_name, access_token, refresh_token, token_expiry,
+                   initial_transactions_imported_at
+            FROM connected_accounts
+            WHERE id = ?
+              AND connection_status = 'connected'
+            """.trimIndent()
+        ).use { statement ->
+            statement.setObject(1, accountDbId)
+
+            statement.executeQuery().use { result ->
+                if (!result.next()) return@use null
+
+                StoredAccount(
+                    dbId = result.getObject("id", UUID::class.java),
+                    accountName = result.getString("bank_name"),
+                    accountId = result.getString("account_id"),
+                    accessToken = Encryption.decrypt(result.getString("access_token")),
+                    refreshToken = Encryption.decrypt(result.getString("refresh_token")),
+                    tokenExpiry = result.getTimestamp("token_expiry").toInstant(),
+                    initialTransactionsImportedAt =
+                        result.getTimestamp("initial_transactions_imported_at")?.toInstant()
+                )
+            }
+        }
+    }
 
 private fun markConnectedAccountTokenInvalid(accountDbId: UUID) {
     Database.dataSource.connection.use { connection ->

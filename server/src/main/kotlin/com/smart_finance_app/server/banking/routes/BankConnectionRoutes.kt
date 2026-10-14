@@ -12,8 +12,8 @@ import com.smart_finance_app.server.banking.accounts.expireOldBankConnectionSele
 import com.smart_finance_app.server.banking.accounts.getBankConnectionSessionStatus
 import com.smart_finance_app.server.banking.accounts.getConnectedAccountsForUser
 import com.smart_finance_app.server.banking.accounts.getPendingSelectableAccounts
-import com.smart_finance_app.server.banking.config.maxAccountsForSubscription
 import com.smart_finance_app.server.banking.accounts.saveSelectedBankAccounts
+import com.smart_finance_app.server.banking.config.maxAccountsForSubscription
 import com.smart_finance_app.server.common.userIdOrNull
 import com.smart_finance_app.server.subscriptions.getSubscriptionStatus
 import io.ktor.http.HttpStatusCode
