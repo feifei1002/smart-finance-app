@@ -276,19 +276,13 @@ internal fun getPendingSelectableAccounts(
                 val accountListType = object : TypeToken<List<TrueLayerAccount>>() {}.type
                 val accounts: List<TrueLayerAccount> = bankingGson.fromJson(json, accountListType)
 
-                val connectedAccountIds = getConnectedAccountsForUser(userId)
-                    .map { it.accountId }
-                    .toSet()
-
-                accounts
-                    .filter { account -> account.accountId !in connectedAccountIds }
-                    .map { account ->
-                        SelectableBankAccountResponse(
-                            accountId = account.accountId,
-                            bankName = providerName,
-                            maskedNumber = account.accountNumber?.number?.takeLast(4) ?: "****"
-                        )
-                    }
+                accounts.map { account ->
+                    SelectableBankAccountResponse(
+                        accountId = account.accountId,
+                        bankName = providerName,
+                        maskedNumber = account.accountNumber?.number?.takeLast(4) ?: "****"
+                    )
+                }
             }
         }
     }

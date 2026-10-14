@@ -652,6 +652,12 @@ ALTER TABLE ONLY public.transactions
 ALTER TABLE ONLY public.transactions
     ADD CONSTRAINT transactions_status_check CHECK (transaction_status IN ('settled', 'pending'));
 
+ALTER TABLE ONLY public.connected_accounts
+    ADD COLUMN IF NOT EXISTS initial_transactions_imported_at timestamp with time zone;
+
+
+ALTER TABLE ONLY public.connected_accounts
+    ADD COLUMN IF NOT EXISTS connection_group_id uuid;
 
 --
 -- PostgreSQL database dump complete

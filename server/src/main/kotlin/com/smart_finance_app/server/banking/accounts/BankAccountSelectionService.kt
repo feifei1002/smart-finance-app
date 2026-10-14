@@ -63,11 +63,6 @@ internal fun saveSelectedBankAccounts(
                 .map { it.accountId }
                 .toSet()
 
-            if (selectedAccounts.any { it.accountId in connectedAccountIds }) {
-                connection.rollback()
-                return@use false
-            }
-
             if (selectedAccounts.size != selectedAccountIds.toSet().size) {
                 connection.rollback()
                 return@use false
@@ -77,10 +72,16 @@ internal fun saveSelectedBankAccounts(
             val subscriptionStatus = getSubscriptionStatus(userId)
             val maxAccounts = maxAccountsForSubscription(subscriptionStatus)
 
-            if (connectedCount + selectedAccounts.size > maxAccounts) {
+            val newSelectedAccounts = selectedAccounts.filter { account ->
+                account.accountId !in connectedAccountIds
+            }
+
+            if (connectedCount + newSelectedAccounts.size > maxAccounts) {
                 connection.rollback()
                 return@use false
             }
+
+            val connectionGroupId = UUID.randomUUID()
 
             saveConnectedAccounts(
                 connection = connection,
@@ -90,7 +91,8 @@ internal fun saveSelectedBankAccounts(
                 refreshToken = session.refreshToken,
                 tokenExpiry = session.tokenExpiry,
                 providerId = session.providerId,
-                providerName = session.providerName
+                providerName = session.providerName,
+                connectionGroupId = connectionGroupId
             )
 
             connection.prepareStatement(
