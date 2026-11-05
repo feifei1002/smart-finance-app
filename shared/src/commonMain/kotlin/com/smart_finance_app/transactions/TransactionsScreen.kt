@@ -60,6 +60,7 @@ import smart_finance_app.shared.generated.resources.edit
 import smart_finance_app.shared.generated.resources.search
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
+import com.smart_finance_app.config.AppFeatures
 import kotlin.math.ceil
 import com.smart_finance_app.localiseCategory
 import kotlinx.coroutines.launch
@@ -272,21 +273,23 @@ private fun MobileTransactionsList(
                 )
             }
 
-            IconButton(
-                enabled = !isSyncing,
-                onClick = onSyncTransactions
-            ) {
-                if (isSyncing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(
-                        painter = painterResource(Res.drawable.sync),
-                        contentDescription = "Sync transactions",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
+            if (AppFeatures.bankIntegrationEnabled) {
+                IconButton(
+                    enabled = !isSyncing,
+                    onClick = onSyncTransactions
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(Res.drawable.sync),
+                            contentDescription = "Sync transactions",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
 
@@ -538,21 +541,23 @@ private fun DesktopTransactionsTable(
                 placeholder = { Text(searchPlaceholder) }
             )
 
-            IconButton(
-                enabled = !isSyncing,
-                onClick = onSyncTransactions
-            ) {
-                if (isSyncing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(
-                        painter = painterResource(Res.drawable.sync),
-                        contentDescription = "Sync transactions",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
+            if (AppFeatures.bankIntegrationEnabled) {
+                IconButton(
+                    enabled = !isSyncing,
+                    onClick = onSyncTransactions
+                ) {
+                    if (isSyncing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(Res.drawable.sync),
+                            contentDescription = "Sync transactions",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }

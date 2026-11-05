@@ -49,6 +49,7 @@ import com.smart_finance_app.accounts.SaveSelectedAccountsResult
 import com.smart_finance_app.accounts.SelectableAccountsResult
 import com.smart_finance_app.accounts.SelectableBankAccountResponse
 import com.smart_finance_app.appStringResource
+import com.smart_finance_app.config.AppFeatures
 import com.smart_finance_app.currency.ConversionResult
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
@@ -190,6 +191,12 @@ private fun NavigationContent(
     var exchangeRates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
 
     suspend fun loadDashboardTransactions() {
+        if (!AppFeatures.bankIntegrationEnabled) {
+            dashboardRecentTransactions = emptyList()
+            dashboardTransactionsError = null
+            dashboardTransactionsLoaded = true
+            return
+        }
         dashboardTransactionsLoaded = false
         dashboardTransactionsError = null
         try {
@@ -300,6 +307,18 @@ private fun NavigationContent(
 
     // Fetch transactions by page
     suspend fun loadTransactionsPage(page: Int, append: Boolean) {
+        if (!AppFeatures.bankIntegrationEnabled) {
+            transactions = emptyList()
+            transactionsPage = 0
+            transactionsHasMore = false
+            transactionsTotalCount = 0
+            transactionsError = null
+            transactionsLoading = false
+            transactionsLoadedOnce = true
+            loadingTransactionsPage = null
+            return
+        }
+
         if (loadingTransactionsPage != null) return
 
         loadingTransactionsPage = page
@@ -364,6 +383,14 @@ private fun NavigationContent(
     }
 
     LaunchedEffect(authToken) {
+        if (!AppFeatures.bankIntegrationEnabled) {
+            lastSyncedToken = null
+            transactionsSyncing = false
+            transactionsSyncError = null
+            transactionsSyncMessage = null
+            return@LaunchedEffect
+        }
+
         if (authToken.isBlank()) {
             lastSyncedToken = null
             return@LaunchedEffect
@@ -402,6 +429,13 @@ private fun NavigationContent(
     }
 
     suspend fun syncAndReloadTransactions() {
+        if (!AppFeatures.bankIntegrationEnabled) {
+            transactionsSyncing = false
+            transactionsSyncError = null
+            transactionsSyncMessage = null
+            return
+        }
+
         transactionsSyncing = true
         transactionsSyncError = null
 
@@ -540,6 +574,21 @@ private fun NavigationContent(
         }
 
         AppNavigation.Accounts -> {
+            /*
+            This is a temporary title-only placeholder. Replace its Box with the manual accounts screen once implemented.
+            The return exits `NavigationContent()` for this screen only.
+            The navigation scaffold remains outside it, so users can still navigate elsewhere.
+             */
+            if (!AppFeatures.bankIntegrationEnabled) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(appStringResource(StringKey.NAV_ACCOUNTS))
+                }
+                return
+            }
+
             var showConnectBank by remember { mutableStateOf(false) }
             var error by remember { mutableStateOf<String?>(null) }
             var loading by remember { mutableStateOf(false) }
