@@ -32,6 +32,7 @@ import smart_finance_app.shared.generated.resources.arrow_drop_down
 import smart_finance_app.shared.generated.resources.bank
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
+import com.smart_finance_app.config.AppFeatures
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.ExchangeRateService
 import com.smart_finance_app.currency.getCurrencySymbol
@@ -70,6 +71,20 @@ fun DashboardScreen(
     api: DashboardApi,
     budgetApi: BudgetApi
 ) {
+    /*
+    A temporary title-only placeholder.
+    Replace the placeholder with a manual Dashboard when its account/transaction data source is ready.
+     */
+    if (!AppFeatures.bankIntegrationEnabled) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(appStringResource(StringKey.NAV_DASHBOARD))
+        }
+        return
+    }
+
     val scope = rememberCoroutineScope()
 
     var state          by remember { mutableStateOf<DashboardState?>(null) }
