@@ -255,13 +255,10 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
 
 @Composable
 private fun ManualAccountCard(account: ManualAccountResponse) {
-    val minorUnits = parseManualMoney(account.currentBalance)
-    val symbol = getCurrencySymbol(account.currency)
-    val balanceText = minorUnits?.let {
-        val decimal = manualMoneyToDecimal(it)
-        if (decimal.startsWith("-")) "-$symbol" + decimal.removePrefix("-")
-        else symbol + decimal
-    } ?: "-"
+    val balanceText = formatManualAccountBalance(
+        amount = account.currentBalance,
+        currency = account.currency
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -294,4 +291,22 @@ private fun ManualAccountCard(account: ManualAccountResponse) {
             )
         }
     }
+}
+
+private fun formatManualAccountBalance(
+    amount: String,
+    currency: String
+): String {
+    val match = Regex("""([+-]?)([0-9]+)(?:\.([0-9]{1,2}))?""")
+        .matchEntire(amount.trim())
+        ?: return "-"
+
+    val whole = match.groupValues[2].trimStart('0').ifEmpty { "0" }
+    val fraction = match.groupValues[3].padEnd(2, '0')
+
+    val isZero = whole == "0" && fraction == "00"
+    val sign = if (match.groupValues[1] == "-" && !isZero) "-" else ""
+    val symbol = getCurrencySymbol(currency)
+
+    return "$sign$symbol$whole.$fraction"
 }
