@@ -35,6 +35,7 @@ import com.smart_finance_app.AppPageHeader
 import com.smart_finance_app.StringKey
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.currency.CurrencyController
+import com.smart_finance_app.currency.getCurrencySymbol
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,7 +143,9 @@ fun ManualAccountForm(
             value = draft.startingBalance,
             onValueChange = { onDraftChange(draft.copy(startingBalance = it)) },
             label = { Text(appStringResource(StringKey.MANUAL_ACCOUNTS_STARTING_BALANCE)) },
-            prefix = { Text(draft.currency) },
+            prefix = {
+                Text(getCurrencySymbol(draft.currency))
+            },
             leadingIcon = if (draft.type == ManualAccountType.CREDIT_CARD) {
                 {
                     IconButton(

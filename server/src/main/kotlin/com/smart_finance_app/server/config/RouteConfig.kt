@@ -7,6 +7,7 @@ import com.smart_finance_app.server.consentRoutes
 import com.smart_finance_app.server.createRefreshToken
 import com.smart_finance_app.server.dashboard.dashboardRoutes
 import com.smart_finance_app.server.exchangeRatesRoutes
+import com.smart_finance_app.server.manual.manualAccountRoutes
 import com.smart_finance_app.server.passwordResetRoutes
 import com.smart_finance_app.server.profile.profileRoutes
 import com.smart_finance_app.server.registrationRoutes
@@ -43,6 +44,7 @@ internal fun Application.configureRoutes() {
         passwordResetRoutes()
         consentRoutes()
         bankingRoutes()
+        manualAccountRoutes()
         dashboardRoutes()
         budgetRoutes()
         subscriptionRoutes()

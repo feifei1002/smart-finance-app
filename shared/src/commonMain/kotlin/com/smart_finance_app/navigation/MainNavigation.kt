@@ -48,6 +48,8 @@ import com.smart_finance_app.accounts.AccountSelectionScreen
 import com.smart_finance_app.accounts.SaveSelectedAccountsResult
 import com.smart_finance_app.accounts.SelectableAccountsResult
 import com.smart_finance_app.accounts.SelectableBankAccountResponse
+import com.smart_finance_app.accounts.manual.ManualAccountsApi
+import com.smart_finance_app.accounts.manual.ManualAccountsScreen
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.config.AppFeatures
 import com.smart_finance_app.currency.ConversionResult
@@ -167,6 +169,7 @@ private fun NavigationContent(
 ) {
     val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
     val subscriptionApi = remember(apiBaseUrl, httpClient) { SubscriptionApi(apiBaseUrl, httpClient) }
+    val manualAccountsApi = remember(apiBaseUrl, httpClient) { ManualAccountsApi(apiBaseUrl, httpClient) }
     val profileApi = remember(apiBaseUrl, httpClient) { ProfileApi(apiBaseUrl, httpClient) }
     val supportApi = remember(apiBaseUrl, httpClient) { SupportApi(apiBaseUrl, httpClient) }
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
@@ -574,18 +577,11 @@ private fun NavigationContent(
         }
 
         AppNavigation.Accounts -> {
-            /*
-            This is a temporary title-only placeholder. Replace its Box with the manual accounts screen once implemented.
-            The return exits `NavigationContent()` for this screen only.
-            The navigation scaffold remains outside it, so users can still navigate elsewhere.
-             */
             if (!AppFeatures.bankIntegrationEnabled) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(appStringResource(StringKey.NAV_ACCOUNTS))
-                }
+                ManualAccountsScreen(
+                    authToken = authToken,
+                    api = manualAccountsApi
+                )
                 return
             }
 
