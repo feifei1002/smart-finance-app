@@ -7,6 +7,8 @@ CREATE TABLE public.manual_accounts (
     account_type TEXT NOT NULL,
     currency TEXT NOT NULL,
     starting_balance NUMERIC(14,2) NOT NULL DEFAULT 0,
+    create_request_id UUID,
+    create_request_hash TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT manual_accounts_owner_id_unique UNIQUE (user_id, id),
@@ -22,6 +24,9 @@ CREATE TABLE public.manual_accounts (
 
 CREATE INDEX manual_accounts_user_created_idx
     ON public.manual_accounts (user_id, created_at DESC, id DESC);
+
+CREATE UNIQUE INDEX manual_accounts_create_request_unique
+    ON public.manual_accounts (user_id, create_request_id);
 
 -- Minimal transaction storage supports computed balances.
 -- Transaction create/edit/delete endpoints are a separate frontend/backend story.

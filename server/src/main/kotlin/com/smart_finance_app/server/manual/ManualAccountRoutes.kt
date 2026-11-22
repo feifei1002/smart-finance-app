@@ -7,84 +7,110 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.bodylimit.RequestBodyLimit
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.routing.route
 import io.ktor.utils.io.CancellationException
 import java.sql.SQLException
 
 fun Route.manualAccountRoutes() {
     authenticate("auth-jwt") {
-        get("/api/accounts") {
-            val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
-                ?: return@get call.respond(
-                    HttpStatusCode.Unauthorized, ErrorResponse("Invalid token")
-                )
+        route("/api/accounts") {
 
-            val accounts = try {
-                getManualAccountsForUser(userId)
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                call.application.environment.log.error("Could not load manual accounts", exception)
-                return@get call.respond(
-                    HttpStatusCode.InternalServerError,
-                    ErrorResponse("Could not load accounts"
-                    )
-                )
+            install(RequestBodyLimit) {
+                bodyLimit { 8_192L }
             }
-            call.respond(HttpStatusCode.OK, accounts)
-        }
+            rateLimit(RateLimitName("accounts-read")) {
+                get {
+                    val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
+                        ?: return@get call.respond(
+                            HttpStatusCode.Unauthorized, ErrorResponse("Invalid token")
+                        )
 
-        post("/api/accounts") {
-            val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
-                ?: return@post call.respond(
-                    HttpStatusCode.Unauthorized, ErrorResponse("Invalid token")
-                )
-
-            val request = try {
-                call.receive<CreateManualAccountRequest>()
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (_: BadRequestException) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest, ErrorResponse("Invalid request body")
-                )
-            }
-
-            val validated = try {
-                validateManualAccountRequest(request)
-            } catch (exception: ManualAccountValidationException) {
-                return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    ErrorResponse(exception.message ?: "Invalid account details")
-                )
-            }
-
-            val account = try {
-                createManualAccount(userId, validated)
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: SQLException) {
-                // A user can be deleted after JWT validation but before the insert.
-                if (exception.sqlState == "23503") {
-                    return@post call.respond(
-                        HttpStatusCode.Unauthorized, ErrorResponse("User no longer exists")
-                    )
+                    val accounts = try {
+                        getManualAccountsForUser(userId)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        call.application.environment.log.error(
+                            "Could not load manual accounts",
+                            exception
+                        )
+                        return@get call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ErrorResponse(
+                                "Could not load accounts"
+                            )
+                        )
+                    }
+                    call.respond(HttpStatusCode.OK, accounts)
                 }
-                call.application.environment.log.error("Could not create manual account", exception)
-                return@post call.respond(
-                    HttpStatusCode.InternalServerError, ErrorResponse("Could not create account")
-                )
-            } catch (exception: Exception) {
-                call.application.environment.log.error("Could not create manual account", exception)
-                return@post call.respond(
-                    HttpStatusCode.InternalServerError, ErrorResponse("Could not create account")
-                )
             }
-            call.respond(HttpStatusCode.Created, account)
+
+            rateLimit(RateLimitName("accounts-write")) {
+                post {
+                    val userId = call.principal<JWTPrincipal>()?.userIdOrNull()
+                        ?: return@post call.respond(
+                            HttpStatusCode.Unauthorized, ErrorResponse("Invalid token")
+                        )
+
+                    val request = try {
+                        call.receive<CreateManualAccountRequest>()
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (_: BadRequestException) {
+                        return@post call.respond(
+                            HttpStatusCode.BadRequest, ErrorResponse("Invalid request body")
+                        )
+                    }
+
+                    val validated = try {
+                        validateManualAccountRequest(request)
+                    } catch (exception: ManualAccountValidationException) {
+                        return@post call.respond(
+                            HttpStatusCode.BadRequest,
+                            ErrorResponse(exception.message ?: "Invalid account details")
+                        )
+                    }
+
+                    val account = try {
+                        createManualAccount(userId, validated)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: SQLException) {
+                        // A user can be deleted after JWT validation but before the insert.
+                        if (exception.sqlState == "23503") {
+                            return@post call.respond(
+                                HttpStatusCode.Unauthorized, ErrorResponse("User no longer exists")
+                            )
+                        }
+                        call.application.environment.log.error(
+                            "Could not create manual account",
+                            exception
+                        )
+                        return@post call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ErrorResponse("Could not create account")
+                        )
+                    } catch (exception: Exception) {
+                        call.application.environment.log.error(
+                            "Could not create manual account",
+                            exception
+                        )
+                        return@post call.respond(
+                            HttpStatusCode.InternalServerError,
+                            ErrorResponse("Could not create account")
+                        )
+                    }
+                    call.respond(HttpStatusCode.Created, account)
+                }
+            }
         }
     }
 }

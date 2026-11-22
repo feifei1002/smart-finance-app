@@ -56,9 +56,14 @@ import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.add
 
 @Composable
-fun ManualAccountsScreen(authToken: String, api: ManualAccountsApi) {
-    // Changing the user or API disposes outstanding UI work and resets account data.
-    key(authToken, api) { ManualAccountsContent(authToken, api) }
+fun ManualAccountsScreen(
+    userId: String,
+    authToken: String,
+    api: ManualAccountsApi
+) {
+    key(userId, api) {
+        ManualAccountsContent(authToken, api)
+    }
 }
 
 @Composable
