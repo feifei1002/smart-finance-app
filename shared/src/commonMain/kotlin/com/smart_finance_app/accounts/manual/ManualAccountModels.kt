@@ -39,6 +39,11 @@ data class CreateManualAccountRequest(
     val startingBalance: String
 )
 
+@Serializable
+internal data class ManualAccountsPageResponse(
+    val accounts: List<ManualAccountResponse>,
+    val nextCursor: String? = null
+)
 data class ManualAccountDraft(
     val name: String = "",
     val type: ManualAccountType = ManualAccountType.BANK_ACCOUNT,

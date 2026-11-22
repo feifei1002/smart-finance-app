@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.add
+import kotlin.uuid.Uuid
 
 @Composable
 fun ManualAccountsScreen(
@@ -82,6 +83,7 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
     var typeName by rememberSaveable { mutableStateOf(ManualAccountType.BANK_ACCOUNT.name) }
     var currency by rememberSaveable { mutableStateOf(CurrencyController.currentCurrency) }
     var balance by rememberSaveable { mutableStateOf("0") }
+    var createRequestId by rememberSaveable { mutableStateOf(Uuid.random().toString()) }
 
     val draft = ManualAccountDraft(
         name = name,
@@ -118,6 +120,7 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
         submitted = false
         saveError = null
         showForm = true
+        createRequestId = Uuid.random().toString()
     }
 
     fun saveAccount() {
@@ -128,7 +131,11 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
         saveError = null
         scope.launch {
             try {
-                when (val result = api.createAccount(authToken, request)) {
+                when (val result = api.createAccount(
+                    token = authToken,
+                    request = request,
+                    requestId = createRequestId
+                )) {
                     is CreateManualAccountResult.Success -> {
                         accounts = (listOf(result.account) + accounts).distinctBy { it.id }
                         loaded = true

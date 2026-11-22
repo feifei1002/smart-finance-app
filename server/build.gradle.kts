@@ -13,6 +13,7 @@ application {
 }
 
 dependencies {
+    implementation(project(":shared"))
     implementation(libs.ktor.server.auth)
     implementation(libs.ktor.server.auth.jwt)
     implementation(libs.ktor.server.core)

@@ -6,6 +6,7 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -14,7 +15,10 @@ import io.ktor.http.contentType
 import kotlin.coroutines.cancellation.CancellationException
 
 sealed interface ManualAccountsResult {
-    data class Success(val accounts: List<ManualAccountResponse>) : ManualAccountsResult
+    data class Success(
+        val accounts: List<ManualAccountResponse>,
+        val nextCursor: String? = null
+    ) : ManualAccountsResult
     data class Failure(val message: StringKey) : ManualAccountsResult
 }
 
@@ -33,7 +37,13 @@ class ManualAccountsApi(baseUrl: String, private val client: HttpClient) {
         return try {
             val response = client.get(url) { bearerAuth(token) }
             when (response.status) {
-                HttpStatusCode.OK -> ManualAccountsResult.Success(response.body())
+                HttpStatusCode.OK -> {
+                    val page = response.body<ManualAccountsPageResponse>()
+                    ManualAccountsResult.Success(
+                        accounts = page.accounts,
+                        nextCursor = page.nextCursor
+                    )
+                }
                 HttpStatusCode.Unauthorized ->
                     ManualAccountsResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
                 else -> ManualAccountsResult.Failure(StringKey.MANUAL_ACCOUNTS_LOAD_ERROR)
@@ -55,7 +65,8 @@ class ManualAccountsApi(baseUrl: String, private val client: HttpClient) {
 
     suspend fun createAccount(
         token: String,
-        request: CreateManualAccountRequest
+        request: CreateManualAccountRequest,
+        requestId: String
     ): CreateManualAccountResult {
         if (token.isBlank()) {
             return CreateManualAccountResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
@@ -63,11 +74,13 @@ class ManualAccountsApi(baseUrl: String, private val client: HttpClient) {
         return try {
             val response = client.post(url) {
                 bearerAuth(token)
+                header("Idempotency-Key", requestId)
                 contentType(ContentType.Application.Json)
                 setBody(request)
             }
             when (response.status) {
-                HttpStatusCode.Created -> CreateManualAccountResult.Success(response.body())
+                HttpStatusCode.Created, HttpStatusCode.OK ->
+                    CreateManualAccountResult.Success(response.body())
                 else -> CreateManualAccountResult.Failure(createFailureKey(response.status))
             }
         } catch (exception: CancellationException) {

@@ -30,6 +30,19 @@ internal data class ManualAccountResponse(
     val currentBalance: String
 )
 
+@Serializable
+internal data class ManualAccountsPageResponse(
+    val accounts: List<ManualAccountResponse>,
+    val nextCursor: String? = null
+)
+
+internal data class ManualAccountCreateResult(
+    val account: ManualAccountResponse,
+    val created: Boolean
+)
+
+internal class ManualAccountCreateConflict : IllegalStateException()
+
 internal data class ValidatedManualAccount(
     val name: String,
     val type: ManualAccountType,
