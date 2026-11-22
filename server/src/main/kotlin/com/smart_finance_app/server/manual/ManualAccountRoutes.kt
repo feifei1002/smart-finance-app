@@ -35,7 +35,7 @@ fun Route.manualAccountRoutes() {
                     )
                 )
             }
-            call.respond(HttpStatusCode.OK)
+            call.respond(HttpStatusCode.OK, accounts)
         }
 
         post("/api/accounts") {
