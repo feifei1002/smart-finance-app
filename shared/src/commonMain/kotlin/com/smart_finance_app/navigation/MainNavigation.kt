@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -64,6 +65,7 @@ import com.smart_finance_app.settings.SupportApi
 @Composable
 fun MainNavigation(
     apiBaseUrl: String,
+    userId: String,
     authToken: String,
     userName: String,
     userEmail: String,
@@ -127,6 +129,7 @@ fun MainNavigation(
             NavigationContent(
                 navigation               = selected,
                 apiBaseUrl               = apiBaseUrl,
+                userId                   = userId,
                 authToken                = authToken,
                 userName                 = userName,
                 userEmail                = userEmail,
@@ -151,6 +154,7 @@ fun MainNavigation(
 private fun NavigationContent(
     navigation: AppNavigation,
     apiBaseUrl: String,
+    userId: String,
     authToken: String,
     userName: String,
     userEmail: String,
@@ -488,6 +492,8 @@ private fun NavigationContent(
         }
     }
 
+    val manualAccountStateHolder = rememberSaveableStateHolder()
+
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
             authToken                    = authToken,
@@ -578,10 +584,13 @@ private fun NavigationContent(
 
         AppNavigation.Accounts -> {
             if (!AppFeatures.bankIntegrationEnabled) {
-                ManualAccountsScreen(
-                    authToken = authToken,
-                    api = manualAccountsApi
-                )
+                manualAccountStateHolder.SaveableStateProvider("manual-accounts:$userId") {
+                    ManualAccountsScreen(
+                        userId = userId,
+                        authToken = authToken,
+                        api = manualAccountsApi
+                    )
+                }
                 return
             }
 

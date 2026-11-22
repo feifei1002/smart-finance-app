@@ -22,6 +22,7 @@ internal fun Application.configurePlugins() {
     install(CORS) {
         allowCredentials = true
         allowHeader(REFRESH_TOKEN_TRANSPORT_HEADER)
+        allowHeader("Idempotency-Key")
 
         allowHost("localhost:8081", schemes = listOf("http"))
         allowHost("127.0.0.1:8081", schemes = listOf("http"))
