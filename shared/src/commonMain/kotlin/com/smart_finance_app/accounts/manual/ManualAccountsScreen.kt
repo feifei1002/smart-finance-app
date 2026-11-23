@@ -84,6 +84,8 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
     var currency by rememberSaveable { mutableStateOf(CurrencyController.currentCurrency) }
     var balance by rememberSaveable { mutableStateOf("0") }
     var createRequestId by rememberSaveable { mutableStateOf(Uuid.random().toString()) }
+    var nextCursor by remember { mutableStateOf<String?>(null) }
+    var lastLoadWasAppend by remember { mutableStateOf(false) }
 
     val draft = ManualAccountDraft(
         name = name,
@@ -93,14 +95,21 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
         startingBalance = balance
     )
 
-    suspend fun loadAccounts() {
+    suspend fun loadAccounts(append: Boolean = false) {
+        val cursor = if (append) nextCursor ?: return else null
         val version = ++loadVersion
         loading = true
         loadError = null
+        lastLoadWasAppend = append
         try {
-            when (val result = api.getAccounts(authToken)) {
+            when (val result = api.getAccounts(authToken, cursor = cursor)) {
                 is ManualAccountsResult.Success -> if (version == loadVersion) {
-                    accounts = result.accounts
+                    accounts = if (append) {
+                        (accounts + result.accounts).distinctBy { it.id }
+                    } else {
+                        result.accounts
+                    }
+                    nextCursor = result.nextCursor
                     loaded = true
                 }
                 is ManualAccountsResult.Failure -> if (version == loadVersion) {
@@ -111,6 +120,7 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
             if (version == loadVersion) loading = false
         }
     }
+
 
     fun openForm() {
         name = ""
@@ -151,7 +161,7 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
         }
     }
 
-    LaunchedEffect(authToken, api) { loadAccounts() }
+    LaunchedEffect(api) { loadAccounts() }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compact = maxWidth < 700.dp
@@ -238,6 +248,17 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
                         items(accounts, key = { it.id }) { account ->
                             ManualAccountCard(account)
                         }
+                    }
+                }
+
+                if (nextCursor != null && loadError == null) {
+                    TextButton(enabled = !loading && !saving, onClick = {
+                        if (!loading && !saving) {
+                            loading = true
+                            scope.launch { loadAccounts(append = true) }
+                        }
+                    }) {
+                        Text(appStringResource(StringKey.MANUAL_ACCOUNTS_LOAD_MORE))
                     }
                 }
             }

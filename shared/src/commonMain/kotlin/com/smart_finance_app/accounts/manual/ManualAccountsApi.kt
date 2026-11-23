@@ -7,6 +7,7 @@ import io.ktor.client.plugins.ResponseException
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -30,12 +31,16 @@ sealed interface CreateManualAccountResult {
 class ManualAccountsApi(baseUrl: String, private val client: HttpClient) {
     private val url = baseUrl.trimEnd('/') + "/api/accounts"
 
-    suspend fun getAccounts(token: String): ManualAccountsResult {
+    suspend fun getAccounts(token: String, cursor: String? = null): ManualAccountsResult {
         if (token.isBlank()) {
             return ManualAccountsResult.Failure(StringKey.COMMON_SESSION_EXPIRED)
         }
         return try {
-            val response = client.get(url) { bearerAuth(token) }
+            val response = client.get(url) {
+                bearerAuth(token)
+                parameter("limit", 50)
+                cursor?.let { parameter("cursor", it) }
+            }
             when (response.status) {
                 HttpStatusCode.OK -> {
                     val page = response.body<ManualAccountsPageResponse>()

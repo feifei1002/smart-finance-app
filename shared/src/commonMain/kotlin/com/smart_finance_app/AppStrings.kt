@@ -487,6 +487,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR to "Check your account details and try again.",
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Use a negative amount for money you owe and a positive amount for credit.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Change balance sign",
+        StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Load more",
     )
 
     private val es = mapOf(
@@ -960,6 +961,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR to "Revisa los datos de la cuenta e inténtalo de nuevo.",
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Usa un importe negativo para una deuda y uno positivo para un saldo a favor.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Cambiar el signo del saldo",
+        StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Cargar más",
     )
 
     private val fr = mapOf(
@@ -1433,6 +1435,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR to "Vérifiez les informations du compte et réessayez.",
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Utilisez un montant négatif pour une dette et positif pour un avoir.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Changer le signe du solde",
+        StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Charger plus",
     )
 
     private val nl = mapOf(
@@ -1900,6 +1903,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR to "Controleer de rekeninggegevens en probeer het opnieuw.",
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Gebruik een negatief bedrag voor schuld en een positief bedrag voor tegoed.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Teken van het saldo wijzigen",
+        StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Meer laden",
     )
 
     private val de = mapOf(
@@ -2366,6 +2370,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR to "Prüfe die Kontodaten und versuche es erneut.",
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Verwende einen negativen Betrag für Schulden und einen positiven für Guthaben.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Vorzeichen des Saldos ändern",
+        StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Mehr laden",
     )
 
     private val it = mapOf(
@@ -2833,6 +2838,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR to "Controlla i dati del conto e riprova.",
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Usa un importo negativo per un debito e positivo per un credito.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Cambia il segno del saldo",
+        StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Carica altro",
     )
 
     private val pl = mapOf(
@@ -3300,7 +3306,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR to "Sprawdź dane konta i spróbuj ponownie.",
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Użyj kwoty ujemnej dla zadłużenia, a dodatniej dla nadpłaty.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Zmień znak salda",
-
+        StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Wczytaj więcej",
         )
 
     private val zhTW = mapOf(
@@ -3768,5 +3774,6 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR to "請確認帳戶資料後再試一次。",
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "欠款請輸入負數，溢繳金額請輸入正數。",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "切換餘額正負號",
+        StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "載入更多",
     )
 }
