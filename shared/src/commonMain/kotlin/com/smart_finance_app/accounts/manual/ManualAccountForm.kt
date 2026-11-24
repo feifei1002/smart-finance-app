@@ -81,7 +81,7 @@ fun ManualAccountForm(
 
         ExposedDropdownMenuBox(
             expanded = typeExpanded && canEdit,
-            onExpandedChange = { if (!isSaving) typeExpanded = it }
+            onExpandedChange = { if (canEdit) typeExpanded = it }
         ) {
             OutlinedTextField(
                 value = appStringResource(draft.type.labelKey),
@@ -112,7 +112,7 @@ fun ManualAccountForm(
 
         ExposedDropdownMenuBox(
             expanded = currencyExpanded && canEdit,
-            onExpandedChange = { if (!isSaving) currencyExpanded = it }
+            onExpandedChange = { if (canEdit) currencyExpanded = it }
         ) {
             OutlinedTextField(
                 value = draft.currency,
@@ -186,7 +186,7 @@ fun ManualAccountForm(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = onSave,
-                enabled = canEdit,
+                enabled = !isSaving,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
                 if (isSaving) {
@@ -196,7 +196,10 @@ fun ManualAccountForm(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text(appStringResource(StringKey.MANUAL_ACCOUNTS_SAVE))
+                    Text(appStringResource(
+                        if (retryPending) StringKey.COMMON_RETRY
+                        else StringKey.MANUAL_ACCOUNTS_SAVE)
+                    )
                 }
             }
 
