@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -48,6 +49,8 @@ import com.smart_finance_app.accounts.AccountSelectionScreen
 import com.smart_finance_app.accounts.SaveSelectedAccountsResult
 import com.smart_finance_app.accounts.SelectableAccountsResult
 import com.smart_finance_app.accounts.SelectableBankAccountResponse
+import com.smart_finance_app.accounts.manual.ManualAccountsApi
+import com.smart_finance_app.accounts.manual.ManualAccountsScreen
 import com.smart_finance_app.appStringResource
 import com.smart_finance_app.config.AppFeatures
 import com.smart_finance_app.currency.ConversionResult
@@ -62,6 +65,7 @@ import com.smart_finance_app.settings.SupportApi
 @Composable
 fun MainNavigation(
     apiBaseUrl: String,
+    userId: String,
     authToken: String,
     userName: String,
     userEmail: String,
@@ -125,6 +129,7 @@ fun MainNavigation(
             NavigationContent(
                 navigation               = selected,
                 apiBaseUrl               = apiBaseUrl,
+                userId                   = userId,
                 authToken                = authToken,
                 userName                 = userName,
                 userEmail                = userEmail,
@@ -149,6 +154,7 @@ fun MainNavigation(
 private fun NavigationContent(
     navigation: AppNavigation,
     apiBaseUrl: String,
+    userId: String,
     authToken: String,
     userName: String,
     userEmail: String,
@@ -167,6 +173,7 @@ private fun NavigationContent(
 ) {
     val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
     val subscriptionApi = remember(apiBaseUrl, httpClient) { SubscriptionApi(apiBaseUrl, httpClient) }
+    val manualAccountsApi = remember(apiBaseUrl, httpClient) { ManualAccountsApi(apiBaseUrl, httpClient) }
     val profileApi = remember(apiBaseUrl, httpClient) { ProfileApi(apiBaseUrl, httpClient) }
     val supportApi = remember(apiBaseUrl, httpClient) { SupportApi(apiBaseUrl, httpClient) }
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
@@ -485,6 +492,8 @@ private fun NavigationContent(
         }
     }
 
+    val manualAccountStateHolder = rememberSaveableStateHolder()
+
     when (navigation) {
         AppNavigation.Dashboard -> DashboardScreen(
             authToken                    = authToken,
@@ -574,17 +583,13 @@ private fun NavigationContent(
         }
 
         AppNavigation.Accounts -> {
-            /*
-            This is a temporary title-only placeholder. Replace its Box with the manual accounts screen once implemented.
-            The return exits `NavigationContent()` for this screen only.
-            The navigation scaffold remains outside it, so users can still navigate elsewhere.
-             */
             if (!AppFeatures.bankIntegrationEnabled) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(appStringResource(StringKey.NAV_ACCOUNTS))
+                manualAccountStateHolder.SaveableStateProvider("manual-accounts:$userId") {
+                    ManualAccountsScreen(
+                        userId = userId,
+                        authToken = authToken,
+                        api = manualAccountsApi
+                    )
                 }
                 return
             }

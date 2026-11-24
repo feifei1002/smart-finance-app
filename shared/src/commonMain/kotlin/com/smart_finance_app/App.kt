@@ -473,6 +473,7 @@ fun App(
                 val resolvedEmail = session?.email.orEmpty()
                 MainNavigation(
                     apiBaseUrl = apiBaseUrl,
+                    userId = session?.userId.orEmpty(),
                     authToken = session?.token.orEmpty(),
                     userName = resolvedName,
                     userEmail = resolvedEmail,

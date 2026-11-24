@@ -20,6 +20,8 @@ dependencies {
     implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.json)
+    implementation("io.ktor:ktor-server-rate-limit:${libs.versions.ktor.get()}")
+    implementation("io.ktor:ktor-server-body-limit:${libs.versions.ktor.get()}")
 
     implementation(libs.logback.classic)
     implementation(libs.hikari)
