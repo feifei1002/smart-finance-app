@@ -51,6 +51,7 @@ import com.smart_finance_app.appStringResource
 import com.smart_finance_app.currency.CurrencyController
 import com.smart_finance_app.currency.getCurrencySymbol
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import org.jetbrains.compose.resources.painterResource
 import smart_finance_app.shared.generated.resources.Res
 import smart_finance_app.shared.generated.resources.add
@@ -83,6 +84,7 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
     var typeName by rememberSaveable { mutableStateOf(ManualAccountType.BANK_ACCOUNT.name) }
     var currency by rememberSaveable { mutableStateOf(CurrencyController.currentCurrency) }
     var balance by rememberSaveable { mutableStateOf("0") }
+    var pendingRequestJson by rememberSaveable { mutableStateOf<String?>(null) }
     var createRequestId by rememberSaveable { mutableStateOf(Uuid.random().toString()) }
     var nextCursor by remember { mutableStateOf<String?>(null) }
     var lastLoadWasAppend by remember { mutableStateOf(false) }
@@ -123,6 +125,11 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
 
 
     fun openForm() {
+        if (pendingRequestJson != null) {
+            showForm = true
+            return
+        }
+
         name = ""
         typeName = ManualAccountType.BANK_ACCOUNT.name
         currency = CurrencyController.currentCurrency
@@ -136,24 +143,32 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
     fun saveAccount() {
         if (saving) return
         submitted = true
-        val request = draft.toCreateRequestOrNull() ?: return
+        val request = pendingRequestJson?.let {
+            Json.decodeFromString<CreateManualAccountRequest>(it)
+        } ?: draft.toCreateRequestOrNull() ?: return
+        val requestId = createRequestId
+        pendingRequestJson = Json.encodeToString(request)
         saving = true
         saveError = null
         scope.launch {
             try {
-                when (val result = api.createAccount(
-                    token = authToken,
-                    request = request,
-                    requestId = createRequestId
-                )) {
+                when (val result = api.createAccount(authToken, request, requestId)) {
                     is CreateManualAccountResult.Success -> {
+                        pendingRequestJson = null
                         accounts = (listOf(result.account) + accounts).distinctBy { it.id }
                         loaded = true
                         showForm = false
-                        // A follow-up GET failure must not reopen a successfully saved form.
                         loadAccounts()
                     }
-                    is CreateManualAccountResult.Failure -> saveError = result.message
+                    CreateManualAccountResult.Conflict -> {
+                        saveError = StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT
+                    }
+                    is CreateManualAccountResult.Failure -> {
+                        saveError = result.message
+                        if (result.message == StringKey.MANUAL_ACCOUNTS_VALIDATION_ERROR) {
+                            pendingRequestJson = null
+                        }
+                    }
                 }
             } finally {
                 saving = false
@@ -169,6 +184,8 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
             ManualAccountForm(
                 draft = draft,
                 onDraftChange = {
+                    if (saving || pendingRequestJson != null) return@ManualAccountForm
+
                     name = it.name
                     typeName = it.type.name
                     currency = it.currency
@@ -177,6 +194,7 @@ private fun ManualAccountsContent(authToken: String, api: ManualAccountsApi) {
                 },
                 showValidationErrors = submitted,
                 isSaving = saving,
+                retryPending = pendingRequestJson != null,
                 serverError = saveError,
                 compact = compact,
                 onCancel = { if (!saving) showForm = false },

@@ -488,6 +488,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Use a negative amount for money you owe and a positive amount for credit.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Change balance sign",
         StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Load more",
+        StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT to "This save request was already used with different account details. Check your accounts before trying again.",
     )
 
     private val es = mapOf(
@@ -962,6 +963,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Usa un importe negativo para una deuda y uno positivo para un saldo a favor.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Cambiar el signo del saldo",
         StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Cargar más",
+        StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT to "Esta solicitud de guardado ya se utilizó con otros datos de cuenta. Comprueba tus cuentas antes de volver a intentarlo.",
     )
 
     private val fr = mapOf(
@@ -1436,6 +1438,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Utilisez un montant négatif pour une dette et positif pour un avoir.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Changer le signe du solde",
         StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Charger plus",
+        StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT to "Cette demande d'enregistrement a déjà été utilisée avec des informations de compte différentes. Vérifiez vos comptes avant de réessayer.",
     )
 
     private val nl = mapOf(
@@ -1904,6 +1907,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Gebruik een negatief bedrag voor schuld en een positief bedrag voor tegoed.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Teken van het saldo wijzigen",
         StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Meer laden",
+        StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT to "Dit opslagverzoek is al gebruikt met andere rekeninggegevens. Controleer je rekeningen voordat je het opnieuw probeert.",
     )
 
     private val de = mapOf(
@@ -2371,6 +2375,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Verwende einen negativen Betrag für Schulden und einen positiven für Guthaben.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Vorzeichen des Saldos ändern",
         StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Mehr laden",
+        StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT to "Diese Speicheranfrage wurde bereits mit anderen Kontodaten verwendet. Prüfe deine Konten vor einem erneuten Versuch.",
     )
 
     private val it = mapOf(
@@ -2839,6 +2844,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Usa un importo negativo per un debito e positivo per un credito.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Cambia il segno del saldo",
         StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Carica altro",
+        StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT to "Questa richiesta di salvataggio è già stata utilizzata con dati del conto diversi. Controlla i tuoi conti prima di riprovare.",
     )
 
     private val pl = mapOf(
@@ -3307,6 +3313,7 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "Użyj kwoty ujemnej dla zadłużenia, a dodatniej dla nadpłaty.",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "Zmień znak salda",
         StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "Wczytaj więcej",
+        StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT to "To żądanie zapisu zostało już użyte z innymi danymi konta. Sprawdź swoje konta przed ponowną próbą.",
         )
 
     private val zhTW = mapOf(
@@ -3775,5 +3782,6 @@ object AppStrings {
         StringKey.MANUAL_ACCOUNTS_CREDIT_CARD_HELP to "欠款請輸入負數，溢繳金額請輸入正數。",
         StringKey.MANUAL_ACCOUNTS_CHANGE_SIGN to "切換餘額正負號",
         StringKey.MANUAL_ACCOUNTS_LOAD_MORE to "載入更多",
+        StringKey.MANUAL_ACCOUNTS_CREATE_CONFLICT to "此儲存請求已用於不同的帳戶資料。再次嘗試前，請先確認帳戶是否已建立。",
     )
 }

@@ -26,6 +26,7 @@ sealed interface ManualAccountsResult {
 sealed interface CreateManualAccountResult {
     data class Success(val account: ManualAccountResponse) : CreateManualAccountResult
     data class Failure(val message: StringKey) : CreateManualAccountResult
+    data object Conflict: CreateManualAccountResult
 }
 
 class ManualAccountsApi(baseUrl: String, private val client: HttpClient) {
@@ -86,12 +87,19 @@ class ManualAccountsApi(baseUrl: String, private val client: HttpClient) {
             when (response.status) {
                 HttpStatusCode.Created, HttpStatusCode.OK ->
                     CreateManualAccountResult.Success(response.body())
+                HttpStatusCode.Conflict -> CreateManualAccountResult.Conflict
                 else -> CreateManualAccountResult.Failure(createFailureKey(response.status))
             }
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: ResponseException) {
-            CreateManualAccountResult.Failure(createFailureKey(exception.response.status))
+            if (exception.response.status == HttpStatusCode.Conflict) {
+                CreateManualAccountResult.Conflict
+            } else {
+                CreateManualAccountResult.Failure(
+                    createFailureKey(exception.response.status)
+                )
+            }
         } catch (_: Exception) {
             CreateManualAccountResult.Failure(StringKey.MANUAL_ACCOUNTS_CREATE_ERROR)
         }

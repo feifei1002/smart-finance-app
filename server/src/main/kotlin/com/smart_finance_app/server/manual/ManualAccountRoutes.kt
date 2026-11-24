@@ -106,7 +106,9 @@ fun Route.manualAccountRoutes() {
                                 HttpStatusCode.Unauthorized, ErrorResponse("User no longer exists")
                             )
                         }
-                        call.application.environment.log.error("Could not create manual account", exception)
+                        call.application.environment.log.error(
+                            "Could not create manual account; SQLState={}", exception.sqlState
+                        )
                         return@post call.respond(
                             HttpStatusCode.InternalServerError, ErrorResponse("Could not create account")
                         )
