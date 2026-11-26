@@ -68,6 +68,7 @@ import smart_finance_app.shared.generated.resources.sync
 import androidx.compose.material3.Button
 import smart_finance_app.shared.generated.resources.add
 import com.smart_finance_app.currency.getCurrencySymbol
+import smart_finance_app.shared.generated.resources.close
 
 data class TransactionUI(
     val id: String,
@@ -80,6 +81,11 @@ data class TransactionUI(
     val merchantLogoUrl: String? = null,
     val accountId: String? = null,
     val transactionStatus: String = "settled"
+)
+
+data class CreatedTransactionNotice(
+    val transaction: TransactionUI,
+    val filterChanged: Boolean
 )
 
 @Composable
@@ -114,6 +120,8 @@ fun TransactionsScreen(
     onDismissCategoryUpdateError: () -> Unit = {},
     onAddTransaction: (() -> Unit)? = null,
     canEditCategory: Boolean = true,
+    createdTransactionNotice: CreatedTransactionNotice? = null,
+    onDismissCreatedTransaction: () -> Unit = {},
 ) {
 
     var editingTransaction by remember { mutableStateOf<TransactionUI?>(null) }
@@ -137,6 +145,8 @@ fun TransactionsScreen(
                     onFilterSelected = onFilterSelected,
                     onLoadNextPage = onLoadNextPage,
                     onAddTransaction = onAddTransaction,
+                    createdTransactionNotice = createdTransactionNotice,
+                    onDismissCreatedTransaction = onDismissCreatedTransaction,
                     onEditCategory = if (canEditCategory) {
                         { transaction: TransactionUI ->
                             onDismissCategoryUpdateError()
@@ -160,6 +170,8 @@ fun TransactionsScreen(
                     onFilterSelected = onFilterSelected,
                     onPageSelected = onPageSelected,
                     onAddTransaction = onAddTransaction,
+                    createdTransactionNotice = createdTransactionNotice,
+                    onDismissCreatedTransaction = onDismissCreatedTransaction,
                     onEditCategory = if (canEditCategory) {
                         { transaction: TransactionUI ->
                             editingTransaction = transaction
@@ -205,6 +217,8 @@ private fun MobileTransactionsList(
     onFilterSelected: (String) -> Unit = {},
     onLoadNextPage: () -> Unit = {},
     onAddTransaction: (() -> Unit)? = null,
+    createdTransactionNotice: CreatedTransactionNotice? = null,
+    onDismissCreatedTransaction: () -> Unit = {},
     onEditCategory: ((TransactionUI) -> Unit)?
 ) {
     var showSearch by remember { mutableStateOf(false) }
@@ -373,6 +387,15 @@ private fun MobileTransactionsList(
             TransactionsSyncMessage(it)
         }
 
+
+        createdTransactionNotice?.let { notice ->
+            CreatedTransactionBanner(
+                notice = notice,
+                visibleInList = isLoading || transactions.any { it.id == notice.transaction.id },
+                onDismiss = onDismissCreatedTransaction
+            )
+        }
+
         errorMessage?.let {
             AppErrorMessage(it)
         }
@@ -400,7 +423,8 @@ private fun MobileTransactionsList(
                         items(items = dayTransactions, key = { it.id }) { transaction ->
                             MobileTransactionRow(
                                 transaction = transaction,
-                                onEditCategory = onEditCategory
+                                onEditCategory = onEditCategory,
+                                highlighted = transaction.id == createdTransactionNotice?.transaction?.id
                             )
                         }
                     }
@@ -416,10 +440,17 @@ private fun MobileTransactionsList(
 @Composable
 private fun MobileTransactionRow(
     transaction: TransactionUI,
-    onEditCategory: ((TransactionUI) -> Unit)?
+    onEditCategory: ((TransactionUI) -> Unit)?,
+    highlighted: Boolean = false
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (highlighted) MaterialTheme.colorScheme.primaryContainer
+                else Color.Transparent
+            )
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -483,6 +514,8 @@ private fun DesktopTransactionsTable(
     onFilterSelected: (String) -> Unit = {},
     onPageSelected: (Int) -> Unit = {},
     onAddTransaction: (() -> Unit)? = null,
+    createdTransactionNotice: CreatedTransactionNotice? = null,
+    onDismissCreatedTransaction: () -> Unit = {},
     onEditCategory: ((TransactionUI) -> Unit)?
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -604,6 +637,15 @@ private fun DesktopTransactionsTable(
             TransactionsSyncMessage(it)
         }
 
+
+        createdTransactionNotice?.let { notice ->
+            CreatedTransactionBanner(
+                notice = notice,
+                visibleInList = isLoading || transactions.any { it.id == notice.transaction.id },
+                onDismiss = onDismissCreatedTransaction
+            )
+        }
+
         errorMessage?.let { AppErrorMessage(it) }
 
         Surface(
@@ -651,7 +693,8 @@ private fun DesktopTransactionsTable(
                             TransactionTableRow(
                                 transaction = transaction,
                                 editLabel = editLabel,
-                                onEditCategory = onEditCategory
+                                onEditCategory = onEditCategory,
+                                highlighted = transaction.id == createdTransactionNotice?.transaction?.id
                             )
                         }
                     }
@@ -707,10 +750,17 @@ private fun TransactionTableHeader(
 private fun TransactionTableRow(
     transaction: TransactionUI,
     editLabel: String,
-    onEditCategory: ((TransactionUI) -> Unit)?
+    onEditCategory: ((TransactionUI) -> Unit)?,
+    highlighted: Boolean = false
 ) {
     Row(
-        modifier = Modifier.width(900.dp).padding(vertical = 10.dp),
+        modifier = Modifier.width(900.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (highlighted) MaterialTheme.colorScheme.primaryContainer
+                else Color.Transparent
+            )
+            .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1004,6 +1054,65 @@ private fun AddTransactionButton(onClick: () -> Unit, modifier: Modifier = Modif
         ) {
             Icon(painterResource(Res.drawable.add), contentDescription = null)
             Text(appStringResource(StringKey.MANUAL_TRANSACTIONS_ADD))
+        }
+    }
+}
+
+@Composable
+private fun CreatedTransactionBanner(
+    notice: CreatedTransactionNotice,
+    visibleInList: Boolean,
+    onDismiss: () -> Unit
+) {
+    val transaction = notice.transaction
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = appStringResource(StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "${transaction.merchantName} • " +
+                            formatAmount(transaction.amount, transaction.currency),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "${transaction.dateLabel} • ${localiseCategory(transaction.category)}" +
+                            " • ${transaction.accountName}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (notice.filterChanged) {
+                    Text(
+                        text = appStringResource(StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (!visibleInList) {
+                    Text(
+                        text = appStringResource(StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    painter = painterResource(Res.drawable.close),
+                    contentDescription = appStringResource(StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS)
+                )
+            }
         }
     }
 }

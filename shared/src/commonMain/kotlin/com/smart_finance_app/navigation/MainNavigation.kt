@@ -63,6 +63,8 @@ import com.smart_finance_app.settings.SettingsPanel
 import com.smart_finance_app.settings.SupportApi
 import com.smart_finance_app.transactions.manual.AddManualTransactionHost
 import com.smart_finance_app.transactions.manual.ManualTransactionsApi
+import com.smart_finance_app.transactions.CreatedTransactionNotice
+import com.smart_finance_app.transactions.ImportedTransactionResponse
 
 @Composable
 fun MainNavigation(
@@ -198,6 +200,7 @@ private fun NavigationContent(
     var categoryUpdateError by remember { mutableStateOf<String?>(null) }
     var updatingCategoryTransactionId by remember { mutableStateOf<String?>(null) }
     var exchangeRates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    var createdTransactionNotice by remember { mutableStateOf<CreatedTransactionNotice?>(null) }
 
     suspend fun loadDashboardTransactions() {
         if (!AppFeatures.bankIntegrationEnabled) {
@@ -381,6 +384,10 @@ private fun NavigationContent(
         }
     }
 
+    LaunchedEffect(navigation) {
+        if (navigation != AppNavigation.Transactions) createdTransactionNotice = null
+    }
+
     LaunchedEffect(navigation, authToken, transactionsFilter) {
         if (navigation == AppNavigation.Transactions && authToken.isNotBlank()) {
             if (!transactionsLoadedOnce) {
@@ -516,6 +523,8 @@ private fun NavigationContent(
                 TransactionsScreen(
                     onAddTransaction = onAddTransaction,
                     canEditCategory = AppFeatures.bankIntegrationEnabled,
+                    createdTransactionNotice = createdTransactionNotice,
+                    onDismissCreatedTransaction = { createdTransactionNotice = null },
                     transactions  = transactions,
                     isLoading     = transactionsLoading,
                     isSyncing     = transactionsSyncing,
@@ -532,6 +541,7 @@ private fun NavigationContent(
                     hasMore       = transactionsHasMore,
                     selectedFilter = transactionsFilter,
                     onFilterSelected = { filter ->
+                        createdTransactionNotice = createdTransactionNotice?.copy(filterChanged = false)
                         transactionsFilter = filter
                         transactions = emptyList()
                         transactionsPage = 0
@@ -593,7 +603,26 @@ private fun NavigationContent(
                         authToken = authToken,
                         transactionsApi = manualTransactionsApi,
                         accountsApi = manualAccountsApi,
-                        onTransactionCreated = {
+                        onTransactionCreated = { created ->
+                            val transaction = created.toTransactionUI()
+                            val hiddenByFilter = when (transactionsFilter) {
+                                "Income" -> transaction.amount <= 0
+                                "Expenses" -> transaction.amount >= 0
+                                else -> false
+                            }
+                            if (hiddenByFilter) {
+                                transactionsFilter = "All"
+                                transactions = emptyList()
+                            }
+                            createdTransactionNotice = CreatedTransactionNotice(
+                                transaction = transaction,
+                                filterChanged = hiddenByFilter
+                            )
+                            transactionsPage = 0
+                            transactionsLoadedOnce = false
+                            scope.launch { loadTransactionsPage(page = 0, append = false) }
+                        },
+                        onViewTransactions = {
                             transactionsLoadedOnce = false
                             scope.launch { loadTransactionsPage(page = 0, append = false) }
                         }
@@ -1037,3 +1066,16 @@ private fun AccountLimitDialog(
         }
     )
 }
+
+private fun ImportedTransactionResponse.toTransactionUI() = TransactionUI(
+    id = id,
+    dateLabel = date.take(10),
+    merchantName = merchantName,
+    category = category,
+    accountName = accountName,
+    amount = amount,
+    currency = currency,
+    merchantLogoUrl = merchantLogoUrl,
+    accountId = accountId,
+    transactionStatus = transactionStatus
+)

@@ -515,6 +515,12 @@ object AppStrings {
         StringKey.MANUAL_TRANSACTIONS_VALIDATION_ERROR to "Check your transaction details and try again.",
         StringKey.MANUAL_TRANSACTIONS_ACCOUNT_NOT_FOUND to "That account no longer exists. Select another account.",
         StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT to "This save request was already used with different transaction details. Check your transactions before trying again.",
+        StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS to "Check transactions",
+        StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST to "Discard and edit",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE to "Transaction saved",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED to "The filter was switched to All so you can see it.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN to "Because of its date, it's further down your transactions.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS to "Dismiss",
     )
 
     private val es = mapOf(
@@ -1016,6 +1022,12 @@ object AppStrings {
         StringKey.MANUAL_TRANSACTIONS_VALIDATION_ERROR to "Comprueba los datos de la transacción e inténtalo de nuevo.",
         StringKey.MANUAL_TRANSACTIONS_ACCOUNT_NOT_FOUND to "Esa cuenta ya no existe. Selecciona otra cuenta.",
         StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT to "Esta solicitud de guardado ya se utilizó con otros datos de transacción. Comprueba tus transacciones antes de volver a intentarlo.",
+        StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS to "Revisar transacciones",
+        StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST to "Descartar y editar",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE to "Transacción guardada",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED to "El filtro se cambió a Todas para que puedas verla.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN to "Por su fecha, aparece más abajo en tus transacciones.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS to "Cerrar",
     )
 
     private val fr = mapOf(
@@ -1517,6 +1529,12 @@ object AppStrings {
         StringKey.MANUAL_TRANSACTIONS_VALIDATION_ERROR to "Vérifiez les informations de la transaction et réessayez.",
         StringKey.MANUAL_TRANSACTIONS_ACCOUNT_NOT_FOUND to "Ce compte n'existe plus. Sélectionnez un autre compte.",
         StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT to "Cette demande d'enregistrement a déjà été utilisée avec d'autres informations de transaction. Vérifiez vos transactions avant de réessayer.",
+        StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS to "Vérifier les transactions",
+        StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST to "Abandonner et modifier",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE to "Transaction enregistrée",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED to "Le filtre est passé à Toutes pour que vous puissiez la voir.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN to "En raison de sa date, elle se trouve plus bas dans vos transactions.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS to "Fermer",
     )
 
     private val nl = mapOf(
@@ -2012,6 +2030,12 @@ object AppStrings {
         StringKey.MANUAL_TRANSACTIONS_VALIDATION_ERROR to "Controleer de transactiegegevens en probeer het opnieuw.",
         StringKey.MANUAL_TRANSACTIONS_ACCOUNT_NOT_FOUND to "Die rekening bestaat niet meer. Selecteer een andere rekening.",
         StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT to "Dit opslagverzoek is al gebruikt met andere transactiegegevens. Controleer je transacties voordat je het opnieuw probeert.",
+        StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS to "Transacties bekijken",
+        StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST to "Verwerpen en bewerken",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE to "Transactie opgeslagen",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED to "Het filter is op Alle gezet zodat je haar kunt zien.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN to "Door de datum staat ze verderop in je transacties.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS to "Sluiten",
     )
 
     private val de = mapOf(
@@ -2506,6 +2530,12 @@ object AppStrings {
         StringKey.MANUAL_TRANSACTIONS_VALIDATION_ERROR to "Prüfe die Transaktionsdaten und versuche es erneut.",
         StringKey.MANUAL_TRANSACTIONS_ACCOUNT_NOT_FOUND to "Dieses Konto existiert nicht mehr. Wähle ein anderes Konto aus.",
         StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT to "Diese Speicheranfrage wurde bereits mit anderen Transaktionsdaten verwendet. Prüfe deine Transaktionen vor einem erneuten Versuch.",
+        StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS to "Transaktionen prüfen",
+        StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST to "Verwerfen und bearbeiten",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE to "Transaktion gespeichert",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED to "Der Filter wurde auf Alle gestellt, damit du sie siehst.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN to "Wegen ihres Datums steht sie weiter unten in deinen Transaktionen.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS to "Schließen",
     )
 
     private val it = mapOf(
@@ -3001,6 +3031,12 @@ object AppStrings {
         StringKey.MANUAL_TRANSACTIONS_VALIDATION_ERROR to "Controlla i dati della transazione e riprova.",
         StringKey.MANUAL_TRANSACTIONS_ACCOUNT_NOT_FOUND to "Questo conto non esiste più. Seleziona un altro conto.",
         StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT to "Questa richiesta di salvataggio è già stata utilizzata con dati della transazione diversi. Controlla le tue transazioni prima di riprovare.",
+        StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS to "Controlla transazioni",
+        StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST to "Annulla e modifica",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE to "Transazione salvata",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED to "Il filtro è stato impostato su Tutte per mostrartela.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN to "Per via della data, si trova più in basso tra le tue transazioni.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS to "Chiudi",
     )
 
     private val pl = mapOf(
@@ -3496,6 +3532,12 @@ object AppStrings {
         StringKey.MANUAL_TRANSACTIONS_VALIDATION_ERROR to "Sprawdź dane transakcji i spróbuj ponownie.",
         StringKey.MANUAL_TRANSACTIONS_ACCOUNT_NOT_FOUND to "To konto już nie istnieje. Wybierz inne konto.",
         StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT to "To żądanie zapisu zostało już użyte z innymi danymi transakcji. Sprawdź swoje transakcje przed ponowną próbą.",
+        StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS to "Sprawdź transakcje",
+        StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST to "Odrzuć i edytuj",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE to "Transakcja zapisana",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED to "Filtr zmieniono na Wszystkie, aby była widoczna.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN to "Ze względu na datę znajduje się niżej na liście transakcji.",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS to "Zamknij",
         )
 
     private val zhTW = mapOf(
@@ -3991,5 +4033,11 @@ object AppStrings {
         StringKey.MANUAL_TRANSACTIONS_VALIDATION_ERROR to "請確認交易資料後再試一次。",
         StringKey.MANUAL_TRANSACTIONS_ACCOUNT_NOT_FOUND to "此帳戶已不存在，請選擇其他帳戶。",
         StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT to "此儲存請求已用於不同的交易資料。再次嘗試前，請先確認交易是否已建立。",
+        StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS to "查看交易",
+        StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST to "捨棄並編輯",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE to "交易已儲存",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED to "已將篩選條件切換為「全部」，方便你查看。",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN to "由於日期較早，這筆交易位於清單較下方。",
+        StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS to "關閉",
     )
 }

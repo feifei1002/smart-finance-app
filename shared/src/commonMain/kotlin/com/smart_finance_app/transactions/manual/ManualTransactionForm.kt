@@ -67,7 +67,10 @@ fun ManualTransactionForm(
     onCancel: () -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
-    retryPending: Boolean = false
+    retryPending: Boolean = false,
+    requestConflict: Boolean = false,
+    onViewTransactions: () -> Unit = {},
+    onDiscardPending: () -> Unit = {}
 ) {
     val accountIds = accounts.map { it.id }.toSet()
     val validation = validateManualTransaction(draft, accountIds)
@@ -270,24 +273,37 @@ fun ManualTransactionForm(
 
         Spacer(Modifier.height(4.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = onSave,
-                enabled = !isSaving && !noAccounts,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text(
-                        appStringResource(
-                            if (retryPending) StringKey.COMMON_RETRY
-                            else StringKey.MANUAL_TRANSACTIONS_SAVE
+            if (requestConflict) {
+                Button(
+                    onClick = onViewTransactions,
+                    enabled = !isSaving,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) { Text(appStringResource(StringKey.MANUAL_TRANSACTIONS_VIEW_TRANSACTIONS)) }
+                OutlinedButton(
+                    onClick = onDiscardPending,
+                    enabled = !isSaving,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) { Text(appStringResource(StringKey.MANUAL_TRANSACTIONS_DISCARD_REQUEST)) }
+            } else {
+                Button(
+                    onClick = onSave,
+                    enabled = !isSaving && !noAccounts,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
                         )
-                    )
+                    } else {
+                        Text(
+                            appStringResource(
+                                if (retryPending) StringKey.COMMON_RETRY
+                                else StringKey.MANUAL_TRANSACTIONS_SAVE
+                            )
+                        )
+                    }
                 }
             }
             OutlinedButton(
@@ -296,7 +312,6 @@ fun ManualTransactionForm(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) { Text(appStringResource(StringKey.COMMON_CANCEL)) }
         }
-    }
 
     if (showDatePicker) {
         val today = todayIsoDate()
@@ -326,4 +341,4 @@ fun ManualTransactionForm(
             DatePicker(state = pickerState)
         }
     }
-}
+}}

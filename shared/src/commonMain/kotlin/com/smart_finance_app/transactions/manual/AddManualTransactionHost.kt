@@ -32,13 +32,13 @@ import com.smart_finance_app.transactions.ImportedTransactionResponse
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlin.uuid.Uuid
-
 @Composable
 fun AddManualTransactionHost(
     authToken: String,
     transactionsApi: ManualTransactionsApi,
     accountsApi: ManualAccountsApi,
     onTransactionCreated: (ImportedTransactionResponse) -> Unit,
+    onViewTransactions: () -> Unit,
     content: @Composable (openAddTransaction: () -> Unit) -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -53,6 +53,7 @@ fun AddManualTransactionHost(
     var accountId by rememberSaveable { mutableStateOf("") }
     var pendingRequestJson by rememberSaveable { mutableStateOf<String?>(null) }
     var createRequestId by rememberSaveable { mutableStateOf(Uuid.random().toString()) }
+    var requestConflict by rememberSaveable { mutableStateOf(false) }
 
     var saving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<StringKey?>(null) }
@@ -111,6 +112,7 @@ fun AddManualTransactionHost(
             accountId = ""
             submitted = false
             saveError = null
+            requestConflict = false
             createRequestId = Uuid.random().toString()
         }
         showForm = true
@@ -120,8 +122,23 @@ fun AddManualTransactionHost(
         if (!saving) showForm = false
     }
 
-    fun saveTransaction() {
+    fun viewTransactions() {
         if (saving) return
+        showForm = false
+        onViewTransactions()
+    }
+
+    fun discardPendingRequest() {
+        if (saving || !requestConflict) return
+        pendingRequestJson = null
+        requestConflict = false
+        saveError = null
+        submitted = false
+        createRequestId = Uuid.random().toString()
+    }
+
+    fun saveTransaction() {
+        if (saving || requestConflict) return
         submitted = true
         val accountIds = accounts.map { it.id }.toSet()
         val request = pendingRequestJson?.let {
@@ -136,10 +153,12 @@ fun AddManualTransactionHost(
                 when (val result = transactionsApi.createTransaction(authToken, request, requestId)) {
                     is CreateManualTransactionResult.Success -> {
                         pendingRequestJson = null
+                        requestConflict = false
                         showForm = false
                         onTransactionCreated(result.transaction)
                     }
                     CreateManualTransactionResult.Conflict -> {
+                        requestConflict = true
                         saveError = StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT
                     }
                     is CreateManualTransactionResult.Failure -> {
@@ -188,10 +207,14 @@ fun AddManualTransactionHost(
                 showValidationErrors = submitted,
                 isSaving = saving,
                 retryPending = pendingRequestJson != null,
-                serverError = saveError,
+                requestConflict = requestConflict,
+                serverError = saveError
+                    ?: StringKey.MANUAL_TRANSACTIONS_CREATE_CONFLICT.takeIf { requestConflict },
                 compact = compact,
                 onCancel = ::closeForm,
                 onSave = ::saveTransaction,
+                onViewTransactions = ::viewTransactions,
+                onDiscardPending = ::discardPendingRequest,
                 modifier = modifier
             )
         }
