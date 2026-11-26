@@ -14,7 +14,7 @@ import java.util.UUID
 private const val MANUAL_TRANSACTION_COLUMNS = """
     t.id, t.account_id, t.amount, t.description, t.category,
     to_char(t.transaction_timestamp AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS transaction_date,
-    a.name AS account_name, a.currency
+    t.transaction_type, a.name AS account_name, a.currency
 """
 
 internal suspend fun createManualTransaction(
@@ -44,15 +44,16 @@ internal suspend fun createManualTransaction(
                 WHERE user_id = ? AND id = ?
             ),
             inserted AS (
-                INSERT INTO public.manual_transactions (
-                    id, user_id, account_id, amount, description, category,
+                                INSERT INTO public.manual_transactions (
+                    id, user_id, account_id, amount, description, category, transaction_type,
                     transaction_timestamp, create_request_id, create_request_hash
                 )
-                SELECT ?, a.user_id, a.id, ?, ?, ?, ?, ?, ?
+                SELECT ?, a.user_id, a.id, ?, ?, ?, ?, ?, ?, ?
                 FROM account a
                 WHERE true -- disambiguates ON CONFLICT from a JOIN ... ON clause
                 ON CONFLICT (user_id, create_request_id) DO NOTHING
-                RETURNING id, account_id, amount, description, category, transaction_timestamp
+                RETURNING id, account_id, amount, description, category, transaction_type,
+                          transaction_timestamp
             )
             SELECT $MANUAL_TRANSACTION_COLUMNS
             FROM inserted t
@@ -67,6 +68,7 @@ internal suspend fun createManualTransaction(
             statement.setBigDecimal(parameter++, transaction.signedAmount)
             statement.setString(parameter++, transaction.description)
             statement.setString(parameter++, transaction.category)
+            statement.setString(parameter++, transaction.type.databaseValue)
             statement.setTimestamp(
                 parameter++,
                 Timestamp.from(transaction.date.atStartOfDay(ZoneOffset.UTC).toInstant())
@@ -165,5 +167,8 @@ private fun ResultSet.toManualTransactionResponse(): ManualTransactionResponse =
         accountName = getString("account_name"),
         accountId = getObject("account_id", UUID::class.java).toString(),
         amount = getBigDecimal("amount").toDouble(),
+        type = ManualTransactionType.entries.first {
+            it.databaseValue == getString("transaction_type")
+        },
         currency = getString("currency")
     )

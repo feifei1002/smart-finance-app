@@ -7,9 +7,9 @@ import java.time.LocalDate
 import java.util.UUID
 
 @Serializable
-internal enum class ManualTransactionType {
-    @SerialName("income") INCOME,
-    @SerialName("expense") EXPENSE
+internal enum class ManualTransactionType(val databaseValue: String) {
+    @SerialName("income") INCOME("income"),
+    @SerialName("expense") EXPENSE("expense")
 }
 
 @Serializable
@@ -31,6 +31,7 @@ internal data class ManualTransactionResponse(
     val accountName: String,
     val accountId: String,
     val amount: Double,
+    val type: ManualTransactionType,
     val currency: String,
     val merchantLogoUrl: String? = null,
     val transactionStatus: String = "settled"
