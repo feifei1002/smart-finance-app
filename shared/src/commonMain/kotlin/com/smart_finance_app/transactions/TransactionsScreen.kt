@@ -324,7 +324,6 @@ private fun MobileTransactionsList(
                 )
             }
         }
-        onAddTransaction?.let { AddTransactionButton(onClick = it, modifier = Modifier.fillMaxWidth()) }
         if (showSearch) {
             OutlinedTextField(
                 value = searchQuery,
@@ -382,6 +381,7 @@ private fun MobileTransactionsList(
                 }
             )
         }
+        onAddTransaction?.let { AddTransactionButton(onClick = it, modifier = Modifier.fillMaxWidth()) }
 
         syncMessage?.let {
             TransactionsSyncMessage(it)
@@ -606,7 +606,6 @@ private fun DesktopTransactionsTable(
                     }
                 }
             }
-            onAddTransaction?.let { AddTransactionButton(onClick = it) }
         }
 
         Row(
@@ -633,6 +632,7 @@ private fun DesktopTransactionsTable(
             )
         }
 
+        onAddTransaction?.let { AddTransactionButton(onClick = it) }
         syncMessage?.let {
             TransactionsSyncMessage(it)
         }
