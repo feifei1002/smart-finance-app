@@ -37,7 +37,12 @@ internal fun Application.configurePlugins() {
     }
 
     install(RateLimit) {
-        for ((name, limit) in listOf("accounts-read" to 60, "accounts-write" to 10)) {
+        for ((name, limit) in listOf(
+            "accounts-read" to 60,
+            "accounts-write" to 10,
+            "transactions-read" to 120,
+            "transactions-write" to 30
+        )) {
             register(RateLimitName(name)) {
                 rateLimiter(limit = limit, refillPeriod = 60.seconds)
                 requestKey { call ->

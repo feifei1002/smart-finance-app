@@ -18,6 +18,7 @@ import com.smart_finance_app.server.support.supportRoutes
 import com.smart_finance_app.server.preferences.userPreferencesRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.routing.routing
+import com.smart_finance_app.server.manual.manualTransactionRoutes
 
 internal fun Application.configureRoutes() {
     val jwtSecret = System.getenv("JWT_SECRET")
@@ -53,5 +54,7 @@ internal fun Application.configureRoutes() {
         exchangeRatesRoutes()
         supportRoutes()
         healthRoutes()
+        manualAccountRoutes()
+        manualTransactionRoutes()
     }
 }

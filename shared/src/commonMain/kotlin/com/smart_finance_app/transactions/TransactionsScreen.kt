@@ -65,6 +65,9 @@ import kotlin.math.ceil
 import com.smart_finance_app.localiseCategory
 import kotlinx.coroutines.launch
 import smart_finance_app.shared.generated.resources.sync
+import androidx.compose.material3.Button
+import smart_finance_app.shared.generated.resources.add
+import com.smart_finance_app.currency.getCurrencySymbol
 
 data class TransactionUI(
     val id: String,
@@ -109,6 +112,8 @@ fun TransactionsScreen(
     categoryUpdateError: String? = null,
     onUpdateCategory: suspend (String, String) -> Boolean = { _, _ -> false },
     onDismissCategoryUpdateError: () -> Unit = {},
+    onAddTransaction: (() -> Unit)? = null,
+    canEditCategory: Boolean = true,
 ) {
 
     var editingTransaction by remember { mutableStateOf<TransactionUI?>(null) }
@@ -131,10 +136,13 @@ fun TransactionsScreen(
                     selectedFilter = selectedFilter,
                     onFilterSelected = onFilterSelected,
                     onLoadNextPage = onLoadNextPage,
-                    onEditCategory = { transaction: TransactionUI ->
-                        onDismissCategoryUpdateError()
-                        editingTransaction = transaction
-                    }
+                    onAddTransaction = onAddTransaction,
+                    onEditCategory = if (canEditCategory) {
+                        { transaction: TransactionUI ->
+                            onDismissCategoryUpdateError()
+                            editingTransaction = transaction
+                        }
+                    } else null
                 )
             }
             else -> {
@@ -151,9 +159,12 @@ fun TransactionsScreen(
                     selectedFilter = selectedFilter,
                     onFilterSelected = onFilterSelected,
                     onPageSelected = onPageSelected,
-                    onEditCategory = { transaction: TransactionUI ->
-                        editingTransaction = transaction
-                    }
+                    onAddTransaction = onAddTransaction,
+                    onEditCategory = if (canEditCategory) {
+                        { transaction: TransactionUI ->
+                            editingTransaction = transaction
+                        }
+                    } else null
                 )
             }
         }
@@ -193,7 +204,8 @@ private fun MobileTransactionsList(
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
     onLoadNextPage: () -> Unit = {},
-    onEditCategory: (TransactionUI) -> Unit
+    onAddTransaction: (() -> Unit)? = null,
+    onEditCategory: ((TransactionUI) -> Unit)?
 ) {
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -201,8 +213,6 @@ private fun MobileTransactionsList(
 
     val listState = rememberLazyListState()
 
-    // Filter keys are internal constants — keep them as English strings for
-    // logic comparisons. Only the displayed labels are localised.
     val filterAllLabel      = appStringResource(StringKey.TRANSACTIONS_FILTER_ALL)
     val filterIncomeLabel   = appStringResource(StringKey.TRANSACTIONS_FILTER_INCOME)
     val filterExpensesLabel = appStringResource(StringKey.TRANSACTIONS_FILTER_EXPENSES)
@@ -300,7 +310,7 @@ private fun MobileTransactionsList(
                 )
             }
         }
-
+        onAddTransaction?.let { AddTransactionButton(onClick = it, modifier = Modifier.fillMaxWidth()) }
         if (showSearch) {
             OutlinedTextField(
                 value = searchQuery,
@@ -406,8 +416,8 @@ private fun MobileTransactionsList(
 @Composable
 private fun MobileTransactionRow(
     transaction: TransactionUI,
-    onEditCategory: (TransactionUI) -> Unit
-    ) {
+    onEditCategory: ((TransactionUI) -> Unit)?
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -442,16 +452,18 @@ private fun MobileTransactionRow(
             else MaterialTheme.colorScheme.onSurface
         )
 
-        IconButton(
-            onClick = { onEditCategory(transaction) },
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                painter = painterResource(Res.drawable.edit),
-                contentDescription = "Edit transaction category",
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+        if (onEditCategory != null) {
+            IconButton(
+                onClick = { onEditCategory(transaction) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    painter = painterResource(Res.drawable.edit),
+                    contentDescription = "Edit transaction category",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
@@ -470,7 +482,8 @@ private fun DesktopTransactionsTable(
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
     onPageSelected: (Int) -> Unit = {},
-    onEditCategory: (TransactionUI) -> Unit
+    onAddTransaction: (() -> Unit)? = null,
+    onEditCategory: ((TransactionUI) -> Unit)?
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
@@ -560,6 +573,7 @@ private fun DesktopTransactionsTable(
                     }
                 }
             }
+            onAddTransaction?.let { AddTransactionButton(onClick = it) }
         }
 
         Row(
@@ -630,7 +644,7 @@ private fun DesktopTransactionsTable(
                             categoryHeader = categoryHeader,
                             accountHeader = accountHeader,
                             amountHeader = amountHeader,
-                            actionsHeader = actionsHeader
+                            actionsHeader = actionsHeader.takeIf { onEditCategory != null }
                         )
 
                         searchTransactions.forEach { transaction ->
@@ -674,7 +688,7 @@ private fun TransactionTableHeader(
     categoryHeader: String,
     accountHeader: String,
     amountHeader: String,
-    actionsHeader: String
+    actionsHeader: String?
 ) {
     Row(
         modifier = Modifier.width(900.dp).padding(vertical = 8.dp),
@@ -685,7 +699,7 @@ private fun TransactionTableHeader(
         TableCell(categoryHeader, 1.2f, bold = true)
         TableCell(accountHeader,  1.5f, bold = true)
         TableCell(amountHeader,   1f,   bold = true)
-        TableCell(actionsHeader,  0.8f, bold = true, textAlign = TextAlign.Center)
+        actionsHeader?.let { TableCell(it, 0.8f, bold = true, textAlign = TextAlign.Center) }
     }
 }
 
@@ -693,7 +707,7 @@ private fun TransactionTableHeader(
 private fun TransactionTableRow(
     transaction: TransactionUI,
     editLabel: String,
-    onEditCategory: (TransactionUI) -> Unit
+    onEditCategory: ((TransactionUI) -> Unit)?
 ) {
     Row(
         modifier = Modifier.width(900.dp).padding(vertical = 10.dp),
@@ -710,7 +724,7 @@ private fun TransactionTableRow(
             weight = 1f
         )
 
-        Box(
+        if (onEditCategory != null) Box(
             modifier = Modifier.weight(0.8f),
             contentAlignment = Alignment.Center
         ) {
@@ -974,11 +988,22 @@ private fun selectableCategories(transaction: TransactionUI): List<String> {
 
 private fun formatAmount(amount: Double, currency: String): String {
     val sign   = if (amount >= 0) "+" else "-"
-    val symbol = when (currency.uppercase()) {
-        "GBP" -> "£"
-        "USD" -> "$"
-        "EUR" -> "€"
-        else  -> currency.uppercase()
+    val symbol = getCurrencySymbol(currency.uppercase())
+    // Always show two decimals (12.5 -> 12.50) without platform-specific String.format.
+    val cents = kotlin.math.round(kotlin.math.abs(amount) * 100).toLong()
+    val fraction = (cents % 100).toString().padStart(2, '0')
+    return "$sign$symbol${cents / 100}.$fraction"
+}
+
+@Composable
+private fun AddTransactionButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(onClick = onClick, modifier = modifier) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(painterResource(Res.drawable.add), contentDescription = null)
+            Text(appStringResource(StringKey.MANUAL_TRANSACTIONS_ADD))
+        }
     }
-    return "$sign$symbol${kotlin.math.abs(amount)}"
 }
