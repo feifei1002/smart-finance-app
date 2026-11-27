@@ -154,7 +154,7 @@ private fun ResultSet.toManualAccountResponse(): ManualAccountResponse =
             .setScale(2, RoundingMode.UNNECESSARY).toPlainString()
     )
 
-private inline fun <T> withManualAccountConnection(block: (Connection) -> T): T =
+internal inline fun <T> withManualAccountConnection(block: (Connection) -> T): T =
     Database.dataSource.connection.use { connection ->
         try {
             connection.autoCommit = false

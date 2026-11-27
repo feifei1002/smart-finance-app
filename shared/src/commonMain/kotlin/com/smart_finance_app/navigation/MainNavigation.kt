@@ -61,6 +61,10 @@ import com.smart_finance_app.dashboard.DashboardResult
 import com.smart_finance_app.dashboard.formatCurrency
 import com.smart_finance_app.settings.SettingsPanel
 import com.smart_finance_app.settings.SupportApi
+import com.smart_finance_app.transactions.manual.AddManualTransactionHost
+import com.smart_finance_app.transactions.manual.ManualTransactionsApi
+import com.smart_finance_app.transactions.CreatedTransactionNotice
+import com.smart_finance_app.transactions.ImportedTransactionResponse
 
 @Composable
 fun MainNavigation(
@@ -83,7 +87,6 @@ fun MainNavigation(
         val compact = maxWidth < 700.dp
         val destinations = if (compact) mobileNavigations else AppNavigation.entries
 
-        // Resolve nav labels here — inside @Composable scope, outside the lambda
         val lang = LocaleController.currentLanguageCode
         val navLabels = mapOf(
             AppNavigation.Dashboard    to AppStrings.get(lang, StringKey.NAV_DASHBOARD),
@@ -174,6 +177,7 @@ private fun NavigationContent(
     val transactionsApi = remember(apiBaseUrl, httpClient) { TransactionsApi(apiBaseUrl, httpClient) }
     val subscriptionApi = remember(apiBaseUrl, httpClient) { SubscriptionApi(apiBaseUrl, httpClient) }
     val manualAccountsApi = remember(apiBaseUrl, httpClient) { ManualAccountsApi(apiBaseUrl, httpClient) }
+    val manualTransactionsApi = remember(apiBaseUrl, httpClient) { ManualTransactionsApi(apiBaseUrl, httpClient) }
     val profileApi = remember(apiBaseUrl, httpClient) { ProfileApi(apiBaseUrl, httpClient) }
     val supportApi = remember(apiBaseUrl, httpClient) { SupportApi(apiBaseUrl, httpClient) }
     var transactions by remember { mutableStateOf(emptyList<TransactionUI>()) }
@@ -186,6 +190,7 @@ private fun NavigationContent(
     var transactionsTotalCount by remember { mutableStateOf(0) }
     var transactionsLoadedOnce by remember { mutableStateOf(false) }
     var loadingTransactionsPage by remember { mutableStateOf<Int?>(null) }
+    var transactionsLoadVersion by remember { mutableStateOf(0) }
     var transactionsSyncing by remember { mutableStateOf(false) }
     var transactionsSyncError by remember { mutableStateOf<String?>(null) }
     var transactionsSyncMessage by remember { mutableStateOf<String?>(null) }
@@ -196,6 +201,7 @@ private fun NavigationContent(
     var categoryUpdateError by remember { mutableStateOf<String?>(null) }
     var updatingCategoryTransactionId by remember { mutableStateOf<String?>(null) }
     var exchangeRates by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    var createdTransactionNotice by remember { mutableStateOf<CreatedTransactionNotice?>(null) }
 
     suspend fun loadDashboardTransactions() {
         if (!AppFeatures.bankIntegrationEnabled) {
@@ -312,50 +318,42 @@ private fun NavigationContent(
         }
     }
 
-    // Fetch transactions by page
-    suspend fun loadTransactionsPage(page: Int, append: Boolean) {
-        if (!AppFeatures.bankIntegrationEnabled) {
-            transactions = emptyList()
-            transactionsPage = 0
-            transactionsHasMore = false
-            transactionsTotalCount = 0
-            transactionsError = null
-            transactionsLoading = false
-            transactionsLoadedOnce = true
-            loadingTransactionsPage = null
-            return
-        }
+    suspend fun loadTransactionsPage(
+        page: Int,
+        append: Boolean,
+        replaceActive: Boolean = false
+    ) {
+        if (loadingTransactionsPage != null && !replaceActive) return
 
-        if (loadingTransactionsPage != null) return
+        val version = ++transactionsLoadVersion
+        val requestFilter = transactionsFilter
 
         loadingTransactionsPage = page
-
         transactionsLoading = true
         transactionsError = null
 
         try {
-            when (val result =
+            val pageResult = if (AppFeatures.bankIntegrationEnabled) {
                 transactionsApi.getTransactions(
                     token = authToken,
                     page = page,
                     pageSize = transactionsPageSize,
-                    type = transactionsFilter
-                )) {
+                    type = requestFilter
+                )
+            } else {
+                manualTransactionsApi.getTransactions(
+                    token = authToken,
+                    page = page,
+                    pageSize = transactionsPageSize,
+                    type = requestFilter
+                )
+            }
+
+            if (version != transactionsLoadVersion || requestFilter != transactionsFilter) return
+
+            when (val result = pageResult) {
                 is TransactionsResult.Success -> {
-                    val newItems = result.page.transactions.map { transaction ->
-                        TransactionUI(
-                            id = transaction.id,
-                            dateLabel = transaction.date.take(10),
-                            merchantName = transaction.merchantName,
-                            category = transaction.category,
-                            accountName = transaction.accountName,
-                            amount = transaction.amount,
-                            currency = transaction.currency,
-                            merchantLogoUrl = transaction.merchantLogoUrl,
-                            accountId = transaction.accountId,
-                            transactionStatus = transaction.transactionStatus
-                        )
-                    }
+                    val newItems = result.page.transactions.map { it.toTransactionUI() }
 
                     transactions = if (append) {
                         (transactions + newItems).distinctBy { it.id }
@@ -376,9 +374,21 @@ private fun NavigationContent(
                 }
             }
         } finally {
-            transactionsLoading = false
-            loadingTransactionsPage = null
+            if (version == transactionsLoadVersion) {
+                transactionsLoading = false
+                loadingTransactionsPage = null
+            }
         }
+    }
+
+    fun reloadTransactionsFromStart() {
+        transactionsPage = 0
+        transactionsLoadedOnce = false
+        scope.launch { loadTransactionsPage(page = 0, append = false, replaceActive = true) }
+    }
+
+    LaunchedEffect(navigation) {
+        if (navigation != AppNavigation.Transactions) createdTransactionNotice = null
     }
 
     LaunchedEffect(navigation, authToken, transactionsFilter) {
@@ -512,74 +522,111 @@ private fun NavigationContent(
         )
 
         AppNavigation.Transactions -> {
-            TransactionsScreen(
-                transactions  = transactions,
-                isLoading     = transactionsLoading,
-                isSyncing     = transactionsSyncing,
-                errorMessage  = transactionsSyncError ?: transactionsError,
-                syncMessage = transactionsSyncMessage,
-                onSyncTransactions = {
-                    scope.launch {
-                        syncAndReloadTransactions()
-                    }
-                },
-                currentPage   = transactionsPage,
-                totalCount    = transactionsTotalCount,
-                pageSize      = transactionsPageSize,
-                hasMore       = transactionsHasMore,
-                selectedFilter = transactionsFilter,
-                onFilterSelected = { filter ->
-                    transactionsFilter = filter
-                    transactions = emptyList()
-                    transactionsPage = 0
-                    transactionsLoadedOnce = false
-
-                    scope.launch {
-                        loadTransactionsPage(page = 0, append = false)
-                    }
-                },
-                onLoadNextPage = {
-                    if (transactionsHasMore && loadingTransactionsPage == null) {
+            val transactionsScreen: @Composable (onAddTransaction: (() -> Unit)?) -> Unit = { onAddTransaction ->
+                TransactionsScreen(
+                    onAddTransaction = onAddTransaction,
+                    canEditCategory = AppFeatures.bankIntegrationEnabled,
+                    createdTransactionNotice = createdTransactionNotice,
+                    onDismissCreatedTransaction = { createdTransactionNotice = null },
+                    transactions  = transactions,
+                    isLoading     = transactionsLoading,
+                    isSyncing     = transactionsSyncing,
+                    errorMessage  = transactionsSyncError ?: transactionsError,
+                    syncMessage = transactionsSyncMessage,
+                    onSyncTransactions = {
+                        scope.launch {
+                            syncAndReloadTransactions()
+                        }
+                    },
+                    currentPage   = transactionsPage,
+                    totalCount    = transactionsTotalCount,
+                    pageSize      = transactionsPageSize,
+                    hasMore       = transactionsHasMore,
+                    selectedFilter = transactionsFilter,
+                    onFilterSelected = { filter ->
+                        createdTransactionNotice = createdTransactionNotice?.copy(filterChanged = false)
+                        transactionsFilter = filter
+                        transactions = emptyList()
+                        reloadTransactionsFromStart()
+                    },
+                    onLoadNextPage = {
+                        if (transactionsHasMore && loadingTransactionsPage == null) {
+                            scope.launch {
+                                loadTransactionsPage(
+                                    page = transactionsPage + 1,
+                                    append = true
+                                )
+                            }
+                        }
+                    },
+                    onPageSelected = { page ->
                         scope.launch {
                             loadTransactionsPage(
-                                page = transactionsPage + 1,
-                                append = true
+                                page = page,
+                                append = false,
+                                replaceActive = true
                             )
                         }
-                    }
-                },
-                onPageSelected = { page ->
-                    scope.launch {
-                        loadTransactionsPage(
-                            page = page,
-                            append = false
-                        )
-                    }
-                },
-                isUpdatingCategory = updatingCategoryTransactionId != null,
-                categoryUpdateError = categoryUpdateError,
-                onDismissCategoryUpdateError = {
-                    categoryUpdateError = null
-                },
-                onUpdateCategory = { transactionId, category ->
-                    updatingCategoryTransactionId = transactionId
-                    categoryUpdateError = null
+                    },
+                    isUpdatingCategory = updatingCategoryTransactionId != null,
+                    categoryUpdateError = categoryUpdateError,
+                    onDismissCategoryUpdateError = {
+                        categoryUpdateError = null
+                    },
+                    onUpdateCategory = { transactionId, category ->
+                        updatingCategoryTransactionId = transactionId
+                        categoryUpdateError = null
 
-                    val success = when (val result = transactionsApi.updateTransactionCategory(authToken, transactionId, category)) {
-                        is UpdateTransactionCategoryResult.Success -> {
-                            updateTransactionCategoryLocally(transactionId, category)
-                            true
+                        val success = when (val result = transactionsApi.updateTransactionCategory(authToken, transactionId, category)) {
+                            is UpdateTransactionCategoryResult.Success -> {
+                                updateTransactionCategoryLocally(transactionId, category)
+                                true
+                            }
+                            is UpdateTransactionCategoryResult.Failure -> {
+                                categoryUpdateError = result.message
+                                false
+                            }
                         }
-                        is UpdateTransactionCategoryResult.Failure -> {
-                            categoryUpdateError = result.message
-                            false
-                        }
-                    }
 
-                    updatingCategoryTransactionId = null
-                    success
+                        updatingCategoryTransactionId = null
+                        success
+                    }
+                )
+            }
+
+            if (AppFeatures.bankIntegrationEnabled) {
+                transactionsScreen(null)
+            } else {
+                manualAccountStateHolder.SaveableStateProvider("manual-transactions:$userId") {
+                    AddManualTransactionHost(
+                        authToken = authToken,
+                        transactionsApi = manualTransactionsApi,
+                        accountsApi = manualAccountsApi,
+                        onTransactionCreated = { created ->
+                            val transaction = created.toTransactionUI()
+                            val hiddenByFilter = when (transactionsFilter) {
+                                "Income" -> transaction.amount <= 0
+                                "Expenses" -> transaction.amount >= 0
+                                else -> false
+                            }
+                            if (hiddenByFilter) {
+                                transactionsFilter = "All"
+                                transactions = emptyList()
+                            }
+                            createdTransactionNotice = CreatedTransactionNotice(
+                                transaction = transaction,
+                                filterChanged = hiddenByFilter
+                            )
+                            reloadTransactionsFromStart()
+                        },
+                        onViewTransactions = {
+                            reloadTransactionsFromStart()
+                        }
+                    ) { openAddTransaction ->
+                        transactionsScreen(openAddTransaction)
+                    }
                 }
-            )
+            }
         }
 
         AppNavigation.Accounts -> {
@@ -818,8 +865,8 @@ private fun NavigationContent(
                     onDismiss = { showAccountLimitDialog = false },
                     onLearnMore = {
                         showAccountLimitDialog = false
-                        onSetNavigateToPlan(true)   // hoist flag up to MainNavigation
-                        onNavigateToSettings()       // hoist navigation up to MainNavigation
+                        onSetNavigateToPlan(true)
+                        onNavigateToSettings()
                     }
                 )
             }
@@ -953,7 +1000,7 @@ private fun NavigationContent(
 
         AppNavigation.Settings -> {
             LaunchedEffect(Unit) {
-                onSetNavigateToPlan(false)  // reset so normal Settings visits open Main
+                onSetNavigateToPlan(false)
             }
             SettingsScreen(
                 userName           = userName,
@@ -1015,3 +1062,16 @@ private fun AccountLimitDialog(
         }
     )
 }
+
+private fun ImportedTransactionResponse.toTransactionUI() = TransactionUI(
+    id = id,
+    dateLabel = date.take(10),
+    merchantName = merchantName,
+    category = category,
+    accountName = accountName,
+    amount = amount,
+    currency = currency,
+    merchantLogoUrl = merchantLogoUrl,
+    accountId = accountId,
+    transactionStatus = transactionStatus
+)

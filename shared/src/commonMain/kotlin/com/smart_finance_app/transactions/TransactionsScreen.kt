@@ -65,6 +65,10 @@ import kotlin.math.ceil
 import com.smart_finance_app.localiseCategory
 import kotlinx.coroutines.launch
 import smart_finance_app.shared.generated.resources.sync
+import androidx.compose.material3.Button
+import smart_finance_app.shared.generated.resources.add
+import com.smart_finance_app.currency.getCurrencySymbol
+import smart_finance_app.shared.generated.resources.close
 
 data class TransactionUI(
     val id: String,
@@ -77,6 +81,11 @@ data class TransactionUI(
     val merchantLogoUrl: String? = null,
     val accountId: String? = null,
     val transactionStatus: String = "settled"
+)
+
+data class CreatedTransactionNotice(
+    val transaction: TransactionUI,
+    val filterChanged: Boolean
 )
 
 @Composable
@@ -109,6 +118,10 @@ fun TransactionsScreen(
     categoryUpdateError: String? = null,
     onUpdateCategory: suspend (String, String) -> Boolean = { _, _ -> false },
     onDismissCategoryUpdateError: () -> Unit = {},
+    onAddTransaction: (() -> Unit)? = null,
+    canEditCategory: Boolean = true,
+    createdTransactionNotice: CreatedTransactionNotice? = null,
+    onDismissCreatedTransaction: () -> Unit = {},
 ) {
 
     var editingTransaction by remember { mutableStateOf<TransactionUI?>(null) }
@@ -131,10 +144,15 @@ fun TransactionsScreen(
                     selectedFilter = selectedFilter,
                     onFilterSelected = onFilterSelected,
                     onLoadNextPage = onLoadNextPage,
-                    onEditCategory = { transaction: TransactionUI ->
-                        onDismissCategoryUpdateError()
-                        editingTransaction = transaction
-                    }
+                    onAddTransaction = onAddTransaction,
+                    createdTransactionNotice = createdTransactionNotice,
+                    onDismissCreatedTransaction = onDismissCreatedTransaction,
+                    onEditCategory = if (canEditCategory) {
+                        { transaction: TransactionUI ->
+                            onDismissCategoryUpdateError()
+                            editingTransaction = transaction
+                        }
+                    } else null
                 )
             }
             else -> {
@@ -151,9 +169,14 @@ fun TransactionsScreen(
                     selectedFilter = selectedFilter,
                     onFilterSelected = onFilterSelected,
                     onPageSelected = onPageSelected,
-                    onEditCategory = { transaction: TransactionUI ->
-                        editingTransaction = transaction
-                    }
+                    onAddTransaction = onAddTransaction,
+                    createdTransactionNotice = createdTransactionNotice,
+                    onDismissCreatedTransaction = onDismissCreatedTransaction,
+                    onEditCategory = if (canEditCategory) {
+                        { transaction: TransactionUI ->
+                            editingTransaction = transaction
+                        }
+                    } else null
                 )
             }
         }
@@ -193,7 +216,10 @@ private fun MobileTransactionsList(
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
     onLoadNextPage: () -> Unit = {},
-    onEditCategory: (TransactionUI) -> Unit
+    onAddTransaction: (() -> Unit)? = null,
+    createdTransactionNotice: CreatedTransactionNotice? = null,
+    onDismissCreatedTransaction: () -> Unit = {},
+    onEditCategory: ((TransactionUI) -> Unit)?
 ) {
     var showSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -201,8 +227,6 @@ private fun MobileTransactionsList(
 
     val listState = rememberLazyListState()
 
-    // Filter keys are internal constants — keep them as English strings for
-    // logic comparisons. Only the displayed labels are localised.
     val filterAllLabel      = appStringResource(StringKey.TRANSACTIONS_FILTER_ALL)
     val filterIncomeLabel   = appStringResource(StringKey.TRANSACTIONS_FILTER_INCOME)
     val filterExpensesLabel = appStringResource(StringKey.TRANSACTIONS_FILTER_EXPENSES)
@@ -300,7 +324,6 @@ private fun MobileTransactionsList(
                 )
             }
         }
-
         if (showSearch) {
             OutlinedTextField(
                 value = searchQuery,
@@ -358,9 +381,19 @@ private fun MobileTransactionsList(
                 }
             )
         }
+        onAddTransaction?.let { AddTransactionButton(onClick = it, modifier = Modifier.fillMaxWidth()) }
 
         syncMessage?.let {
             TransactionsSyncMessage(it)
+        }
+
+
+        createdTransactionNotice?.let { notice ->
+            CreatedTransactionBanner(
+                notice = notice,
+                visibleInList = isLoading || transactions.any { it.id == notice.transaction.id },
+                onDismiss = onDismissCreatedTransaction
+            )
         }
 
         errorMessage?.let {
@@ -390,7 +423,8 @@ private fun MobileTransactionsList(
                         items(items = dayTransactions, key = { it.id }) { transaction ->
                             MobileTransactionRow(
                                 transaction = transaction,
-                                onEditCategory = onEditCategory
+                                onEditCategory = onEditCategory,
+                                highlighted = transaction.id == createdTransactionNotice?.transaction?.id
                             )
                         }
                     }
@@ -406,10 +440,17 @@ private fun MobileTransactionsList(
 @Composable
 private fun MobileTransactionRow(
     transaction: TransactionUI,
-    onEditCategory: (TransactionUI) -> Unit
-    ) {
+    onEditCategory: ((TransactionUI) -> Unit)?,
+    highlighted: Boolean = false
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (highlighted) MaterialTheme.colorScheme.primaryContainer
+                else Color.Transparent
+            )
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -442,16 +483,18 @@ private fun MobileTransactionRow(
             else MaterialTheme.colorScheme.onSurface
         )
 
-        IconButton(
-            onClick = { onEditCategory(transaction) },
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                painter = painterResource(Res.drawable.edit),
-                contentDescription = "Edit transaction category",
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+        if (onEditCategory != null) {
+            IconButton(
+                onClick = { onEditCategory(transaction) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    painter = painterResource(Res.drawable.edit),
+                    contentDescription = "Edit transaction category",
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
@@ -470,7 +513,10 @@ private fun DesktopTransactionsTable(
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
     onPageSelected: (Int) -> Unit = {},
-    onEditCategory: (TransactionUI) -> Unit
+    onAddTransaction: (() -> Unit)? = null,
+    createdTransactionNotice: CreatedTransactionNotice? = null,
+    onDismissCreatedTransaction: () -> Unit = {},
+    onEditCategory: ((TransactionUI) -> Unit)?
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
@@ -586,8 +632,18 @@ private fun DesktopTransactionsTable(
             )
         }
 
+        onAddTransaction?.let { AddTransactionButton(onClick = it) }
         syncMessage?.let {
             TransactionsSyncMessage(it)
+        }
+
+
+        createdTransactionNotice?.let { notice ->
+            CreatedTransactionBanner(
+                notice = notice,
+                visibleInList = isLoading || transactions.any { it.id == notice.transaction.id },
+                onDismiss = onDismissCreatedTransaction
+            )
         }
 
         errorMessage?.let { AppErrorMessage(it) }
@@ -630,14 +686,15 @@ private fun DesktopTransactionsTable(
                             categoryHeader = categoryHeader,
                             accountHeader = accountHeader,
                             amountHeader = amountHeader,
-                            actionsHeader = actionsHeader
+                            actionsHeader = actionsHeader.takeIf { onEditCategory != null }
                         )
 
                         searchTransactions.forEach { transaction ->
                             TransactionTableRow(
                                 transaction = transaction,
                                 editLabel = editLabel,
-                                onEditCategory = onEditCategory
+                                onEditCategory = onEditCategory,
+                                highlighted = transaction.id == createdTransactionNotice?.transaction?.id
                             )
                         }
                     }
@@ -674,7 +731,7 @@ private fun TransactionTableHeader(
     categoryHeader: String,
     accountHeader: String,
     amountHeader: String,
-    actionsHeader: String
+    actionsHeader: String?
 ) {
     Row(
         modifier = Modifier.width(900.dp).padding(vertical = 8.dp),
@@ -685,7 +742,7 @@ private fun TransactionTableHeader(
         TableCell(categoryHeader, 1.2f, bold = true)
         TableCell(accountHeader,  1.5f, bold = true)
         TableCell(amountHeader,   1f,   bold = true)
-        TableCell(actionsHeader,  0.8f, bold = true, textAlign = TextAlign.Center)
+        actionsHeader?.let { TableCell(it, 0.8f, bold = true, textAlign = TextAlign.Center) }
     }
 }
 
@@ -693,10 +750,17 @@ private fun TransactionTableHeader(
 private fun TransactionTableRow(
     transaction: TransactionUI,
     editLabel: String,
-    onEditCategory: (TransactionUI) -> Unit
+    onEditCategory: ((TransactionUI) -> Unit)?,
+    highlighted: Boolean = false
 ) {
     Row(
-        modifier = Modifier.width(900.dp).padding(vertical = 10.dp),
+        modifier = Modifier.width(900.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                if (highlighted) MaterialTheme.colorScheme.primaryContainer
+                else Color.Transparent
+            )
+            .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -710,7 +774,7 @@ private fun TransactionTableRow(
             weight = 1f
         )
 
-        Box(
+        if (onEditCategory != null) Box(
             modifier = Modifier.weight(0.8f),
             contentAlignment = Alignment.Center
         ) {
@@ -974,11 +1038,81 @@ private fun selectableCategories(transaction: TransactionUI): List<String> {
 
 private fun formatAmount(amount: Double, currency: String): String {
     val sign   = if (amount >= 0) "+" else "-"
-    val symbol = when (currency.uppercase()) {
-        "GBP" -> "£"
-        "USD" -> "$"
-        "EUR" -> "€"
-        else  -> currency.uppercase()
+    val symbol = getCurrencySymbol(currency.uppercase())
+    // Always show two decimals (12.5 -> 12.50) without platform-specific String.format.
+    val cents = kotlin.math.round(kotlin.math.abs(amount) * 100).toLong()
+    val fraction = (cents % 100).toString().padStart(2, '0')
+    return "$sign$symbol${cents / 100}.$fraction"
+}
+
+@Composable
+private fun AddTransactionButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(onClick = onClick, modifier = modifier) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(painterResource(Res.drawable.add), contentDescription = null)
+            Text(appStringResource(StringKey.MANUAL_TRANSACTIONS_ADD))
+        }
     }
-    return "$sign$symbol${kotlin.math.abs(amount)}"
+}
+
+@Composable
+private fun CreatedTransactionBanner(
+    notice: CreatedTransactionNotice,
+    visibleInList: Boolean,
+    onDismiss: () -> Unit
+) {
+    val transaction = notice.transaction
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = appStringResource(StringKey.MANUAL_TRANSACTIONS_SAVED_TITLE),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "${transaction.merchantName} • " +
+                            formatAmount(transaction.amount, transaction.currency),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = "${transaction.dateLabel} • ${localiseCategory(transaction.category)}" +
+                            " • ${transaction.accountName}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (notice.filterChanged) {
+                    Text(
+                        text = appStringResource(StringKey.MANUAL_TRANSACTIONS_SAVED_FILTER_CHANGED),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                if (!visibleInList) {
+                    Text(
+                        text = appStringResource(StringKey.MANUAL_TRANSACTIONS_SAVED_FURTHER_DOWN),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    painter = painterResource(Res.drawable.close),
+                    contentDescription = appStringResource(StringKey.MANUAL_TRANSACTIONS_SAVED_DISMISS)
+                )
+            }
+        }
+    }
 }
