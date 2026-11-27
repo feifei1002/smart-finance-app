@@ -190,6 +190,7 @@ private fun NavigationContent(
     var transactionsTotalCount by remember { mutableStateOf(0) }
     var transactionsLoadedOnce by remember { mutableStateOf(false) }
     var loadingTransactionsPage by remember { mutableStateOf<Int?>(null) }
+    var transactionsLoadVersion by remember { mutableStateOf(0) }
     var transactionsSyncing by remember { mutableStateOf(false) }
     var transactionsSyncError by remember { mutableStateOf<String?>(null) }
     var transactionsSyncMessage by remember { mutableStateOf<String?>(null) }
@@ -317,13 +318,17 @@ private fun NavigationContent(
         }
     }
 
-    suspend fun loadTransactionsPage(page: Int, append: Boolean) {
+    suspend fun loadTransactionsPage(
+        page: Int,
+        append: Boolean,
+        replaceActive: Boolean = false
+    ) {
+        if (loadingTransactionsPage != null && !replaceActive) return
 
-
-        if (loadingTransactionsPage != null) return
+        val version = ++transactionsLoadVersion
+        val requestFilter = transactionsFilter
 
         loadingTransactionsPage = page
-
         transactionsLoading = true
         transactionsError = null
 
@@ -333,32 +338,22 @@ private fun NavigationContent(
                     token = authToken,
                     page = page,
                     pageSize = transactionsPageSize,
-                    type = transactionsFilter
+                    type = requestFilter
                 )
             } else {
                 manualTransactionsApi.getTransactions(
                     token = authToken,
                     page = page,
                     pageSize = transactionsPageSize,
-                    type = transactionsFilter
+                    type = requestFilter
                 )
             }
+
+            if (version != transactionsLoadVersion || requestFilter != transactionsFilter) return
+
             when (val result = pageResult) {
                 is TransactionsResult.Success -> {
-                    val newItems = result.page.transactions.map { transaction ->
-                        TransactionUI(
-                            id = transaction.id,
-                            dateLabel = transaction.date.take(10),
-                            merchantName = transaction.merchantName,
-                            category = transaction.category,
-                            accountName = transaction.accountName,
-                            amount = transaction.amount,
-                            currency = transaction.currency,
-                            merchantLogoUrl = transaction.merchantLogoUrl,
-                            accountId = transaction.accountId,
-                            transactionStatus = transaction.transactionStatus
-                        )
-                    }
+                    val newItems = result.page.transactions.map { it.toTransactionUI() }
 
                     transactions = if (append) {
                         (transactions + newItems).distinctBy { it.id }
@@ -379,9 +374,17 @@ private fun NavigationContent(
                 }
             }
         } finally {
-            transactionsLoading = false
-            loadingTransactionsPage = null
+            if (version == transactionsLoadVersion) {
+                transactionsLoading = false
+                loadingTransactionsPage = null
+            }
         }
+    }
+
+    fun reloadTransactionsFromStart() {
+        transactionsPage = 0
+        transactionsLoadedOnce = false
+        scope.launch { loadTransactionsPage(page = 0, append = false, replaceActive = true) }
     }
 
     LaunchedEffect(navigation) {
@@ -544,12 +547,7 @@ private fun NavigationContent(
                         createdTransactionNotice = createdTransactionNotice?.copy(filterChanged = false)
                         transactionsFilter = filter
                         transactions = emptyList()
-                        transactionsPage = 0
-                        transactionsLoadedOnce = false
-
-                        scope.launch {
-                            loadTransactionsPage(page = 0, append = false)
-                        }
+                        reloadTransactionsFromStart()
                     },
                     onLoadNextPage = {
                         if (transactionsHasMore && loadingTransactionsPage == null) {
@@ -565,7 +563,8 @@ private fun NavigationContent(
                         scope.launch {
                             loadTransactionsPage(
                                 page = page,
-                                append = false
+                                append = false,
+                                replaceActive = true
                             )
                         }
                     },
@@ -618,13 +617,10 @@ private fun NavigationContent(
                                 transaction = transaction,
                                 filterChanged = hiddenByFilter
                             )
-                            transactionsPage = 0
-                            transactionsLoadedOnce = false
-                            scope.launch { loadTransactionsPage(page = 0, append = false) }
+                            reloadTransactionsFromStart()
                         },
                         onViewTransactions = {
-                            transactionsLoadedOnce = false
-                            scope.launch { loadTransactionsPage(page = 0, append = false) }
+                            reloadTransactionsFromStart()
                         }
                     ) { openAddTransaction ->
                         transactionsScreen(openAddTransaction)
