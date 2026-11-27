@@ -149,7 +149,8 @@ fun ManualTransactionForm(
             onExpandedChange = { if (canEdit) categoryExpanded = it }
         ) {
             OutlinedTextField(
-                value = draft.category.takeIf { it.isNotEmpty() }?.let { localiseCategory(it) } ?: "",
+                value = draft.category.takeIf { it.isNotEmpty() }?.let { localiseCategory(it) }
+                    ?: "",
                 onValueChange = {},
                 readOnly = true,
                 enabled = canEdit,
@@ -312,6 +313,7 @@ fun ManualTransactionForm(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) { Text(appStringResource(StringKey.COMMON_CANCEL)) }
         }
+    }
 
     if (showDatePicker) {
         val today = todayIsoDate()
@@ -341,4 +343,4 @@ fun ManualTransactionForm(
             DatePicker(state = pickerState)
         }
     }
-}}
+}

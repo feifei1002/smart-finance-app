@@ -54,7 +54,6 @@ internal fun Application.configureRoutes() {
         exchangeRatesRoutes()
         supportRoutes()
         healthRoutes()
-        manualAccountRoutes()
         manualTransactionRoutes()
     }
 }
